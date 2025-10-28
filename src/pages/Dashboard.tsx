@@ -91,15 +91,29 @@ export default function Dashboard() {
   const parseEmailField = (field: any): string => {
     if (!field) return '';
     if (typeof field === 'string') return field;
+    if (Array.isArray(field) && field.length > 0) {
+      const first = field[0];
+      if (typeof first === 'string') return first;
+      if (first?.value) return first.value;
+      if (first?.address) return first.address;
+      if (first?.email) return first.email;
+    }
     if (field.value) return field.value;
     if (field.address) return field.address;
+    if (field.email) return field.email;
     return '';
   };
 
   const parseCCEmails = (field: any): string[] => {
     if (!field) return [];
     if (Array.isArray(field)) {
-      return field.map(parseEmailField).filter(Boolean);
+      return field.map((item: any) => {
+        if (typeof item === 'string') return item;
+        if (item?.value) return item.value;
+        if (item?.address) return item.address;
+        if (item?.email) return item.email;
+        return '';
+      }).filter(Boolean);
     }
     if (typeof field === 'string') {
       return field.split(',').map(s => s.trim()).filter(Boolean);
@@ -133,9 +147,9 @@ export default function Dashboard() {
           (typeof path === 'string' ? String(path).split('/').pop() : undefined) ||
           'Untitled Document';
         
-        const from_email = parseEmailField(row?.from ?? row?.From ?? row?.from_email);
-        const cc_emails = parseCCEmails(row?.cc ?? row?.CC ?? row?.cc_emails);
-        const subject = row?.subject ?? row?.Subject ?? '';
+        const from_email = parseEmailField(row?.from ?? row?.From ?? row?.from_email ?? row?.sender);
+        const cc_emails = parseCCEmails(row?.cc ?? row?.CC ?? row?.cc_emails ?? row?.recipients);
+        const subject = (row?.subject ?? row?.Subject ?? row?.title ?? '').replace(/<[^>]*>/g, '').trim();
         const bucket_name = row?.['Bucket Name'] ?? row?.bucket_name ?? '';
         const mail_content = row?.mail_content ?? row?.['Mail Content'] ?? row?.html ?? row?.body ?? '';
 
