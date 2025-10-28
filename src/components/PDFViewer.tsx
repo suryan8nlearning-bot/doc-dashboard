@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { ZoomIn, ZoomOut } from 'lucide-react';
+import { ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from './ui/button';
 import type { BoundingBox } from '@/lib/supabase';
@@ -47,37 +47,76 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad }: PDFViewerProps) {
 
   const handleZoomIn = () => setZoom((prev) => Math.min(prev + 0.25, 3));
   const handleZoomOut = () => setZoom((prev) => Math.max(prev - 0.25, 0.5));
+  const handleResetZoom = () => {
+    setZoom(1);
+    if (containerRef.current) {
+      containerRef.current.scrollTo({ left: 0, top: 0, behavior: 'smooth' });
+    }
+  };
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === '+' || e.key === '=') {
+        e.preventDefault();
+        setZoom((prev) => Math.min(prev + 0.25, 3));
+      }
+      if (e.key === '-' || e.key === '_') {
+        e.preventDefault();
+        setZoom((prev) => Math.max(prev - 0.25, 0.5));
+      }
+      if (e.key === '0') {
+        e.preventDefault();
+        handleResetZoom();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   return (
-    <div className="relative h-full flex flex-col bg-muted/30">
-      <div className="flex items-center justify-between p-4 border-b bg-background">
-        <h3 className="font-semibold text-sm">Document Preview</h3>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={handleZoomOut}
-            disabled={zoom <= 0.5}
-          >
-            <ZoomOut className="h-4 w-4" />
-          </Button>
-          <span className="flex items-center px-3 text-sm font-medium">
-            {Math.round(zoom * 100)}%
-          </span>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={handleZoomIn}
-            disabled={zoom >= 3}
-          >
-            <ZoomIn className="h-4 w-4" />
-          </Button>
-        </div>
+    <div className="relative h-full bg-muted/30">
+      <div className="absolute top-4 right-4 z-10 flex items-center gap-1 rounded-full border bg-background/80 backdrop-blur px-2 py-1">
+        <Button
+          variant="outline"
+          size="icon"
+          className="rounded-full"
+          onClick={handleZoomOut}
+          disabled={zoom <= 0.5}
+          aria-label="Zoom out"
+          title="Zoom out (-)"
+        >
+          <ZoomOut className="h-4 w-4" />
+        </Button>
+        <span className="px-3 text-sm font-medium tabular-nums">
+          {Math.round(zoom * 100)}%
+        </span>
+        <Button
+          variant="outline"
+          size="icon"
+          className="rounded-full"
+          onClick={handleZoomIn}
+          disabled={zoom >= 3}
+          aria-label="Zoom in"
+          title="Zoom in (+)"
+        >
+          <ZoomIn className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          className="rounded-full ml-1"
+          onClick={handleResetZoom}
+          disabled={zoom === 1}
+          aria-label="Reset zoom"
+          title="Reset zoom (0)"
+        >
+          <RotateCcw className="h-4 w-4" />
+        </Button>
       </div>
 
       <div
         ref={containerRef}
-        className="flex-1 overflow-auto relative"
+        className="h-full overflow-auto relative"
         style={{ scrollBehavior: 'smooth' }}
       >
         <div
