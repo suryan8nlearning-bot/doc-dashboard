@@ -46,7 +46,14 @@ const getBaseDims = () => {
   const base = baseViewportRef.current;
   if (base?.width && base?.height) return base;
   const canvas = canvasRef.current;
-  return { width: canvas?.width ?? 0, height: canvas?.height ?? 0 };
+  if (canvas?.width && canvas?.height) {
+    return { width: canvas.width, height: canvas.height };
+  }
+  // Fallback to tracked canvasSize state if canvasRef isn't ready yet
+  if (canvasSize.width && canvasSize.height) {
+    return { width: canvasSize.width, height: canvasSize.height };
+  }
+  return { width: 0, height: 0 };
 };
 
 const toPxBox = (box: WideBox): WideBox => {
@@ -599,34 +606,37 @@ const toPxBox = (box: WideBox): WideBox => {
           <canvas
             ref={canvasRef}
             className="block mx-auto"
+            // Ensure the canvas stays under overlays
+            style={{ position: "relative", zIndex: 0 }}
           />
 
           {/* Subtle overlays for all boxes (normalized to base pixels, then scaled by zoom) */}
-          {allBoxes.map((box, idx) => {
-            const b = toPxBox(box as WideBox);
-            return (
-              <motion.div
-                key={`all-${idx}`}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 0.35 }}
-                exit={{ opacity: 0 }}
-                className="absolute rounded-sm pointer-events-none z-10"
-                style={{
-                  left: `${b.x * zoom}px`,
-                  top: `${b.y * zoom}px`,
-                  width: `${b.width * zoom}px`,
-                  height: `${b.height * zoom}px`,
-                  boxShadow: '0 0 0 1px rgba(59,130,246,0.45)',
-                  background: 'linear-gradient(135deg, rgba(59,130,246,0.18), transparent)',
-                }}
-              />
-            );
-          })}
+          {canvasSize.width > 0 &&
+            allBoxes.map((box, idx) => {
+              const b = toPxBox(box as WideBox);
+              return (
+                <motion.div
+                  key={`all-${idx}`}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 0.35 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute rounded-sm pointer-events-none z-10"
+                  style={{
+                    left: `${b.x * zoom}px`,
+                    top: `${b.y * zoom}px`,
+                    width: `${b.width * zoom}px`,
+                    height: `${b.height * zoom}px`,
+                    boxShadow: "0 0 0 1px rgba(59,130,246,0.5)",
+                    background: "linear-gradient(135deg, rgba(59,130,246,0.18), transparent)",
+                  }}
+                />
+              );
+            })}
 
           {/* Hover highlight overlay (normalized to base pixels) */}
           {highlightBox && (() => {
             const hb = toPxBox(highlightBox as WideBox);
-            const pad = 2; // expand by 2px around for better visibility
+            const pad = 6; // make highlight more prominent
             return (
               <motion.div
                 initial={{ opacity: 0, scale: 0.98 }}
@@ -638,9 +648,11 @@ const toPxBox = (box: WideBox): WideBox => {
                   top: `${(hb.y - pad) * zoom}px`,
                   width: `${(hb.width + pad * 2) * zoom}px`,
                   height: `${(hb.height + pad * 2) * zoom}px`,
-                  boxShadow: '0 0 0 3px rgba(59,130,246,0.9)',
-                  background: 'radial-gradient(60% 60% at 50% 50%, rgba(59,130,246,0.3), transparent)',
-                  filter: 'drop-shadow(0 8px 24px rgba(0,0,0,0.25))',
+                  // Stronger, clearer highlight above the PDF
+                  boxShadow: "0 0 0 3px rgba(59,130,246,1), 0 0 0 6px rgba(59,130,246,0.35)",
+                  background: "radial-gradient(60% 60% at 50% 50%, rgba(59,130,246,0.25), transparent)",
+                  filter: "drop-shadow(0 8px 24px rgba(0,0,0,0.28))",
+                  willChange: "transform, opacity",
                 }}
               />
             );
