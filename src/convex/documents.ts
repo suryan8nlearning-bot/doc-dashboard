@@ -13,6 +13,8 @@ export const fetchPdfProxy = action({
   },
   handler: async (ctx, args) => {
     try {
+      console.log('Backend: Fetching PDF from:', args.pdfUrl);
+      
       const response = await fetch(args.pdfUrl, {
         method: 'GET',
         headers: {
@@ -28,6 +30,8 @@ export const fetchPdfProxy = action({
       const buffer = Buffer.from(arrayBuffer);
       const base64 = buffer.toString('base64');
 
+      console.log('Backend: PDF fetched successfully, size:', buffer.length, 'bytes');
+
       return {
         success: true,
         data: base64,
@@ -35,7 +39,7 @@ export const fetchPdfProxy = action({
         size: buffer.length,
       };
     } catch (error) {
-      console.error('PDF proxy error:', error);
+      console.error('Backend: PDF proxy error:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
