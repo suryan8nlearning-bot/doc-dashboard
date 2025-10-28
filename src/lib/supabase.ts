@@ -10,9 +10,15 @@ const supabaseAnonKey =
 
 export const hasSupabaseEnv = Boolean(supabaseUrl && supabaseAnonKey);
 
+console.log('Supabase Config:', {
+  hasSupabaseEnv,
+  supabaseUrl: supabaseUrl ? 'configured' : 'missing',
+  supabaseAnonKey: supabaseAnonKey ? 'configured' : 'missing',
+});
+
 if (!hasSupabaseEnv) {
   console.warn(
-    'Supabase is not configured. Please set SUPABASE_URL and SUPABASE_ANON_KEY (or VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY).'
+    'Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in the API keys tab.'
   );
 }
 

@@ -3,6 +3,7 @@ import { PDFViewer } from '@/components/PDFViewer';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase, type BoundingBox, hasSupabaseEnv, publicUrlForPath } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 import { motion } from 'framer-motion';
 import { FileText, Loader2, LogOut } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -39,11 +40,12 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (isAuthenticated) {
+      console.log('hasSupabaseEnv:', hasSupabaseEnv);
       if (hasSupabaseEnv) {
         fetchDocuments();
       } else {
         setIsLoadingDocs(false);
-        toast.error('Supabase is not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY (or VITE_*) in Integrations.');
+        toast.error('Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in API keys tab.');
       }
     }
   }, [isAuthenticated]);
