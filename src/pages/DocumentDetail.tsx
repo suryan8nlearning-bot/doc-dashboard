@@ -213,7 +213,7 @@ export default function DocumentDetail() {
       <div className="flex-1 flex overflow-hidden">
         {/* PDF Viewer */}
         <div className="flex-1 overflow-hidden">
-          <PDFViewer pdfUrl={document.pdf_url} highlightBox={highlightBox} />
+          <PDFViewer pdfUrl={document.pdf_url} highlightBox={highlightBox} documentData={document.document_data} />
         </div>
 
         {/* Document Fields */}
