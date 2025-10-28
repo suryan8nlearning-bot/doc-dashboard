@@ -38,13 +38,13 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
     boundingBox?: BoundingBox[];
   }) => (
     <motion.div
-      whileHover={{ backgroundColor: 'rgba(59, 130, 246, 0.08)' }}
-      className="py-3 px-4 cursor-pointer rounded-lg transition-all border border-transparent hover:border-primary/20 hover:shadow-sm"
+      whileHover={{ scale: 1.01 }}
+      className="py-3 px-4 cursor-pointer rounded-lg transition-all border bg-card/50 hover:bg-primary/5 hover:border-primary/30 hover:shadow-md"
       onMouseEnter={() => boundingBox?.[0] && onFieldHover(boundingBox[0])}
       onMouseLeave={() => onFieldHover(null)}
     >
       <div className="text-xs font-medium text-muted-foreground mb-1.5">{label}</div>
-      <div className="text-sm font-medium text-foreground">{value || '—'}</div>
+      <div className="text-sm font-medium text-foreground truncate">{value || '—'}</div>
     </motion.div>
   );
 
@@ -76,7 +76,7 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="space-y-1 pt-2"
+              className="grid grid-cols-2 gap-2 pt-2"
             >
               <FieldItem
                 label="Document Title"
@@ -105,7 +105,7 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="space-y-1 pt-2"
+              className="grid grid-cols-2 gap-2 pt-2"
             >
               <FieldItem
                 label="Vendor Name"
@@ -139,7 +139,7 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="space-y-1 pt-2"
+              className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-2"
             >
               <FieldItem
                 label="Customer Name"
@@ -178,13 +178,13 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="space-y-3 pt-2"
+              className="grid grid-cols-2 gap-3 pt-2"
             >
               {page.items.map((item, index) => (
                 <motion.div
                   key={index}
-                  whileHover={{ backgroundColor: 'rgba(59, 130, 246, 0.08)' }}
-                  className="p-4 rounded-lg border border-border hover:border-primary/30 cursor-pointer transition-all hover:shadow-sm"
+                  whileHover={{ scale: 1.01 }}
+                  className="p-4 rounded-lg border border-border hover:border-primary/30 cursor-pointer transition-all hover:shadow-md bg-card/50"
                   onMouseEnter={() => item.bounding_box[0] && onFieldHover(item.bounding_box[0])}
                   onMouseLeave={() => onFieldHover(null)}
                 >
@@ -192,7 +192,7 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <div className="text-xs text-muted-foreground mb-1">Description</div>
-                      <div className="text-sm font-medium">{item.description || '—'}</div>
+                      <div className="text-sm font-medium truncate">{item.description || '—'}</div>
                     </div>
                     <div>
                       <div className="text-xs text-muted-foreground mb-1">Quantity</div>
@@ -222,10 +222,10 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="space-y-1 pt-2"
+                className="grid grid-cols-2 gap-2 pt-2"
               >
                 {page.other_information.map((info, index) => (
-                  <div key={index}>
+                  <div key={index} className="space-y-2">
                     {info.additional_notes && (
                       <FieldItem
                         label="Additional Notes"

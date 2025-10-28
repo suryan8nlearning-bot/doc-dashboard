@@ -11,7 +11,7 @@ import { useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
 
 export default function DocumentDetail() {
-  const { isLoading: authLoading, isAuthenticated } = useAuth();
+  const { isLoading: authLoading, isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
   const { documentId } = useParams<{ documentId: string }>();
 
@@ -24,7 +24,8 @@ export default function DocumentDetail() {
     document_data?: any;
   };
 
-  const [document, setDocument] = useState<DocumentData | null>(null);
+  // Rename to avoid shadowing the global window.document
+  const [doc, setDoc] = useState<DocumentData | null>(null);
   const [highlightBox, setHighlightBox] = useState<BoundingBox | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -33,6 +34,18 @@ export default function DocumentDetail() {
       navigate('/auth');
     }
   }, [authLoading, isAuthenticated, navigate]);
+
+  // Apply theme from user profile on this page
+  useEffect(() => {
+    if (!user?.theme) return;
+    const root = document.documentElement;
+    root.classList.remove('dark', 'glass-theme');
+    if (user.theme === 'glass') {
+      root.classList.add('glass-theme');
+    } else if (user.theme === 'dark') {
+      root.classList.add('dark');
+    }
+  }, [user?.theme]);
 
   useEffect(() => {
     if (isAuthenticated && documentId) {
@@ -142,7 +155,7 @@ export default function DocumentDetail() {
         (typeof path === 'string' ? String(path).split('/').pop() : undefined) ||
         'Untitled Document';
 
-      setDocument({
+      setDoc({
         id: String(data.id),
         created_at: String(created_at),
         pdf_url,
@@ -167,7 +180,7 @@ export default function DocumentDetail() {
     );
   }
 
-  if (!isAuthenticated || !document) {
+  if (!isAuthenticated || !doc) {
     return null;
   }
 
@@ -188,16 +201,16 @@ export default function DocumentDetail() {
             <div className="flex items-center gap-3">
               <FileText className="h-5 w-5 text-muted-foreground" />
               <div>
-                <h1 className="text-lg font-semibold">{document.title}</h1>
-                {document.status && (
-                  <span className="text-xs text-muted-foreground">{document.status}</span>
+                <h1 className="text-lg font-semibold">{doc.title}</h1>
+                {doc.status && (
+                  <span className="text-xs text-muted-foreground">{doc.status}</span>
                 )}
               </div>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <a 
-              href={document.pdf_url} 
+              href={doc.pdf_url} 
               target="_blank" 
               rel="noopener noreferrer"
               className="text-xs text-primary hover:underline flex items-center gap-1"
@@ -213,15 +226,15 @@ export default function DocumentDetail() {
       <div className="flex-1 flex overflow-hidden">
         {/* PDF Viewer */}
         <div className="flex-1 overflow-hidden">
-          <PDFViewer pdfUrl={document.pdf_url} highlightBox={highlightBox} documentData={document.document_data} />
+          <PDFViewer pdfUrl={doc.pdf_url} highlightBox={highlightBox} documentData={doc.document_data} />
         </div>
 
         {/* Document Fields */}
-        <aside className="w-96 border-l bg-background overflow-hidden">
-          {document.document_data &&
-          document.document_data?.document?.pages?.length > 0 ? (
+        <aside className="w-[420px] border-l bg-background overflow-hidden">
+          {doc.document_data &&
+          doc.document_data?.document?.pages?.length > 0 ? (
             <DocumentFields
-              documentData={document.document_data}
+              documentData={doc.document_data}
               onFieldHover={setHighlightBox}
             />
           ) : (

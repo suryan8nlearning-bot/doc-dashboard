@@ -28,12 +28,18 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad, documentData }: PDFVie
   const [pdfArrayBuffer, setPdfArrayBuffer] = useState<ArrayBuffer | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [canvasSize, setCanvasSize] = useState<{ width: number; height: number }>({ width: 0, height: 0 }); // add canvas size to sync overlays
+  const didFitToWidthRef = useRef(false); // ensure we only fit once
 
   const fetchPdfProxy = useAction(api.documents.fetchPdfProxy);
 
   // Compute candidate boxes from documentData and simple merging/focus logic
-  const { mergedBoxes, focusBox } = useMemo(() => {
-    const result = { mergedBoxes: [] as BoundingBox[], focusBox: null as BoundingBox | null };
+  const { mergedBoxes, focusBox, allBoxes } = useMemo(() => {
+    const result = { 
+      mergedBoxes: [] as BoundingBox[], 
+      focusBox: null as BoundingBox | null,
+      allBoxes: [] as BoundingBox[],
+    };
     if (!documentData?.document?.pages?.length) return result;
 
     const page = documentData.document.pages[0];
@@ -48,14 +54,10 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad, documentData }: PDFVie
     pushField('Document Title', page?.metadata?.document_title);
     pushField('Date', page?.metadata?.date);
     pushField('Purchase Order No', page?.metadata?.purchase_order_no);
-
-    // Vendor
     pushField('Vendor Name', page?.parties?.vendor_information?.vendor_name);
     pushField('Vendor Address', page?.parties?.vendor_information?.address);
     pushField('Vendor Contact', page?.parties?.vendor_information?.contact_no);
     pushField('Sales Person', page?.parties?.vendor_information?.sales_person);
-
-    // Customer
     pushField('Customer Name', page?.customerparties?.customer_information?.customer_name);
     pushField('Customer Address', page?.customerparties?.customer_information?.address);
     pushField('Customer Contact', page?.customerparties?.customer_information?.contact_no);
@@ -71,11 +73,30 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad, documentData }: PDFVie
       });
     }
 
+    // NEW: Recursively collect any bounding_box arrays anywhere on the page object
+    const collectBoxes = (node: any) => {
+      if (!node) return;
+      if (Array.isArray(node)) {
+        node.forEach(collectBoxes);
+        return;
+      }
+      if (typeof node === 'object') {
+        if (Array.isArray(node.bounding_box)) {
+          node.bounding_box.forEach((b: any) => {
+            if (b && typeof b.x === 'number' && typeof b.y === 'number') {
+              boxes.push({ x: b.x, y: b.y, width: b.width, height: b.height });
+            }
+          });
+        }
+        Object.values(node).forEach(collectBoxes);
+      }
+    };
+    collectBoxes(page);
+
     // Simple merge for overlapping or close boxes (10px threshold)
     const threshold = 10;
     const merged: BoundingBox[] = [];
     const used = new Array(boxes.length).fill(false);
-
     const intersectsOrClose = (a: BoundingBox, b: BoundingBox) => {
       const ax2 = a.x + a.width, ay2 = a.y + a.height;
       const bx2 = b.x + b.width, by2 = b.y + b.height;
@@ -87,7 +108,6 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad, documentData }: PDFVie
                     Math.abs(ay2 - by2) <= threshold;
       return close;
     };
-
     for (let i = 0; i < boxes.length; i++) {
       if (used[i]) continue;
       let cur = { ...boxes[i] };
@@ -119,6 +139,7 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad, documentData }: PDFVie
 
     result.mergedBoxes = merged;
     result.focusBox = keyBox ? { x: keyBox.x, y: keyBox.y, width: keyBox.width, height: keyBox.height } : null;
+    result.allBoxes = boxes.map(({ x, y, width, height }) => ({ x, y, width, height }));
     return result;
   }, [documentData]);
 
@@ -190,6 +211,9 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad, documentData }: PDFVie
         canvas.width = Math.floor(viewport.width);
         canvas.height = Math.floor(viewport.height);
 
+        // sync overlay container to canvas size
+        setCanvasSize({ width: canvas.width, height: canvas.height });
+
         await (page as any).render({ canvasContext: ctx, viewport } as any).promise;
 
         if (!cancelled) {
@@ -208,6 +232,25 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad, documentData }: PDFVie
     };
   }, [pdfArrayBuffer, zoom]);
 
+  // NEW: Fit PDF to container width on first load
+  useEffect(() => {
+    if (!pdfArrayBuffer || !containerRef.current || didFitToWidthRef.current) return;
+    (async () => {
+      try {
+        const loadingTask = pdfjsLib.getDocument({ data: pdfArrayBuffer });
+        const pdf = await loadingTask.promise;
+        const page = await pdf.getPage(1);
+        const baseViewport = page.getViewport({ scale: 1 });
+        const containerWidth = containerRef.current!.clientWidth - 24; // small padding
+        const targetScale = Math.max(0.5, Math.min(3, containerWidth / baseViewport.width));
+        setZoom(targetScale);
+        didFitToWidthRef.current = true;
+      } catch (e) {
+        console.warn('PDFViewer: Fit-to-width failed', e);
+      }
+    })();
+  }, [pdfArrayBuffer]);
+
   // Auto-focus/zoom into key region once after load if focusBox exists
   const didAutoFocusRef = useRef(false);
   useEffect(() => {
@@ -215,19 +258,19 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad, documentData }: PDFVie
     if (!focusBox || !containerRef.current || !pdfArrayBuffer) return;
 
     didAutoFocusRef.current = true;
-    // Smoothly zoom in and center the focus box
-    const targetZoom = Math.min(3, Math.max(1.5, zoom));
-    // Set zoom first, then scroll into view slightly after
-    setZoom(targetZoom);
+    const container = containerRef.current;
+    // Compute zoom so focusBox is ~60% of viewport width
+    const desiredZoom = Math.min(3, Math.max(zoom, (container.clientWidth * 0.6) / Math.max(focusBox.width, 1)));
+    setZoom(desiredZoom);
     setTimeout(() => {
       const cx = focusBox.x + focusBox.width / 2;
       const cy = focusBox.y + focusBox.height / 2;
-      containerRef.current?.scrollTo({
-        left: cx * targetZoom - (containerRef.current.clientWidth / 2),
-        top: cy * targetZoom - (containerRef.current.clientHeight / 2),
+      container.scrollTo({
+        left: cx * desiredZoom - container.clientWidth / 2,
+        top: cy * desiredZoom - container.clientHeight / 2,
         behavior: 'smooth',
       });
-    }, 150);
+    }, 180);
   }, [focusBox, pdfArrayBuffer]); // run once when both available
 
   const handleZoomIn = () => setZoom((prev) => Math.min(prev + 0.25, 3));
@@ -258,15 +301,20 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad, documentData }: PDFVie
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  // Keep hover-centering for a hovered single box
+  // Keep hover-centering and zooming for a hovered single box
   useEffect(() => {
     if (highlightBox && containerRef.current) {
+      const container = containerRef.current;
+      // Zoom so hovered box is visually comfortable (~50-60% width)
+      const targetZoom = Math.min(3, Math.max(zoom, (container.clientWidth * 0.55) / Math.max(highlightBox.width, 1)));
+      if (targetZoom > zoom + 0.01) {
+        setZoom(targetZoom);
+      }
       const boxCenterX = highlightBox.x + highlightBox.width / 2;
       const boxCenterY = highlightBox.y + highlightBox.height / 2;
-
-      containerRef.current.scrollTo({
-        left: boxCenterX * zoom - containerRef.current.clientWidth / 2,
-        top: boxCenterY * zoom - containerRef.current.clientHeight / 2,
+      container.scrollTo({
+        left: boxCenterX * targetZoom - container.clientWidth / 2,
+        top: boxCenterY * targetZoom - container.clientHeight / 2,
         behavior: 'smooth',
       });
     }
@@ -289,7 +337,7 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad, documentData }: PDFVie
   }
 
   return (
-    <div className="relative h-full bg-muted/30">
+    <div className="relative h-full bg-background">
       {/* Controls */}
       <div className="absolute top-4 right-4 z-10 flex items-center gap-1 rounded-full border bg-background/80 backdrop-blur px-2 py-1">
         <Button
@@ -331,37 +379,46 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad, documentData }: PDFVie
       </div>
 
       {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-20">
+        <div className="absolute inset-0 flex items-center justify-center bg-background/60 z-20">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       )}
 
       <div
         ref={containerRef}
-        className="h-full overflow-auto relative"
+        className="h-full overflow-auto relative px-3"
         style={{ scrollBehavior: 'smooth' }}
       >
         {/* Canvas-based PDF rendering */}
-        <div className="relative inline-block min-w-full">
+        <div
+          className="relative"
+          style={{
+            width: `${canvasSize.width}px`,
+            height: `${canvasSize.height}px`,
+          }}
+        >
           <canvas
             ref={canvasRef}
             className="block"
             // Canvas size is set programmatically based on zoom
           />
 
-          {/* All merged overlays from logic */}
-          {mergedBoxes.map((box, idx) => (
+          {/* Subtle overlays for all boxes */}
+          {allBoxes.map((box, idx) => (
             <motion.div
-              key={`merged-${idx}`}
+              key={`all-${idx}`}
               initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+              animate={{ opacity: 0.35 }}
               exit={{ opacity: 0 }}
-              className="absolute border-2 border-primary/70 bg-primary/10 pointer-events-none rounded-sm"
+              className="absolute rounded-sm pointer-events-none"
               style={{
                 left: `${box.x * zoom}px`,
                 top: `${box.y * zoom}px`,
                 width: `${box.width * zoom}px`,
                 height: `${box.height * zoom}px`,
+                boxShadow: '0 0 0 1px var(--color-primary)',
+                background:
+                  'linear-gradient(135deg, color-mix(in oklab, var(--color-primary) 20%, transparent), transparent)',
               }}
             />
           ))}
@@ -369,15 +426,19 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad, documentData }: PDFVie
           {/* Hover highlight overlay */}
           {highlightBox && (
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute border-4 border-primary bg-primary/20 pointer-events-none rounded-sm shadow-lg"
+              className="absolute pointer-events-none rounded-md"
               style={{
                 left: `${highlightBox.x * zoom}px`,
                 top: `${highlightBox.y * zoom}px`,
                 width: `${highlightBox.width * zoom}px`,
                 height: `${highlightBox.height * zoom}px`,
+                boxShadow: '0 0 0 3px color-mix(in oklab, var(--color-primary) 90%, white)',
+                background:
+                  'radial-gradient(60% 60% at 50% 50%, color-mix(in oklab, var(--color-primary) 30%, transparent), transparent)',
+                filter: 'drop-shadow(0 8px 24px rgba(0,0,0,0.25))',
               }}
             />
           )}
