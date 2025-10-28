@@ -16,9 +16,10 @@ if (!hasSupabaseEnv) {
   );
 }
 
-export const supabase = hasSupabaseEnv
-  ? createClient(supabaseUrl as string, supabaseAnonKey as string)
-  : (null as unknown as ReturnType<typeof createClient>);
+export const supabase = createClient(
+  supabaseUrl || 'https://placeholder.supabase.co',
+  supabaseAnonKey || 'placeholder-key'
+);
 
 // Helper to build a public URL from a storage path like "bucket/path/file.pdf"
 export function publicUrlForPath(path: string) {

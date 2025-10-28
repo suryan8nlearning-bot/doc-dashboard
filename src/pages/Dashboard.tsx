@@ -75,12 +75,17 @@ export default function Dashboard() {
   const fetchDocuments = async () => {
     try {
       setIsLoadingDocs(true);
+      console.log('Fetching documents from N8N Logs table...');
       const { data, error } = await supabase
         .from('N8N Logs')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
+      console.log('Documents fetched:', data);
 
       const mapped: DashboardDoc[] = (data as any[] | null || []).map((row: any, idx: number) => {
         const path = row?.['Bucket Name'] ?? row?.bucket_name ?? row?.path ?? '';
@@ -113,7 +118,7 @@ export default function Dashboard() {
       }
     } catch (error) {
       console.error('Error fetching documents:', error);
-      toast.error('Failed to load documents');
+      toast.error(`Failed to load documents: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsLoadingDocs(false);
     }
