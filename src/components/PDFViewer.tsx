@@ -33,6 +33,12 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad, documentData }: PDFVie
 
   const fetchPdfProxy = useAction(api.documents.fetchPdfProxy);
 
+  // Add a safe clamp for zoom values to avoid NaN and keep bounds tight
+  const clampZoom = (value: number) => {
+    const next = Number.isFinite(value) ? value : 1;
+    return Math.max(0.5, Math.min(next, 3));
+  };
+
   // Compute candidate boxes from documentData and simple merging/focus logic
   const { mergedBoxes, focusBox, allBoxes } = useMemo(() => {
     const result = { 
@@ -232,7 +238,7 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad, documentData }: PDFVie
     };
   }, [pdfArrayBuffer, zoom]);
 
-  // NEW: Fit PDF to container width on first load
+  // Fit PDF to container width on first load (use clamp to avoid NaN)
   useEffect(() => {
     if (!pdfArrayBuffer || !containerRef.current || didFitToWidthRef.current) return;
     (async () => {
@@ -241,9 +247,11 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad, documentData }: PDFVie
         const pdf = await loadingTask.promise;
         const page = await pdf.getPage(1);
         const baseViewport = page.getViewport({ scale: 1 });
-        const containerWidth = containerRef.current!.clientWidth - 24; // small padding
-        const targetScale = Math.max(0.5, Math.min(3, containerWidth / baseViewport.width));
-        setZoom(targetScale);
+        const containerWidth = containerRef.current!.clientWidth - 24;
+        const targetScale = containerWidth && baseViewport.width
+          ? containerWidth / baseViewport.width
+          : 1;
+        setZoom(clampZoom(targetScale));
         didFitToWidthRef.current = true;
       } catch (e) {
         console.warn('PDFViewer: Fit-to-width failed', e);
@@ -252,15 +260,16 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad, documentData }: PDFVie
   }, [pdfArrayBuffer]);
 
   // Auto-focus/zoom into key region once after load if focusBox exists
-  const didAutoFocusRef = useRef(false);
   useEffect(() => {
     if (didAutoFocusRef.current) return;
     if (!focusBox || !containerRef.current || !pdfArrayBuffer) return;
 
     didAutoFocusRef.current = true;
     const container = containerRef.current;
-    // Compute zoom so focusBox is ~60% of viewport width
-    const desiredZoom = Math.min(3, Math.max(zoom, (container.clientWidth * 0.6) / Math.max(focusBox.width, 1)));
+    const desiredZoom = clampZoom(Math.max(
+      zoom,
+      (container.clientWidth * 0.6) / Math.max(focusBox.width, 1),
+    ));
     setZoom(desiredZoom);
     setTimeout(() => {
       const cx = focusBox.x + focusBox.width / 2;
@@ -271,12 +280,12 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad, documentData }: PDFVie
         behavior: 'smooth',
       });
     }, 180);
-  }, [focusBox, pdfArrayBuffer]); // run once when both available
+  }, [focusBox, pdfArrayBuffer]);
 
-  const handleZoomIn = () => setZoom((prev) => Math.min(prev + 0.25, 3));
-  const handleZoomOut = () => setZoom((prev) => Math.max(prev - 0.25, 0.5));
+  const handleZoomIn = () => setZoom((prev) => clampZoom(prev + 0.25));
+  const handleZoomOut = () => setZoom((prev) => clampZoom(prev - 0.25));
   const handleResetZoom = () => {
-    setZoom(1);
+    setZoom(clampZoom(1));
     if (containerRef.current) {
       containerRef.current.scrollTo({ left: 0, top: 0, behavior: 'smooth' });
     }
@@ -286,11 +295,11 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad, documentData }: PDFVie
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === '+' || e.key === '=') {
         e.preventDefault();
-        setZoom((prev) => Math.min(prev + 0.25, 3));
+        setZoom((prev) => clampZoom(prev + 0.25));
       }
       if (e.key === '-' || e.key === '_') {
         e.preventDefault();
-        setZoom((prev) => Math.max(prev - 0.25, 0.5));
+        setZoom((prev) => clampZoom(prev - 0.25));
       }
       if (e.key === '0') {
         e.preventDefault();
@@ -301,12 +310,14 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad, documentData }: PDFVie
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  // Keep hover-centering and zooming for a hovered single box
+  // Keep hover-centering and zooming for a hovered single box (clamped)
   useEffect(() => {
     if (highlightBox && containerRef.current) {
       const container = containerRef.current;
-      // Zoom so hovered box is visually comfortable (~50-60% width)
-      const targetZoom = Math.min(3, Math.max(zoom, (container.clientWidth * 0.55) / Math.max(highlightBox.width, 1)));
+      const targetZoom = clampZoom(Math.max(
+        zoom,
+        (container.clientWidth * 0.55) / Math.max(highlightBox.width, 1),
+      ));
       if (targetZoom > zoom + 0.01) {
         setZoom(targetZoom);
       }
@@ -345,21 +356,21 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad, documentData }: PDFVie
           size="icon"
           className="rounded-full h-8 w-8"
           onClick={handleZoomOut}
-          disabled={zoom <= 0.5}
+          disabled={zoom <= 0.5 || Number.isNaN(zoom)}
           aria-label="Zoom out"
           title="Zoom out (-)"
         >
           <ZoomOut className="h-4 w-4" />
         </Button>
         <span className="px-3 text-sm font-medium tabular-nums">
-          {Math.round(zoom * 100)}%
+          {Number.isFinite(zoom) ? Math.round(zoom * 100) : 100}%
         </span>
         <Button
           variant="outline"
           size="icon"
           className="rounded-full h-8 w-8"
           onClick={handleZoomIn}
-          disabled={zoom >= 3}
+          disabled={zoom >= 3 || Number.isNaN(zoom)}
           aria-label="Zoom in"
           title="Zoom in (+)"
         >
@@ -370,7 +381,7 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad, documentData }: PDFVie
           size="icon"
           className="rounded-full h-8 w-8 ml-1"
           onClick={handleResetZoom}
-          disabled={zoom === 1}
+          disabled={Number.isNaN(zoom) ? false : zoom === 1}
           aria-label="Reset zoom"
           title="Reset zoom (0)"
         >
@@ -386,7 +397,7 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad, documentData }: PDFVie
 
       <div
         ref={containerRef}
-        className="h-full overflow-auto relative px-3"
+        className="h-full overflow-auto relative"
         style={{ scrollBehavior: 'smooth' }}
       >
         {/* Canvas-based PDF rendering */}
@@ -403,7 +414,7 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad, documentData }: PDFVie
             // Canvas size is set programmatically based on zoom
           />
 
-          {/* Subtle overlays for all boxes */}
+          {/* Subtle overlays for all boxes - switch to explicit RGBA so they're always visible */}
           {allBoxes.map((box, idx) => (
             <motion.div
               key={`all-${idx}`}
@@ -416,14 +427,13 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad, documentData }: PDFVie
                 top: `${box.y * zoom}px`,
                 width: `${box.width * zoom}px`,
                 height: `${box.height * zoom}px`,
-                boxShadow: '0 0 0 1px var(--color-primary)',
-                background:
-                  'linear-gradient(135deg, color-mix(in oklab, var(--color-primary) 20%, transparent), transparent)',
+                boxShadow: '0 0 0 1px rgba(59,130,246,0.45)',       // tailwind blue-500 @ ~45%
+                background: 'linear-gradient(135deg, rgba(59,130,246,0.18), transparent)',
               }}
             />
           ))}
 
-          {/* Hover highlight overlay */}
+          {/* Hover highlight overlay - thicker stroke and pleasing glow */}
           {highlightBox && (
             <motion.div
               initial={{ opacity: 0, scale: 0.98 }}
@@ -435,9 +445,8 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad, documentData }: PDFVie
                 top: `${highlightBox.y * zoom}px`,
                 width: `${highlightBox.width * zoom}px`,
                 height: `${highlightBox.height * zoom}px`,
-                boxShadow: '0 0 0 3px color-mix(in oklab, var(--color-primary) 90%, white)',
-                background:
-                  'radial-gradient(60% 60% at 50% 50%, color-mix(in oklab, var(--color-primary) 30%, transparent), transparent)',
+                boxShadow: '0 0 0 3px rgba(59,130,246,0.9)',
+                background: 'radial-gradient(60% 60% at 50% 50%, rgba(59,130,246,0.3), transparent)',
                 filter: 'drop-shadow(0 8px 24px rgba(0,0,0,0.25))',
               }}
             />
