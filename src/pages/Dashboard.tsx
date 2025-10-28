@@ -2,7 +2,7 @@ import { DocumentFields } from '@/components/DocumentFields';
 import { PDFViewer } from '@/components/PDFViewer';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
-import { supabase, type BoundingBox, type DocumentRecord } from '@/lib/supabase';
+import { supabase, type BoundingBox, type DocumentRecord, hasSupabaseEnv } from '@/lib/supabase';
 import { motion } from 'framer-motion';
 import { FileText, Loader2, LogOut } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -25,7 +25,12 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      fetchDocuments();
+      if (hasSupabaseEnv) {
+        fetchDocuments();
+      } else {
+        setIsLoadingDocs(false);
+        toast.error('Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Integrations.');
+      }
     }
   }, [isAuthenticated]);
 
@@ -96,7 +101,14 @@ export default function Dashboard() {
             <h2 className="text-sm font-semibold mb-4 text-muted-foreground uppercase tracking-wide">
               Documents
             </h2>
-            {isLoadingDocs ? (
+            {!hasSupabaseEnv ? (
+              <div className="text-sm text-muted-foreground space-y-2">
+                <p>Supabase is not configured.</p>
+                <p className="text-xs">
+                  Add SUPABASE_URL and SUPABASE_ANON_KEY in the Integrations tab, then refresh.
+                </p>
+              </div>
+            ) : isLoadingDocs ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-primary" />
               </div>

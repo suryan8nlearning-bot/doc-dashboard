@@ -3,11 +3,15 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables');
+export const hasSupabaseEnv = Boolean(supabaseUrl && supabaseAnonKey);
+
+if (!hasSupabaseEnv) {
+  console.warn('Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = hasSupabaseEnv
+  ? createClient(supabaseUrl as string, supabaseAnonKey as string)
+  : (null as unknown as ReturnType<typeof createClient>);
 
 export interface BoundingBox {
   x: number;
