@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { ZoomIn, ZoomOut, RotateCcw, Loader2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from './ui/button';
 import type { BoundingBox } from '@/lib/supabase';
@@ -12,25 +12,32 @@ interface PDFViewerProps {
 
 export function PDFViewer({ pdfUrl, highlightBox, onLoad }: PDFViewerProps) {
   const [zoom, setZoom] = useState(1);
-  const [pdfDimensions, setPdfDimensions] = useState({ width: 0, height: 0 });
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const objectRef = useRef<HTMLObjectElement>(null);
 
   useEffect(() => {
-    if (onLoad) {
-      const timer = setTimeout(onLoad, 1000);
-      return () => clearTimeout(timer);
+    if (pdfUrl) {
+      setIsLoading(true);
+      setError(null);
+      
+      // Test if the PDF URL is accessible
+      fetch(pdfUrl, { method: 'HEAD' })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('PDF not accessible');
+          }
+          setIsLoading(false);
+          if (onLoad) onLoad();
+        })
+        .catch(err => {
+          console.error('PDF load error:', err);
+          setError('Failed to load PDF. The file may not be accessible.');
+          setIsLoading(false);
+        });
     }
-  }, [onLoad]);
-
-  useEffect(() => {
-    if (containerRef.current) {
-      setPdfDimensions({
-        width: containerRef.current.clientWidth,
-        height: containerRef.current.clientHeight,
-      });
-    }
-  }, []);
+  }, [pdfUrl, onLoad]);
 
   useEffect(() => {
     if (highlightBox && containerRef.current) {
@@ -73,6 +80,19 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad }: PDFViewerProps) {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
+  if (error) {
+    return (
+      <div className="h-full flex items-center justify-center bg-muted/30">
+        <div className="text-center space-y-4 p-8">
+          <div className="text-destructive text-lg font-medium">{error}</div>
+          <p className="text-sm text-muted-foreground">
+            Please check if the PDF URL is correct and accessible.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="relative h-full bg-muted/30">
       <div className="absolute top-4 right-4 z-10 flex items-center gap-1 rounded-full border bg-background/80 backdrop-blur px-2 py-1">
@@ -114,6 +134,12 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad }: PDFViewerProps) {
         </Button>
       </div>
 
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-20">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      )}
+
       <div
         ref={containerRef}
         className="h-full overflow-auto relative"
@@ -127,12 +153,19 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad }: PDFViewerProps) {
             width: `${100 / zoom}%`,
           }}
         >
-          <iframe
-            ref={iframeRef}
-            src={pdfUrl}
+          <object
+            ref={objectRef}
+            data={`${pdfUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+            type="application/pdf"
             className="w-full h-[800px] border-0"
             title="PDF Preview"
-          />
+          >
+            <embed
+              src={`${pdfUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+              type="application/pdf"
+              className="w-full h-[800px] border-0"
+            />
+          </object>
           
           {highlightBox && (
             <motion.div
