@@ -65,6 +65,21 @@ export default function Dashboard() {
     }
   }, [authLoading, isAuthenticated, navigate]);
 
+  // Apply user's saved theme on mount
+  useEffect(() => {
+    if (user?.theme) {
+      const root = document.documentElement;
+      root.classList.remove('dark', 'glass-theme');
+      
+      if (user.theme === 'glass') {
+        root.classList.add('glass-theme');
+      } else if (user.theme === 'dark') {
+        root.classList.add('dark');
+        setIsDarkMode(true);
+      }
+    }
+  }, [user?.theme]);
+
   useEffect(() => {
     if (isAuthenticated) {
       if (hasSupabaseEnv) {

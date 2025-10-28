@@ -34,10 +34,23 @@ export default function Profile() {
       setTheme(user.theme || 'modern');
       
       // Apply theme to document
-      const root = document.documentElement;
-      root.className = user.theme === 'glass' ? 'glass-theme' : user.theme === 'dark' ? 'dark' : '';
+      applyTheme(user.theme || 'modern');
     }
   }, [user]);
+
+  const applyTheme = (selectedTheme: string) => {
+    const root = document.documentElement;
+    // Remove all theme classes first
+    root.classList.remove('dark', 'glass-theme');
+    
+    // Apply the selected theme
+    if (selectedTheme === 'glass') {
+      root.classList.add('glass-theme');
+    } else if (selectedTheme === 'dark') {
+      root.classList.add('dark');
+    }
+    // 'modern' is the default, no class needed
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,8 +59,7 @@ export default function Profile() {
       await updateUser({ name, theme });
       
       // Apply theme immediately
-      const root = document.documentElement;
-      root.className = theme === 'glass' ? 'glass-theme' : theme === 'dark' ? 'dark' : '';
+      applyTheme(theme);
       
       toast.success('Profile updated successfully');
     } catch (error) {
