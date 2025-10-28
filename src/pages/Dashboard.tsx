@@ -352,6 +352,10 @@ export default function Dashboard() {
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => navigate('/profile')} className="cursor-pointer">
+                  <User className="h-4 w-4 mr-2" />
+                  Profile
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={toggleDarkMode} className="cursor-pointer">
                   {isDarkMode ? (
                     <Sun className="h-4 w-4 mr-2" />
