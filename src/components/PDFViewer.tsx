@@ -31,13 +31,42 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad, documentData }: PDFVie
   const [canvasSize, setCanvasSize] = useState<{ width: number; height: number }>({ width: 0, height: 0 }); // add canvas size to sync overlays
   const didFitToWidthRef = useRef(false); // ensure we only fit once
 const didAutoFocusRef = useRef(false); // ensure we only auto-focus once
+const [showZoomHud, setShowZoomHud] = useState(false);
 
   const fetchPdfProxy = useAction(api.documents.fetchPdfProxy);
 
-  // Add a safe clamp for zoom values to avoid NaN and keep bounds tight
+  // Tighten and extend zoom bounds + guard
   const clampZoom = (value: number) => {
     const next = Number.isFinite(value) ? value : 1;
-    return Math.max(0.5, Math.min(next, 3));
+    return Math.max(0.25, Math.min(next, 4));
+  };
+
+  // Helper: update zoom and keep the visual center stable while scrolling
+  const updateZoom = (nextZoom: number) => {
+    const container = containerRef.current;
+    if (!container) {
+      setZoom(clampZoom(nextZoom));
+      return;
+    }
+    const prevZoom = zoom;
+    const targetZoom = clampZoom(nextZoom);
+
+    // Compute current center in PDF coordinates
+    const centerX = (container.scrollLeft + container.clientWidth / 2) / (prevZoom || 1);
+    const centerY = (container.scrollTop + container.clientHeight / 2) / (prevZoom || 1);
+
+    setZoom(targetZoom);
+
+    // After React state updates and render, adjust scroll so the same center stays in view
+    setTimeout(() => {
+      const newLeft = centerX * targetZoom - container.clientWidth / 2;
+      const newTop = centerY * targetZoom - container.clientHeight / 2;
+      container.scrollTo({ left: newLeft, top: newTop });
+    }, 0);
+
+    // Trigger a brief HUD to show zoom level
+    setShowZoomHud(true);
+    setTimeout(() => setShowZoomHud(false), 450);
   };
 
   // Compute candidate boxes from documentData and simple merging/focus logic
@@ -292,39 +321,20 @@ const didAutoFocusRef = useRef(false); // ensure we only auto-focus once
   }, [focusBox, pdfArrayBuffer]);
 
   const handleZoomIn = () => {
-    setZoom((prev) => {
-      const newZoom = clampZoom(prev + 0.25);
-      console.log('Zoom in:', prev, '->', newZoom);
-      return newZoom;
-    });
-    // Force re-render after zoom change
-    setTimeout(() => {
-      if (canvasRef.current && pdfArrayBuffer) {
-        console.log('Re-rendering after zoom in');
-      }
-    }, 50);
+    updateZoom(zoom + 0.5);
   };
   
   const handleZoomOut = () => {
-    setZoom((prev) => {
-      const newZoom = clampZoom(prev - 0.25);
-      console.log('Zoom out:', prev, '->', newZoom);
-      return newZoom;
-    });
-    // Force re-render after zoom change
-    setTimeout(() => {
-      if (canvasRef.current && pdfArrayBuffer) {
-        console.log('Re-rendering after zoom out');
-      }
-    }, 50);
+    updateZoom(zoom - 0.5);
   };
   
   const handleResetZoom = () => {
-    console.log('Reset zoom to 1');
     setZoom(clampZoom(1));
     if (containerRef.current) {
       containerRef.current.scrollTo({ left: 0, top: 0, behavior: 'smooth' });
     }
+    setShowZoomHud(true);
+    setTimeout(() => setShowZoomHud(false), 450);
   };
 
   useEffect(() => {
@@ -385,14 +395,26 @@ const didAutoFocusRef = useRef(false); // ensure we only auto-focus once
 
   return (
     <div className="relative h-full bg-background">
-      {/* Controls */}
-      <div className="absolute top-4 right-4 z-10 flex items-center gap-1 rounded-full border bg-background/80 backdrop-blur px-2 py-1">
+      {/* Zoom HUD */}
+      {showZoomHud && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9, y: -6 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.95, y: -6 }}
+          className="pointer-events-none absolute top-4 left-1/2 -translate-x-1/2 z-20 rounded-full border bg-background/80 backdrop-blur px-3 py-1 text-xs font-medium shadow-sm"
+        >
+          {Number.isFinite(zoom) ? Math.round(zoom * 100) : 100}%
+        </motion.div>
+      )}
+
+      {/* Controls pinned to the top-right of the PDF container */}
+      <div className="absolute top-4 right-4 z-20 flex items-center gap-1 rounded-full border bg-background/80 backdrop-blur px-2 py-1 shadow-sm">
         <Button
           variant="outline"
           size="icon"
           className="rounded-full h-8 w-8"
           onClick={handleZoomOut}
-          disabled={zoom <= 0.5 || Number.isNaN(zoom)}
+          disabled={zoom <= 0.25 || Number.isNaN(zoom)}
           aria-label="Zoom out"
           title="Zoom out (-)"
         >
@@ -406,7 +428,7 @@ const didAutoFocusRef = useRef(false); // ensure we only auto-focus once
           size="icon"
           className="rounded-full h-8 w-8"
           onClick={handleZoomIn}
-          disabled={zoom >= 3 || Number.isNaN(zoom)}
+          disabled={zoom >= 4 || Number.isNaN(zoom)}
           aria-label="Zoom in"
           title="Zoom in (+)"
         >
@@ -417,7 +439,6 @@ const didAutoFocusRef = useRef(false); // ensure we only auto-focus once
           size="icon"
           className="rounded-full h-8 w-8 ml-1"
           onClick={handleResetZoom}
-          disabled={Number.isNaN(zoom) ? false : zoom === 1}
           aria-label="Reset zoom"
           title="Reset zoom (0)"
         >
@@ -433,12 +454,12 @@ const didAutoFocusRef = useRef(false); // ensure we only auto-focus once
 
       <div
         ref={containerRef}
-        className="h-full overflow-auto relative flex-1"
+        className="h-full overflow-auto relative flex-1 flex items-start justify-center"
         style={{ scrollBehavior: 'smooth' }}
       >
         {/* Canvas-based PDF rendering */}
         <div
-          className="relative"
+          className="relative inline-block"
           style={{
             width: `${canvasSize.width}px`,
             height: `${canvasSize.height}px`,
@@ -446,8 +467,7 @@ const didAutoFocusRef = useRef(false); // ensure we only auto-focus once
         >
           <canvas
             ref={canvasRef}
-            className="block"
-            // Canvas size is set programmatically based on zoom
+            className="block mx-auto"
           />
 
           {/* Subtle overlays for all boxes - switch to explicit RGBA so they're always visible */}
