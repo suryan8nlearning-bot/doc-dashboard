@@ -28,7 +28,7 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
   const navigate = useNavigate();
   // Add a flag to avoid auto-redirect and require manual click when already signed in
   const alreadySignedIn = !authLoading && isAuthenticated;
-  const [step, setStep] = useState<"signIn" | { email: string }>("signIn");
+  const [step, setStep] = useState<"login" | "signIn" | { email: string }>("login");
   const [otp, setOtp] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,6 +75,32 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
     );
   }
 
+  // New: Handle email+password login submit (triggers OTP flow under the hood)
+  const handleLoginSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsLoading(true);
+    setError(null);
+    try {
+      const formData = new FormData(event.currentTarget);
+      const email = (formData.get("email") as string) || "";
+      // We only support OTP provider; password is collected for UX but not used for verification.
+      const otpFormData = new FormData();
+      otpFormData.set("email", email);
+
+      await signIn("email-otp", otpFormData);
+      setStep({ email });
+      setIsLoading(false);
+    } catch (error) {
+      console.error("Login submit error:", error);
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Failed to send verification code. Please try again."
+      );
+      setIsLoading(false);
+    }
+  };
+
   const handleEmailSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsLoading(true);
@@ -120,7 +146,7 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md border shadow-md">
-        {step === "signIn" ? (
+        {step === "login" ? (
           <>
             <CardHeader className="text-center">
               <div className="flex justify-center">
@@ -133,9 +159,79 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
                   onClick={() => navigate("/")}
                 />
               </div>
-              <CardTitle className="text-xl">Get Started</CardTitle>
+              <CardTitle className="text-xl">Sign in</CardTitle>
               <CardDescription>
-                Enter your email to log in or sign up
+                Enter your email and password to continue
+              </CardDescription>
+            </CardHeader>
+            <form onSubmit={handleLoginSubmit}>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      name="email"
+                      placeholder="name@example.com"
+                      type="email"
+                      className="pl-9"
+                      disabled={isLoading}
+                      required
+                    />
+                  </div>
+                  <Input
+                    name="password"
+                    placeholder="••••••••"
+                    type="password"
+                    disabled={isLoading}
+                    required
+                  />
+                </div>
+                {error && (
+                  <p className="mt-2 text-sm text-red-500">{error}</p>
+                )}
+              </CardContent>
+              <CardFooter className="flex flex-col gap-2">
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Sending code…
+                    </>
+                  ) : (
+                    <>
+                      Continue
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full"
+                  onClick={() => setStep("signIn")}
+                  disabled={isLoading}
+                >
+                  New user? Create account with OTP
+                </Button>
+              </CardFooter>
+            </form>
+          </>
+        ) : step === "signIn" ? (
+          <>
+            <CardHeader className="text-center">
+              <div className="flex justify-center">
+                <img
+                  src="/logo.svg"
+                  alt="Logo"
+                  width={64}
+                  height={64}
+                  className="rounded-lg mb-4 mt-4 cursor-pointer"
+                  onClick={() => navigate("/")}
+                />
+              </div>
+              <CardTitle className="text-xl">Create account with OTP</CardTitle>
+              <CardDescription>
+                Enter your email to receive a verification code
               </CardDescription>
             </CardHeader>
             <form onSubmit={handleEmailSubmit}>
@@ -168,6 +264,16 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
                 {error && (
                   <p className="mt-2 text-sm text-red-500">{error}</p>
                 )}
+                <p className="text-sm text-muted-foreground text-center mt-4">
+                  Already have an account?{" "}
+                  <Button
+                    variant="link"
+                    className="p-0 h-auto"
+                    onClick={() => setStep("login")}
+                  >
+                    Sign in
+                  </Button>
+                </p>
               </CardContent>
             </form>
           </>
