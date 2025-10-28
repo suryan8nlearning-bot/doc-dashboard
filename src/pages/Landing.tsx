@@ -5,6 +5,7 @@ import { ArrowRight, FileText, Loader2, Search, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { useEffect, useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function Landing() {
   const { isLoading, isAuthenticated } = useAuth();
@@ -25,19 +26,70 @@ export default function Landing() {
   // Show a full-screen animated loader while auth initializes
   if (isLoading) {
     return (
-      <div className="min-h-screen grid place-items-center bg-background">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.3 }}
-          className="flex flex-col items-center gap-4"
-        >
-          <div className="relative">
-            <Loader2 className="h-10 w-10 animate-spin text-primary" />
-            <div className="absolute inset-0 animate-ping rounded-full border border-primary/30" />
+      <div className="min-h-screen flex flex-col bg-background">
+        {/* Header skeleton */}
+        <header className="border-b">
+          <div className="max-w-7xl mx-auto px-8 py-6 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-8 w-8 rounded-lg" />
+              <Skeleton className="h-6 w-28" />
+            </div>
+            <Skeleton className="h-9 w-24 rounded-md" />
           </div>
-          <div className="text-sm text-muted-foreground">Loading Doc Dashboard…</div>
-        </motion.div>
+        </header>
+
+        {/* Hero skeleton */}
+        <main className="flex-1 flex flex-col items-center justify-center px-8 py-24">
+          <div className="max-w-4xl mx-auto w-full text-center space-y-8">
+            <div className="flex justify-center">
+              <Skeleton className="h-8 w-64 rounded-full" />
+            </div>
+
+            <div className="space-y-3">
+              <Skeleton className="h-12 w-3/4 mx-auto" />
+              <Skeleton className="h-12 w-1/2 mx-auto" />
+            </div>
+
+            <div className="space-y-2 max-w-2xl mx-auto">
+              <Skeleton className="h-4 w-full mx-auto" />
+              <Skeleton className="h-4 w-11/12 mx-auto" />
+              <Skeleton className="h-4 w-10/12 mx-auto" />
+            </div>
+
+            <div className="flex justify-center pt-2">
+              <Skeleton className="h-10 w-36 rounded-md" />
+            </div>
+          </div>
+
+          {/* Features skeleton */}
+          <div className="max-w-5xl mx-auto mt-24 grid md:grid-cols-3 gap-8 w-full">
+            <div className="p-8 rounded-lg border bg-card/50">
+              <Skeleton className="h-12 w-12 rounded-lg mb-4" />
+              <Skeleton className="h-5 w-40 mb-2" />
+              <Skeleton className="h-4 w-full mb-1" />
+              <Skeleton className="h-4 w-5/6" />
+            </div>
+            <div className="p-8 rounded-lg border bg-card/50">
+              <Skeleton className="h-12 w-12 rounded-lg mb-4" />
+              <Skeleton className="h-5 w-40 mb-2" />
+              <Skeleton className="h-4 w-full mb-1" />
+              <Skeleton className="h-4 w-5/6" />
+            </div>
+            <div className="p-8 rounded-lg border bg-card/50">
+              <Skeleton className="h-12 w-12 rounded-lg mb-4" />
+              <Skeleton className="h-5 w-40 mb-2" />
+              <Skeleton className="h-4 w-full mb-1" />
+              <Skeleton className="h-4 w-5/6" />
+            </div>
+          </div>
+        </main>
+
+        {/* Footer skeleton */}
+        <footer className="border-t py-8">
+          <div className="max-w-7xl mx-auto px-8 text-center">
+            <Skeleton className="h-4 w-40 mx-auto" />
+          </div>
+        </footer>
       </div>
     );
   }
