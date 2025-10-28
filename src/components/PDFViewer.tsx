@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { ZoomIn, ZoomOut, RotateCcw, Loader2 } from 'lucide-react';
+import { ZoomIn, ZoomOut, RotateCcw, Loader2, ArrowUp } from 'lucide-react';
 import { useEffect, useRef, useState, useMemo } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 // Add worker via Vite to ensure version matches installed package
@@ -448,6 +448,18 @@ const [showZoomHud, setShowZoomHud] = useState(false);
         </Button>
       </div>
 
+      {/* Scroll to top button inside PDF container */}
+      <Button
+        variant="outline"
+        size="icon"
+        className="absolute bottom-4 right-4 z-20 rounded-full h-8 w-8"
+        onClick={() => containerRef.current?.scrollTo({ top: 0, left: 0, behavior: 'smooth' })}
+        aria-label="Scroll to top"
+        title="Scroll to top"
+      >
+        <ArrowUp className="h-4 w-4" />
+      </Button>
+
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-background/60 z-20">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -456,7 +468,7 @@ const [showZoomHud, setShowZoomHud] = useState(false);
 
       <div
         ref={containerRef}
-        className="h-full overflow-y-auto overflow-x-hidden relative flex-1 flex items-start justify-center"
+        className="h-full overflow-auto relative flex-1 flex items-start justify-center"
         style={{ scrollBehavior: 'smooth' }}
       >
         {/* Canvas-based PDF rendering */}

@@ -5,8 +5,8 @@ import { useAuth } from '@/hooks/use-auth';
 import { supabase, type BoundingBox, hasSupabaseEnv, publicUrlForPath } from '@/lib/supabase';
 import { createSignedUrlForPath } from '@/lib/supabase';
 import { motion } from 'framer-motion';
-import { ArrowLeft, FileText, Loader2, ExternalLink } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { ArrowLeft, FileText, Loader2, ExternalLink, ArrowUp } from 'lucide-react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
 
@@ -28,6 +28,9 @@ export default function DocumentDetail() {
   const [doc, setDoc] = useState<DocumentData | null>(null);
   const [highlightBox, setHighlightBox] = useState<BoundingBox | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Add aside ref for scroll-to-top control
+  const asideRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -225,12 +228,12 @@ export default function DocumentDetail() {
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* PDF Viewer */}
-        <div className="flex-1 overflow-hidden relative">
+        <div className="min-w-0 flex-1 overflow-hidden relative">
           <PDFViewer pdfUrl={doc.pdf_url} highlightBox={highlightBox} documentData={doc.document_data} />
         </div>
 
         {/* Document Fields */}
-        <aside className="w-[560px] border-l bg-background overflow-hidden flex-shrink-0">
+        <aside ref={asideRef} className="relative w-[420px] lg:w-[560px] border-l bg-background overflow-hidden flex-shrink-0">
           {doc.document_data &&
           doc.document_data?.document?.pages?.length > 0 ? (
             <DocumentFields
@@ -242,6 +245,25 @@ export default function DocumentDetail() {
               No structured data available for this document.
             </div>
           )}
+          {/* Scroll to top button for fields panel */}
+          <Button
+            variant="outline"
+            size="icon"
+            className="absolute bottom-4 right-4 z-20 rounded-full h-8 w-8"
+            onClick={() => {
+              const viewport = asideRef.current?.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null;
+              if (viewport) {
+                viewport.scrollTo({ top: 0, behavior: 'smooth' });
+              } else {
+                // Fallback: scroll the aside if viewport not detected
+                asideRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+              }
+            }}
+            aria-label="Scroll to top"
+            title="Scroll to top"
+          >
+            <ArrowUp className="h-4 w-4" />
+          </Button>
         </aside>
       </div>
     </div>
