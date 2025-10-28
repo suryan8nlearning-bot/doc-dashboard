@@ -118,6 +118,12 @@ export default function Dashboard() {
     if (typeof field === 'string') {
       return field.split(',').map(s => s.trim()).filter(Boolean);
     }
+    // Handle object with nested properties
+    if (typeof field === 'object' && field !== null) {
+      if (field.value) return [field.value];
+      if (field.address) return [field.address];
+      if (field.email) return [field.email];
+    }
     return [];
   };
 
@@ -148,7 +154,16 @@ export default function Dashboard() {
           'Untitled Document';
         
         const from_email = parseEmailField(row?.from ?? row?.From ?? row?.from_email ?? row?.sender);
-        const cc_emails = parseCCEmails(row?.cc ?? row?.CC ?? row?.cc_emails ?? row?.recipients);
+        const cc_emails = parseCCEmails(
+          row?.cc ?? 
+          row?.CC ?? 
+          row?.cc_emails ?? 
+          row?.['CC Emails'] ?? 
+          row?.recipients ?? 
+          row?.Recipients ?? 
+          row?.to ?? 
+          row?.To
+        );
         
         // Enhanced subject parsing with more field variations and better handling
         let subject = '';
@@ -184,6 +199,7 @@ export default function Dashboard() {
           row?.mail_content ?? 
           row?.['Mail Content'] ?? 
           row?.['mail content'] ?? 
+          row?.mailContent ?? 
           row?.html ?? 
           row?.HTML ?? 
           row?.body ?? 
@@ -192,6 +208,8 @@ export default function Dashboard() {
           row?.Content ?? 
           row?.message ?? 
           row?.Message ?? 
+          row?.text ?? 
+          row?.Text ?? 
           '';
 
         return {
