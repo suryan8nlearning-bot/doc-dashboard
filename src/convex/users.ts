@@ -39,6 +39,7 @@ export const getCurrentUser = async (ctx: QueryCtx) => {
 export const updateProfile = mutation({
   args: {
     name: v.optional(v.string()),
+    theme: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -46,9 +47,11 @@ export const updateProfile = mutation({
       throw new Error("Not authenticated");
     }
 
-    await ctx.db.patch(userId, {
-      name: args.name,
-    });
+    const updates: any = {};
+    if (args.name !== undefined) updates.name = args.name;
+    if (args.theme !== undefined) updates.theme = args.theme;
+
+    await ctx.db.patch(userId, updates);
 
     return { success: true };
   },

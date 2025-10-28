@@ -18,6 +18,7 @@ export default function Profile() {
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [theme, setTheme] = useState('modern');
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -30,6 +31,11 @@ export default function Profile() {
     if (user) {
       setName(user.name || '');
       setEmail(user.email || '');
+      setTheme(user.theme || 'modern');
+      
+      // Apply theme to document
+      const root = document.documentElement;
+      root.className = user.theme === 'glass' ? 'glass-theme' : user.theme === 'dark' ? 'dark' : '';
     }
   }, [user]);
 
@@ -37,7 +43,12 @@ export default function Profile() {
     e.preventDefault();
     setIsSaving(true);
     try {
-      await updateUser({ name });
+      await updateUser({ name, theme });
+      
+      // Apply theme immediately
+      const root = document.documentElement;
+      root.className = theme === 'glass' ? 'glass-theme' : theme === 'dark' ? 'dark' : '';
+      
       toast.success('Profile updated successfully');
     } catch (error) {
       console.error('Error updating profile:', error);
@@ -139,6 +150,24 @@ export default function Profile() {
                 </div>
 
                 <div className="space-y-2">
+                  <Label htmlFor="theme">Theme</Label>
+                  <select
+                    id="theme"
+                    value={theme}
+                    onChange={(e) => setTheme(e.target.value)}
+                    disabled={isSaving}
+                    className="w-full px-3 py-2 bg-background border border-input rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    <option value="modern">Modern Minimalist</option>
+                    <option value="glass">Glass Morphism</option>
+                    <option value="dark">Dark Mode</option>
+                  </select>
+                  <p className="text-xs text-muted-foreground">
+                    Choose your preferred theme style
+                  </p>
+                </div>
+
+                <div className="space-y-2">
                   <Label>Account Role</Label>
                   <div className="px-3 py-2 bg-muted rounded-md text-sm">
                     {user?.role || 'user'}
@@ -146,6 +175,15 @@ export default function Profile() {
                 </div>
 
                 <div className="flex items-center justify-between pt-4 border-t">
+                  <div className="flex items-center gap-2">
+                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                      <User className="h-5 w-5 text-primary" />
+                    </div>
+                    <div className="text-sm">
+                      <div className="font-medium">{user?.name || 'User'}</div>
+                      <div className="text-muted-foreground text-xs">{user?.email}</div>
+                    </div>
+                  </div>
                   <Button
                     type="button"
                     variant="destructive"
@@ -154,7 +192,10 @@ export default function Profile() {
                   >
                     Sign Out
                   </Button>
-                  <Button type="submit" disabled={isSaving}>
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <Button type="submit" disabled={isSaving} className="w-full">
                     {isSaving ? (
                       <>
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />

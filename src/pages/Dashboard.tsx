@@ -179,7 +179,20 @@ export default function Dashboard() {
         subject = subject.replace(/<[^>]*>/g, '').trim();
         
         const bucket_name = row?.['Bucket Name'] ?? row?.bucket_name ?? '';
-        const mail_content = row?.mail_content ?? row?.['Mail Content'] ?? row?.html ?? row?.body ?? '';
+        // Enhanced mail content parsing with more field variations
+        const mail_content = 
+          row?.mail_content ?? 
+          row?.['Mail Content'] ?? 
+          row?.['mail content'] ?? 
+          row?.html ?? 
+          row?.HTML ?? 
+          row?.body ?? 
+          row?.Body ?? 
+          row?.content ?? 
+          row?.Content ?? 
+          row?.message ?? 
+          row?.Message ?? 
+          '';
 
         return {
           id,
