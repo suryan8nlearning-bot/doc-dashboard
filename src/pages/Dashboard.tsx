@@ -149,7 +149,35 @@ export default function Dashboard() {
         
         const from_email = parseEmailField(row?.from ?? row?.From ?? row?.from_email ?? row?.sender);
         const cc_emails = parseCCEmails(row?.cc ?? row?.CC ?? row?.cc_emails ?? row?.recipients);
-        const subject = (row?.subject ?? row?.Subject ?? row?.title ?? '').replace(/<[^>]*>/g, '').trim();
+        
+        // Enhanced subject parsing with more field variations and better handling
+        let subject = '';
+        const subjectCandidates = [
+          row?.subject,
+          row?.Subject,
+          row?.title,
+          row?.Title,
+          row?.email_subject,
+          row?.['Email Subject'],
+          row?.mail_subject,
+          row?.['Mail Subject']
+        ];
+        
+        for (const candidate of subjectCandidates) {
+          if (candidate) {
+            if (typeof candidate === 'string') {
+              subject = candidate;
+              break;
+            } else if (candidate?.value) {
+              subject = candidate.value;
+              break;
+            }
+          }
+        }
+        
+        // Strip HTML tags and trim
+        subject = subject.replace(/<[^>]*>/g, '').trim();
+        
         const bucket_name = row?.['Bucket Name'] ?? row?.bucket_name ?? '';
         const mail_content = row?.mail_content ?? row?.['Mail Content'] ?? row?.html ?? row?.body ?? '';
 
