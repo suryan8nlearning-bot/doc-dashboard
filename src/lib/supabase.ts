@@ -1,17 +1,32 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// Support both Vite-style and plain env names
+const supabaseUrl =
+  (import.meta.env.VITE_SUPABASE_URL as string | undefined) ||
+  (import.meta.env.SUPABASE_URL as string | undefined);
+const supabaseAnonKey =
+  (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) ||
+  (import.meta.env.SUPABASE_ANON_KEY as string | undefined);
 
 export const hasSupabaseEnv = Boolean(supabaseUrl && supabaseAnonKey);
 
 if (!hasSupabaseEnv) {
-  console.warn('Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
+  console.warn(
+    'Supabase is not configured. Please set SUPABASE_URL and SUPABASE_ANON_KEY (or VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY).'
+  );
 }
 
 export const supabase = hasSupabaseEnv
   ? createClient(supabaseUrl as string, supabaseAnonKey as string)
   : (null as unknown as ReturnType<typeof createClient>);
+
+// Helper to build a public URL from a storage path like "bucket/path/file.pdf"
+export function publicUrlForPath(path: string) {
+  if (!supabaseUrl) return '';
+  const base = supabaseUrl.replace(/\/$/, '');
+  const normalized = String(path).replace(/^\//, '');
+  return `${base}/storage/v1/object/public/${normalized}`;
+}
 
 export interface BoundingBox {
   x: number;

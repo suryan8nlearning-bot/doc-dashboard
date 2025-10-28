@@ -2,20 +2,34 @@ import { DocumentFields } from '@/components/DocumentFields';
 import { PDFViewer } from '@/components/PDFViewer';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
-import { supabase, type BoundingBox, type DocumentRecord, hasSupabaseEnv } from '@/lib/supabase';
+import { supabase, type BoundingBox, hasSupabaseEnv, publicUrlForPath } from '@/lib/supabase';
 import { motion } from 'framer-motion';
 import { FileText, Loader2, LogOut } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export default function Dashboard() {
   const { isLoading: authLoading, isAuthenticated, user, signOut } = useAuth();
   const navigate = useNavigate();
-  const [documents, setDocuments] = useState<DocumentRecord[]>([]);
-  const [selectedDocument, setSelectedDocument] = useState<DocumentRecord | null>(null);
+
+  // Define a local doc shape tailored to N8N Logs rows
+  type DashboardDoc = {
+    id: string;
+    created_at: string;
+    pdf_url: string;
+    status?: string;
+    title?: string;
+    document_data?: any; // keep flexible; validated before rendering fields
+    raw?: any;
+  };
+
+  const [documents, setDocuments] = useState<DashboardDoc[]>([]);
+  const [selectedDocument, setSelectedDocument] = useState<DashboardDoc | null>(null);
   const [highlightBox, setHighlightBox] = useState<BoundingBox | null>(null);
   const [isLoadingDocs, setIsLoadingDocs] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -29,24 +43,73 @@ export default function Dashboard() {
         fetchDocuments();
       } else {
         setIsLoadingDocs(false);
-        toast.error('Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Integrations.');
+        toast.error('Supabase is not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY (or VITE_*) in Integrations.');
       }
     }
   }, [isAuthenticated]);
+
+  // Helper to coerce potential JSON columns into expected document_data shape
+  const coerceDocumentData = (row: any) => {
+    const candidates = [
+      row?.document_data,
+      row?.data,
+      row?.json,
+      row?.payload,
+      row?.['Document Data'],
+      row?.['document_data'],
+      row?.['Data'],
+    ];
+    for (const cand of candidates) {
+      try {
+        const obj = typeof cand === 'string' ? JSON.parse(cand) : cand;
+        if (obj?.document?.pages && Array.isArray(obj.document.pages) && obj.document.pages.length > 0) {
+          return obj;
+        }
+      } catch {
+        // ignore parse errors
+      }
+    }
+    return undefined;
+  };
 
   const fetchDocuments = async () => {
     try {
       setIsLoadingDocs(true);
       const { data, error } = await supabase
-        .from('documents')
+        .from('N8N Logs')
         .select('*')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      setDocuments(data || []);
-      if (data && data.length > 0) {
-        setSelectedDocument(data[0]);
+      const mapped: DashboardDoc[] = (data as any[] | null || []).map((row: any, idx: number) => {
+        const path = row?.['Bucket Name'] ?? row?.bucket_name ?? row?.path ?? '';
+        const pdf_url = path ? publicUrlForPath(String(path)) : '';
+        const status = row?.status ?? row?.Status ?? row?.state ?? row?.State;
+        const created_at = row?.created_at ?? row?.createdAt ?? row?.timestamp ?? new Date().toISOString();
+        const id = String(row?.id ?? row?.uuid ?? row?._id ?? `${created_at}-${idx}`);
+        const document_data = coerceDocumentData(row);
+        const title =
+          document_data?.document?.pages?.[0]?.metadata?.document_title?.value ||
+          (typeof row?.title === 'string' ? row.title : undefined) ||
+          (typeof path === 'string' ? String(path).split('/').pop() : undefined) ||
+          'Untitled Document';
+        return {
+          id,
+          created_at: String(created_at),
+          pdf_url,
+          status: status ? String(status) : undefined,
+          document_data,
+          raw: row,
+          title,
+        };
+      });
+
+      setDocuments(mapped);
+      if (mapped.length > 0) {
+        setSelectedDocument(mapped[0]);
+      } else {
+        setSelectedDocument(null);
       }
     } catch (error) {
       console.error('Error fetching documents:', error);
@@ -68,6 +131,15 @@ export default function Dashboard() {
       </div>
     );
   }
+
+  // Compute unique statuses for filter
+  const uniqueStatuses = Array.from(
+    new Set(documents.map((d) => (d.status ?? '').trim()).filter((s) => s.length > 0))
+  );
+  const filteredDocs =
+    statusFilter === 'ALL'
+      ? documents
+      : documents.filter((d) => (d.status ?? '').toLowerCase() === statusFilter.toLowerCase());
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -101,6 +173,24 @@ export default function Dashboard() {
             <h2 className="text-sm font-semibold mb-4 text-muted-foreground uppercase tracking-wide">
               Documents
             </h2>
+
+            {/* Status Filter */}
+            <div className="mb-4">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Filter by Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Statuses</SelectItem>
+                  {uniqueStatuses.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             {!hasSupabaseEnv ? (
               <div className="text-sm text-muted-foreground space-y-2">
                 <p>Supabase is not configured.</p>
@@ -112,13 +202,13 @@ export default function Dashboard() {
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-primary" />
               </div>
-            ) : documents.length === 0 ? (
+            ) : filteredDocs.length === 0 ? (
               <div className="text-center py-8 text-sm text-muted-foreground">
                 No documents found
               </div>
             ) : (
               <div className="space-y-2">
-                {documents.map((doc) => (
+                {filteredDocs.map((doc) => (
                   <motion.button
                     key={doc.id}
                     whileHover={{ scale: 1.02 }}
@@ -134,11 +224,11 @@ export default function Dashboard() {
                       <FileText className="h-5 w-5 mt-0.5 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium truncate">
-                          {doc.document_data.document.pages[0]?.metadata.document_title.value ||
-                            'Untitled Document'}
+                          {doc.title || 'Untitled Document'}
                         </div>
                         <div className="text-xs opacity-70 mt-1">
-                          {new Date(doc.created_at).toLocaleDateString()}
+                          {doc.status ? `${doc.status} • ` : ''}
+                          {doc.created_at ? new Date(doc.created_at).toLocaleDateString() : ''}
                         </div>
                       </div>
                     </div>
@@ -154,18 +244,22 @@ export default function Dashboard() {
           <div className="flex-1 flex overflow-hidden">
             {/* PDF Viewer */}
             <div className="flex-1 overflow-hidden">
-              <PDFViewer
-                pdfUrl={selectedDocument.pdf_url}
-                highlightBox={highlightBox}
-              />
+              <PDFViewer pdfUrl={selectedDocument.pdf_url} highlightBox={highlightBox} />
             </div>
 
             {/* Document Fields */}
             <aside className="w-96 border-l bg-background overflow-hidden">
-              <DocumentFields
-                documentData={selectedDocument.document_data}
-                onFieldHover={setHighlightBox}
-              />
+              {selectedDocument.document_data &&
+              selectedDocument.document_data?.document?.pages?.length > 0 ? (
+                <DocumentFields
+                  documentData={selectedDocument.document_data}
+                  onFieldHover={setHighlightBox}
+                />
+              ) : (
+                <div className="h-full p-6 text-sm text-muted-foreground">
+                  No structured data available for this document.
+                </div>
+              )}
             </aside>
           </div>
         ) : (
