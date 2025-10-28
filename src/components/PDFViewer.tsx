@@ -32,6 +32,10 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad, documentData }: PDFVie
   const didFitToWidthRef = useRef(false); // ensure we only fit once
 const didAutoFocusRef = useRef(false); // ensure we only auto-focus once
 const [showZoomHud, setShowZoomHud] = useState(false);
+const pdfDocRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null);
+const pageRef = useRef<pdfjsLib.PDFPageProxy | null>(null);
+const renderTaskRef = useRef<any>(null);
+const baseViewportRef = useRef<{ width: number; height: number } | null>(null);
 
   const fetchPdfProxy = useAction(api.documents.fetchPdfProxy);
 
@@ -67,6 +71,39 @@ const [showZoomHud, setShowZoomHud] = useState(false);
     // Trigger a brief HUD to show zoom level
     setShowZoomHud(true);
     setTimeout(() => setShowZoomHud(false), 450);
+  };
+
+  // Fast render helper: reuse parsed PDF & page and cancel in-flight renders
+  const renderPage = async (scale: number) => {
+    const page = pageRef.current;
+    const canvas = canvasRef.current;
+    if (!page || !canvas) return;
+
+    // Cancel any in-flight render to avoid queue build-up
+    try {
+      renderTaskRef.current?.cancel();
+    } catch {
+      // ignore
+    }
+
+    const viewport = page.getViewport({ scale });
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    canvas.width = Math.floor(viewport.width);
+    canvas.height = Math.floor(viewport.height);
+    setCanvasSize({ width: canvas.width, height: canvas.height });
+
+    try {
+      const task = (page as any).render({ canvasContext: ctx, viewport } as any);
+      renderTaskRef.current = task;
+      await task.promise;
+      console.log('PDFViewer: Rendered (cached page) at zoom:', scale);
+    } catch (e: any) {
+      if (e?.name === 'RenderingCancelledException') return;
+      console.error('PDFViewer: Render error', e);
+      setError(`Failed to render PDF: ${e?.message || e}`);
+    }
   };
 
   // Compute candidate boxes from documentData and simple merging/focus logic
@@ -236,67 +273,72 @@ const [showZoomHud, setShowZoomHud] = useState(false);
     }
   }, [pdfUrl, fetchPdfProxy, onLoad]);
 
-  // Render first page to canvas via pdf.js; re-render on zoom changes
+  // Load PDF and first page once per ArrayBuffer and cache for fast zoom renders
   useEffect(() => {
+    if (!pdfArrayBuffer) return;
     let cancelled = false;
-    const render = async () => {
-      if (!pdfArrayBuffer || !canvasRef.current) return;
-      try {
-        // Create a fresh copy of the buffer for each render to avoid detachment
-        const bufferCopy = pdfArrayBuffer.slice(0);
-        const loadingTask = pdfjsLib.getDocument({ data: bufferCopy });
-        const pdf = await loadingTask.promise;
-        const page = await pdf.getPage(1);
-        const viewport = page.getViewport({ scale: zoom });
 
-        const canvas = canvasRef.current;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        canvas.width = Math.floor(viewport.width);
-        canvas.height = Math.floor(viewport.height);
-
-        // sync overlay container to canvas size
-        setCanvasSize({ width: canvas.width, height: canvas.height });
-
-        await (page as any).render({ canvasContext: ctx, viewport } as any).promise;
-
-        if (!cancelled) {
-          console.log('PDFViewer: Rendered page at zoom:', zoom);
-        }
-      } catch (e: any) {
-        if (!cancelled) {
-          console.error('PDFViewer: Render error', e);
-          setError(`Failed to render PDF: ${e?.message || e}`);
-        }
-      }
-    };
-    render();
-    return () => {
-      cancelled = true;
-    };
-  }, [pdfArrayBuffer, zoom]);
-
-  // Fit PDF to container width on first load (use clamp to avoid NaN)
-  useEffect(() => {
-    if (!pdfArrayBuffer || !containerRef.current || didFitToWidthRef.current) return;
     (async () => {
       try {
         const bufferCopy = pdfArrayBuffer.slice(0);
         const loadingTask = pdfjsLib.getDocument({ data: bufferCopy });
         const pdf = await loadingTask.promise;
+        if (cancelled) return;
+        pdfDocRef.current = pdf;
+
         const page = await pdf.getPage(1);
+        if (cancelled) return;
+        pageRef.current = page;
+
         const baseViewport = page.getViewport({ scale: 1 });
-        const containerWidth = containerRef.current!.clientWidth;
-        const targetScale = containerWidth && baseViewport.width
-          ? containerWidth / baseViewport.width
-          : 1;
-        setZoom(clampZoom(targetScale));
-        didFitToWidthRef.current = true;
-      } catch (e) {
-        console.warn('PDFViewer: Fit-to-width failed', e);
+        baseViewportRef.current = { width: baseViewport.width, height: baseViewport.height };
+
+        // If fit-to-width hasn't happened yet, attempt it now for a great first paint
+        if (!didFitToWidthRef.current && containerRef.current && baseViewport.width) {
+          const containerWidth = containerRef.current.clientWidth;
+          const targetScale = containerWidth / baseViewport.width;
+          setZoom(clampZoom(targetScale));
+          didFitToWidthRef.current = true;
+        } else {
+          // Render at current zoom immediately
+          renderPage(zoom);
+        }
+      } catch (e: any) {
+        if (!cancelled) {
+          console.error('PDFViewer: Failed to load cached PDF/page', e);
+          setError(`Failed to render PDF: ${e?.message || e}`);
+        }
       }
     })();
+
+    return () => {
+      cancelled = true;
+      try {
+        renderTaskRef.current?.cancel();
+      } catch {}
+    };
+  }, [pdfArrayBuffer]);
+
+  // Re-render quickly on zoom using cached PDF page; cancels any in-flight render
+  useEffect(() => {
+    if (!pageRef.current || !canvasRef.current) return;
+    renderPage(zoom);
+    return () => {
+      try {
+        renderTaskRef.current?.cancel();
+      } catch {}
+    };
+  }, [zoom]);
+
+  // Fit PDF to container width once using cached page metrics
+  useEffect(() => {
+    if (!containerRef.current || didFitToWidthRef.current) return;
+    const base = baseViewportRef.current;
+    if (!base) return;
+    const containerWidth = containerRef.current.clientWidth;
+    const targetScale = containerWidth && base.width ? containerWidth / base.width : 1;
+    setZoom(clampZoom(targetScale));
+    didFitToWidthRef.current = true;
   }, [pdfArrayBuffer]);
 
   // Auto-focus/zoom into key region once after load if focusBox exists
