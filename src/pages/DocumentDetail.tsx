@@ -89,6 +89,14 @@ export default function DocumentDetail() {
 
       const path = data?.['Bucket Name'] ?? data?.bucket_name ?? data?.path ?? '';
       const pdf_url = path ? publicUrlForPath(path) : '';
+      
+      console.log('Document data:', {
+        id: data.id,
+        path,
+        pdf_url,
+        bucket_name: data?.['Bucket Name'],
+      });
+
       const status = data?.status ?? data?.Status ?? data?.state ?? data?.State;
       const created_at = data?.created_at ?? data?.createdAt ?? data?.timestamp ?? new Date().toISOString();
       const document_data = coerceDocumentData(data);
@@ -150,6 +158,9 @@ export default function DocumentDetail() {
                 )}
               </div>
             </div>
+          </div>
+          <div className="text-xs font-mono text-muted-foreground max-w-md truncate">
+            PDF: {document.pdf_url || 'No URL'}
           </div>
         </div>
       </header>

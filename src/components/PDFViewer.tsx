@@ -19,12 +19,14 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad }: PDFViewerProps) {
 
   useEffect(() => {
     if (pdfUrl) {
+      console.log('PDF URL being loaded:', pdfUrl);
       setIsLoading(true);
       setError(null);
       
       // Test if the PDF URL is accessible
       fetch(pdfUrl, { method: 'HEAD' })
         .then(response => {
+          console.log('PDF fetch response:', response.status, response.statusText);
           if (!response.ok) {
             throw new Error('PDF not accessible');
           }
@@ -36,6 +38,10 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad }: PDFViewerProps) {
           setError('Failed to load PDF. The file may not be accessible.');
           setIsLoading(false);
         });
+    } else {
+      console.warn('No PDF URL provided');
+      setError('No PDF URL available');
+      setIsLoading(false);
     }
   }, [pdfUrl, onLoad]);
 
@@ -88,6 +94,9 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad }: PDFViewerProps) {
           <p className="text-sm text-muted-foreground">
             Please check if the PDF URL is correct and accessible.
           </p>
+          <div className="text-xs font-mono bg-muted p-4 rounded-md break-all max-w-2xl">
+            {pdfUrl || 'No URL provided'}
+          </div>
         </div>
       </div>
     );
