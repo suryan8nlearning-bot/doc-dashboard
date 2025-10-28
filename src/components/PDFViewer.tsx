@@ -171,7 +171,10 @@ const toPxBox = (box: WideBox): WideBox => {
     };
     if (!documentData?.document?.pages?.length) return result;
 
-    const page = documentData.document.pages[0];
+    // Select boxes for the currently rendered PDF page (fallback to first page)
+    const pages = documentData.document.pages;
+    const page = pages.find((p: any) => p?.page_number === currentPage) ?? pages[0];
+
     const boxes: Array<BoundingBox & { label?: string }> = [];
 
     const pushField = (label: string, field?: { value?: string; bounding_box?: BoundingBox[] }) => {
@@ -270,7 +273,7 @@ const toPxBox = (box: WideBox): WideBox => {
     result.focusBox = keyBox ? { x: keyBox.x, y: keyBox.y, width: keyBox.width, height: keyBox.height } : null;
     result.allBoxes = boxes.map(({ x, y, width, height }) => ({ x, y, width, height }));
     return result;
-  }, [documentData]);
+  }, [documentData, currentPage]);
 
   // Fetch PDF via backend proxy; convert to ArrayBuffer for pdf.js
   useEffect(() => {
@@ -611,24 +614,24 @@ const toPxBox = (box: WideBox): WideBox => {
           />
 
           {/* Subtle overlays for all boxes (normalized to base pixels, then scaled by zoom) */}
-          {allBoxes.length > 0 && canvasSize.width > 0 && canvasSize.height > 0 && (
+          {/* Show all bounding boxes by default */}
+          {allBoxes.length > 0 && (
             <>
-              {allBoxes.map((b, i) => {
-                const bb = toPxBox(b as WideBox);
-                const pad = 2; // small padding so edges are visible
+              {allBoxes.map((box, idx) => {
+                const bb = toPxBox(box as any);
+                const pad = 2;
                 return (
                   <div
-                    key={i}
+                    key={idx}
                     className="absolute pointer-events-none rounded-sm"
                     style={{
                       left: `${(bb.x - pad) * zoom}px`,
                       top: `${(bb.y - pad) * zoom}px`,
                       width: `${(bb.width + pad * 2) * zoom}px`,
                       height: `${(bb.height + pad * 2) * zoom}px`,
-                      border: "1.5px dashed rgba(59,130,246,0.5)",
-                      background: "rgba(59,130,246,0.08)",
-                      boxShadow: "0 0 0 1px rgba(59,130,246,0.25)",
-                      zIndex: 10, // below the focused highlight
+                      boxShadow: "0 0 0 1.5px rgba(59,130,246,0.8)",
+                      background: "rgba(59,130,246,0.06)",
+                      zIndex: 10, // under the active hover highlight (which uses z-50) but above the canvas
                     }}
                   />
                 );
