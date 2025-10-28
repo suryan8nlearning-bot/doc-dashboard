@@ -611,8 +611,30 @@ const toPxBox = (box: WideBox): WideBox => {
           />
 
           {/* Subtle overlays for all boxes (normalized to base pixels, then scaled by zoom) */}
-          {/* Removed to improve clarity: Only highlight the hovered field */}
-          {/* Intentionally left blank */}
+          {allBoxes.length > 0 && canvasSize.width > 0 && canvasSize.height > 0 && (
+            <>
+              {allBoxes.map((b, i) => {
+                const bb = toPxBox(b as WideBox);
+                const pad = 2; // small padding so edges are visible
+                return (
+                  <div
+                    key={i}
+                    className="absolute pointer-events-none rounded-sm"
+                    style={{
+                      left: `${(bb.x - pad) * zoom}px`,
+                      top: `${(bb.y - pad) * zoom}px`,
+                      width: `${(bb.width + pad * 2) * zoom}px`,
+                      height: `${(bb.height + pad * 2) * zoom}px`,
+                      border: "1.5px dashed rgba(59,130,246,0.5)",
+                      background: "rgba(59,130,246,0.08)",
+                      boxShadow: "0 0 0 1px rgba(59,130,246,0.25)",
+                      zIndex: 10, // below the focused highlight
+                    }}
+                  />
+                );
+              })}
+            </>
+          )}
 
           {/* Hover highlight overlay (normalized to base pixels) */}
           {highlightBox && (() => {
