@@ -96,37 +96,58 @@ export default function Landing() {
           transition={{ delay: 0.4, duration: 0.6 }}
           className="max-w-5xl mx-auto mt-32 grid md:grid-cols-3 gap-8"
         >
-          <div className="text-center space-y-4 p-8">
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-primary/10">
+          <motion.div
+            whileHover={{ y: -8, boxShadow: '0 20px 40px rgba(0,0,0,0.1)' }}
+            transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+            className="text-center space-y-4 p-8 rounded-lg border bg-card/50 hover:bg-card transition-colors cursor-pointer"
+          >
+            <motion.div
+              whileHover={{ scale: 1.1, rotate: 5 }}
+              className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-primary/10"
+            >
               <FileText className="h-6 w-6 text-primary" />
-            </div>
+            </motion.div>
             <h3 className="text-lg font-semibold">Interactive Preview</h3>
             <p className="text-muted-foreground leading-relaxed">
               View PDFs with real-time highlighting and zoom capabilities for precise document
               inspection.
             </p>
-          </div>
+          </motion.div>
 
-          <div className="text-center space-y-4 p-8">
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-primary/10">
+          <motion.div
+            whileHover={{ y: -8, boxShadow: '0 20px 40px rgba(0,0,0,0.1)' }}
+            transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+            className="text-center space-y-4 p-8 rounded-lg border bg-card/50 hover:bg-card transition-colors cursor-pointer"
+          >
+            <motion.div
+              whileHover={{ scale: 1.1, rotate: -5 }}
+              className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-primary/10"
+            >
               <Search className="h-6 w-6 text-primary" />
-            </div>
+            </motion.div>
             <h3 className="text-lg font-semibold">Smart Extraction</h3>
             <p className="text-muted-foreground leading-relaxed">
               Automatically extract structured data from documents with bounding box coordinates.
             </p>
-          </div>
+          </motion.div>
 
-          <div className="text-center space-y-4 p-8">
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-primary/10">
+          <motion.div
+            whileHover={{ y: -8, boxShadow: '0 20px 40px rgba(0,0,0,0.1)' }}
+            transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+            className="text-center space-y-4 p-8 rounded-lg border bg-card/50 hover:bg-card transition-colors cursor-pointer"
+          >
+            <motion.div
+              whileHover={{ scale: 1.1, rotate: 5 }}
+              className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-primary/10"
+            >
               <Zap className="h-6 w-6 text-primary" />
-            </div>
+            </motion.div>
             <h3 className="text-lg font-semibold">Instant Access</h3>
             <p className="text-muted-foreground leading-relaxed">
               Connect to your Supabase database and access documents instantly with zero
               configuration.
             </p>
-          </div>
+          </motion.div>
         </motion.div>
       </main>
 
