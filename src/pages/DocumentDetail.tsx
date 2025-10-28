@@ -188,7 +188,7 @@ export default function DocumentDetail() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="h-screen flex flex-col bg-background overflow-hidden">
       {/* Header */}
       <header className="border-b bg-background sticky top-0 z-10">
         <div className="flex items-center justify-between px-8 py-4">
