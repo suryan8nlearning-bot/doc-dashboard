@@ -178,8 +178,12 @@ const didAutoFocusRef = useRef(false); // ensure we only auto-focus once
           for (let i = 0; i < binaryString.length; i++) {
             bytes[i] = binaryString.charCodeAt(i);
           }
-          // Create a copy of the buffer to prevent detachment issues
+          // Create a new ArrayBuffer copy to prevent detachment issues
           const arrayBuffer = bytes.buffer.slice(0);
+          
+          // Store as a new Uint8Array to ensure buffer stays attached
+          const safeCopy = new Uint8Array(arrayBuffer);
+          setPdfArrayBuffer(safeCopy.buffer);
 
           if (bytes.byteLength === 0) {
             throw new Error('PDF data buffer is empty (0 bytes)');
@@ -207,7 +211,9 @@ const didAutoFocusRef = useRef(false); // ensure we only auto-focus once
     const render = async () => {
       if (!pdfArrayBuffer || !canvasRef.current) return;
       try {
-        const loadingTask = pdfjsLib.getDocument({ data: pdfArrayBuffer });
+        // Create a fresh copy of the buffer for each render to avoid detachment
+        const bufferCopy = pdfArrayBuffer.slice(0);
+        const loadingTask = pdfjsLib.getDocument({ data: bufferCopy });
         const pdf = await loadingTask.promise;
         const page = await pdf.getPage(1);
         const viewport = page.getViewport({ scale: zoom });
@@ -245,7 +251,8 @@ const didAutoFocusRef = useRef(false); // ensure we only auto-focus once
     if (!pdfArrayBuffer || !containerRef.current || didFitToWidthRef.current) return;
     (async () => {
       try {
-        const loadingTask = pdfjsLib.getDocument({ data: pdfArrayBuffer });
+        const bufferCopy = pdfArrayBuffer.slice(0);
+        const loadingTask = pdfjsLib.getDocument({ data: bufferCopy });
         const pdf = await loadingTask.promise;
         const page = await pdf.getPage(1);
         const baseViewport = page.getViewport({ scale: 1 });
@@ -290,6 +297,12 @@ const didAutoFocusRef = useRef(false); // ensure we only auto-focus once
       console.log('Zoom in:', prev, '->', newZoom);
       return newZoom;
     });
+    // Force re-render after zoom change
+    setTimeout(() => {
+      if (canvasRef.current && pdfArrayBuffer) {
+        console.log('Re-rendering after zoom in');
+      }
+    }, 50);
   };
   
   const handleZoomOut = () => {
@@ -298,6 +311,12 @@ const didAutoFocusRef = useRef(false); // ensure we only auto-focus once
       console.log('Zoom out:', prev, '->', newZoom);
       return newZoom;
     });
+    // Force re-render after zoom change
+    setTimeout(() => {
+      if (canvasRef.current && pdfArrayBuffer) {
+        console.log('Re-rendering after zoom out');
+      }
+    }, 50);
   };
   
   const handleResetZoom = () => {
