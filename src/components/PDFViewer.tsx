@@ -468,7 +468,7 @@ const [showZoomHud, setShowZoomHud] = useState(false);
 
       <div
         ref={containerRef}
-        className="h-full overflow-auto relative flex-1 flex items-start justify-center"
+        className="h-full overflow-auto relative"
         style={{ scrollBehavior: 'smooth' }}
       >
         {/* Canvas-based PDF rendering */}
