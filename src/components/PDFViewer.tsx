@@ -30,6 +30,7 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad, documentData }: PDFVie
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [canvasSize, setCanvasSize] = useState<{ width: number; height: number }>({ width: 0, height: 0 }); // add canvas size to sync overlays
   const didFitToWidthRef = useRef(false); // ensure we only fit once
+  const didAutoFocusRef = useRef(false); // ensure we only auto-focus once
 
   const fetchPdfProxy = useAction(api.documents.fetchPdfProxy);
 
