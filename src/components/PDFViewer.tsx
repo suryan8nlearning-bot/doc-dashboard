@@ -3,6 +3,8 @@ import { ZoomIn, ZoomOut, RotateCcw, Loader2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from './ui/button';
 import type { BoundingBox } from '@/lib/supabase';
+import { useAction } from 'convex/react';
+import { api } from '@/convex/_generated/api';
 
 interface PDFViewerProps {
   pdfUrl: string;
@@ -16,35 +18,43 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad }: PDFViewerProps) {
   const [error, setError] = useState<string | null>(null);
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fetchPdfProxy = useAction(api.documents.fetchPdfProxy);
 
   useEffect(() => {
     if (pdfUrl) {
-      console.log('PDFViewer: Starting PDF fetch from:', pdfUrl);
+      console.log('PDFViewer: Starting PDF fetch via backend proxy:', pdfUrl);
       setIsLoading(true);
       setError(null);
       
-      // Fetch PDF as blob to bypass CORS issues
-      fetch(pdfUrl, {
-        mode: 'cors',
-        cache: 'no-cache',
-        credentials: 'omit',
-      })
-        .then(response => {
-          console.log('PDFViewer: Fetch response status:', response.status, response.statusText);
-          console.log('PDFViewer: Response type:', response.type);
+      // Fetch PDF through backend proxy to bypass Chrome blocking
+      fetchPdfProxy({ pdfUrl })
+        .then(result => {
+          console.log('PDFViewer: Backend proxy response:', {
+            success: result.success,
+            size: result.success ? result.size : 0,
+            contentType: result.success ? result.contentType : null,
+          });
           
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+          if (!result.success) {
+            throw new Error(result.error || 'Failed to fetch PDF');
           }
+
+          if (!result.data) {
+            throw new Error('No PDF data returned from backend');
+          }
+
+          // Convert base64 to blob
+          const binaryString = atob(result.data);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          const blob = new Blob([bytes], { type: result.contentType });
           
-          return response.blob();
-        })
-        .then(blob => {
           console.log('PDFViewer: Blob created, size:', blob.size, 'type:', blob.type);
           
           if (blob.size === 0) {
-            throw new Error('PDF file is empty (0 bytes)');
+            throw new Error('PDF blob is empty (0 bytes)');
           }
           
           const blobUrl = URL.createObjectURL(blob);
@@ -55,11 +65,6 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad }: PDFViewerProps) {
         })
         .catch(err => {
           console.error('PDFViewer: PDF fetch error:', err);
-          console.error('PDFViewer: Error details:', {
-            message: err.message,
-            name: err.name,
-            stack: err.stack,
-          });
           setError(`Failed to load PDF: ${err.message}`);
           setIsLoading(false);
         });
@@ -75,7 +80,7 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad }: PDFViewerProps) {
       setError('No PDF URL available');
       setIsLoading(false);
     }
-  }, [pdfUrl]);
+  }, [pdfUrl, fetchPdfProxy]);
 
   useEffect(() => {
     if (highlightBox && containerRef.current) {
