@@ -1,9 +1,6 @@
-import { DocumentFields } from '@/components/DocumentFields';
-import { PDFViewer } from '@/components/PDFViewer';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
-import { supabase, type BoundingBox, hasSupabaseEnv, publicUrlForPath } from '@/lib/supabase';
-import { createClient } from '@supabase/supabase-js';
+import { supabase, hasSupabaseEnv, publicUrlForPath } from '@/lib/supabase';
 import { motion } from 'framer-motion';
 import { FileText, Loader2, LogOut } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -15,20 +12,17 @@ export default function Dashboard() {
   const { isLoading: authLoading, isAuthenticated, user, signOut } = useAuth();
   const navigate = useNavigate();
 
-  // Define a local doc shape tailored to N8N Logs rows
   type DashboardDoc = {
     id: string;
     created_at: string;
     pdf_url: string;
     status?: string;
     title?: string;
-    document_data?: any; // keep flexible; validated before rendering fields
+    document_data?: any;
     raw?: any;
   };
 
   const [documents, setDocuments] = useState<DashboardDoc[]>([]);
-  const [selectedDocument, setSelectedDocument] = useState<DashboardDoc | null>(null);
-  const [highlightBox, setHighlightBox] = useState<BoundingBox | null>(null);
   const [isLoadingDocs, setIsLoadingDocs] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
 
@@ -40,7 +34,6 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      console.log('hasSupabaseEnv:', hasSupabaseEnv);
       if (hasSupabaseEnv) {
         fetchDocuments();
       } else {
@@ -50,7 +43,6 @@ export default function Dashboard() {
     }
   }, [isAuthenticated]);
 
-  // Helper to coerce potential JSON columns into expected document_data shape
   const coerceDocumentData = (row: any) => {
     const candidates = [
       row?.document_data,
@@ -77,7 +69,6 @@ export default function Dashboard() {
   const fetchDocuments = async () => {
     try {
       setIsLoadingDocs(true);
-      console.log('Fetching documents from N8N Logs table...');
       const { data, error } = await supabase
         .from('N8N Logs')
         .select('*')
@@ -87,11 +78,10 @@ export default function Dashboard() {
         console.error('Supabase error:', error);
         throw error;
       }
-      console.log('Documents fetched:', data);
 
       const mapped: DashboardDoc[] = (data as any[] | null || []).map((row: any, idx: number) => {
         const path = row?.['Bucket Name'] ?? row?.bucket_name ?? row?.path ?? '';
-        const pdf_url = path ? publicUrlForPath(String(path)) : '';
+        const pdf_url = path ? publicUrlForPath(path) : '';
         const status = row?.status ?? row?.Status ?? row?.state ?? row?.State;
         const created_at = row?.created_at ?? row?.createdAt ?? row?.timestamp ?? new Date().toISOString();
         const id = String(row?.id ?? row?.uuid ?? row?._id ?? `${created_at}-${idx}`);
@@ -113,11 +103,6 @@ export default function Dashboard() {
       });
 
       setDocuments(mapped);
-      if (mapped.length > 0) {
-        setSelectedDocument(mapped[0]);
-      } else {
-        setSelectedDocument(null);
-      }
     } catch (error) {
       console.error('Error fetching documents:', error);
       toast.error(`Failed to load documents: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -143,7 +128,6 @@ export default function Dashboard() {
     return null;
   }
 
-  // Compute unique statuses for filter
   const uniqueStatuses = Array.from(
     new Set(documents.map((d) => (d.status ?? '').trim()).filter((s) => s.length > 0))
   );
@@ -184,18 +168,13 @@ export default function Dashboard() {
       </header>
 
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar - Document List */}
-        <aside className="w-64 border-r bg-muted/30 overflow-y-auto">
-          <div className="p-6">
-            <h2 className="text-sm font-semibold mb-4 text-muted-foreground uppercase tracking-wide">
-              Documents
-            </h2>
-
-            {/* Status Filter */}
-            <div className="mb-4">
+      <div className="flex-1 p-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="mb-6 flex items-center justify-between">
+            <h2 className="text-2xl font-bold tracking-tight">Documents</h2>
+            {uniqueStatuses.length > 0 && (
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="w-48">
                   <SelectValue placeholder="Filter by Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -207,87 +186,62 @@ export default function Dashboard() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-
-            {!hasSupabaseEnv ? (
-              <div className="text-sm text-muted-foreground space-y-2">
-                <p>Supabase is not configured.</p>
-                <p className="text-xs">
-                  Add SUPABASE_URL and SUPABASE_ANON_KEY in the Integrations tab, then refresh.
-                </p>
-              </div>
-            ) : isLoadingDocs ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              </div>
-            ) : filteredDocs.length === 0 ? (
-              <div className="text-center py-8 text-sm text-muted-foreground">
-                No documents found
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {filteredDocs.map((doc) => (
-                  <motion.button
-                    key={doc.id}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setSelectedDocument(doc)}
-                    className={`w-full text-left p-4 rounded-lg border transition-colors ${
-                      selectedDocument?.id === doc.id
-                        ? 'bg-primary text-primary-foreground border-primary'
-                        : 'bg-background hover:bg-muted border-border'
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <FileText className="h-5 w-5 mt-0.5 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate">
-                          {doc.title || 'Untitled Document'}
-                        </div>
-                        <div className="text-xs opacity-70 mt-1">
-                          {doc.status ? `${doc.status} • ` : ''}
-                          {doc.created_at ? new Date(doc.created_at).toLocaleDateString() : ''}
-                        </div>
-                      </div>
-                    </div>
-                  </motion.button>
-                ))}
-              </div>
             )}
           </div>
-        </aside>
 
-        {/* Main Content Area */}
-        {selectedDocument ? (
-          <div className="flex-1 flex overflow-hidden">
-            {/* PDF Viewer */}
-            <div className="flex-1 overflow-hidden">
-              <PDFViewer pdfUrl={selectedDocument.pdf_url} highlightBox={highlightBox} />
+          {!hasSupabaseEnv ? (
+            <div className="text-center py-12 space-y-4">
+              <FileText className="h-16 w-16 mx-auto text-muted-foreground opacity-20" />
+              <div className="text-lg font-medium">Supabase is not configured</div>
+              <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                Add SUPABASE_URL and SUPABASE_ANON_KEY in the Integrations tab, then refresh.
+              </p>
             </div>
-
-            {/* Document Fields */}
-            <aside className="w-96 border-l bg-background overflow-hidden">
-              {selectedDocument.document_data &&
-              selectedDocument.document_data?.document?.pages?.length > 0 ? (
-                <DocumentFields
-                  documentData={selectedDocument.document_data}
-                  onFieldHover={setHighlightBox}
-                />
-              ) : (
-                <div className="h-full p-6 text-sm text-muted-foreground">
-                  No structured data available for this document.
-                </div>
-              )}
-            </aside>
-          </div>
-        ) : (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground">
-            <div className="text-center">
-              <FileText className="h-16 w-16 mx-auto mb-4 opacity-20" />
-              <p>Select a document to view details</p>
+          ) : isLoadingDocs ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
-          </div>
-        )}
+          ) : filteredDocs.length === 0 ? (
+            <div className="text-center py-12 space-y-4">
+              <FileText className="h-16 w-16 mx-auto text-muted-foreground opacity-20" />
+              <div className="text-lg font-medium">No documents found</div>
+              <p className="text-sm text-muted-foreground">
+                {statusFilter !== 'ALL' ? 'Try changing the status filter' : 'Documents will appear here once added'}
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredDocs.map((doc) => (
+                <motion.div
+                  key={doc.id}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => navigate(`/document/${doc.id}`)}
+                  className="cursor-pointer p-6 rounded-lg border bg-card hover:bg-accent transition-colors"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="p-3 rounded-lg bg-primary/10">
+                      <FileText className="h-6 w-6 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold truncate mb-1">
+                        {doc.title || 'Untitled Document'}
+                      </h3>
+                      {doc.status && (
+                        <div className="inline-block px-2 py-1 rounded text-xs font-medium bg-primary/10 text-primary mb-2">
+                          {doc.status}
+                        </div>
+                      )}
+                      <p className="text-sm text-muted-foreground">
+                        {doc.created_at ? new Date(doc.created_at).toLocaleDateString() : ''}
+                      </p>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

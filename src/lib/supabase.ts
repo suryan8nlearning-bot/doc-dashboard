@@ -27,6 +27,9 @@ export const supabase = createClient(
   supabaseAnonKey || 'placeholder-key'
 );
 
+// Export the URL separately for building public URLs
+export const supabasePublicUrl = supabaseUrl || '';
+
 // Helper to build a public URL from a storage path like "bucket/path/file.pdf"
 export function publicUrlForPath(path: string) {
   if (!supabaseUrl) return '';
