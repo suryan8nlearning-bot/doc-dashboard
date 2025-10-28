@@ -3,6 +3,7 @@ import { PDFViewer } from '@/components/PDFViewer';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase, type BoundingBox, hasSupabaseEnv, publicUrlForPath } from '@/lib/supabase';
+import { createSignedUrlForPath } from '@/lib/supabase';
 import { motion } from 'framer-motion';
 import { ArrowLeft, FileText, Loader2, ExternalLink } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -90,18 +91,43 @@ export default function DocumentDetail() {
         return;
       }
 
-      const path = data?.['Bucket Name'] ?? data?.bucket_name ?? data?.path ?? '';
-      const pdf_url = path ? publicUrlForPath(path) : '';
-      
+      // Build robust storage path from possible fields
+      const bucket = data?.['Bucket Name'] ?? data?.bucket_name ?? data?.bucket ?? '';
+      const objectPathCandidates = [
+        data?.path,
+        data?.['Path'],
+        data?.object_path,
+        data?.['Object Path'],
+        data?.file,
+        data?.filename,
+        data?.name,
+      ];
+      const objectPath = objectPathCandidates.find((v: any) => typeof v === 'string' && v.trim().length > 0) as string | undefined;
+
+      let path = '';
+      if (bucket && objectPath) {
+        path = `${bucket}/${objectPath}`;
+      } else if (typeof data?.path === 'string') {
+        path = String(data.path);
+      } else if (typeof data?.['Bucket Name'] === 'string' && String(data['Bucket Name']).includes('/')) {
+        // Some rows may store full path in "Bucket Name"
+        path = String(data['Bucket Name']);
+      }
+
+      // Prefer a signed URL to avoid Chrome blocking and private bucket issues
+      const signedUrl = path ? await createSignedUrlForPath(path, 60 * 10) : '';
+      const pdf_url = signedUrl || (path ? publicUrlForPath(path) : '');
+
       console.log('Document data:', {
         id: data.id,
         path,
+        signed: Boolean(signedUrl),
         pdf_url,
         bucket_name: data?.['Bucket Name'],
         all_keys: Object.keys(data),
         raw_data: data,
       });
-      
+
       if (!pdf_url) {
         console.error('No PDF URL could be constructed. Available data:', data);
         toast.error('PDF URL is missing from document data');

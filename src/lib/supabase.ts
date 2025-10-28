@@ -40,6 +40,32 @@ export function publicUrlForPath(path: string) {
   return `${base}/storage/v1/object/public/${encodedPath}`;
 }
 
+export function splitBucketAndPath(fullPath: string): { bucket: string; objectPath: string } {
+  const normalized = String(fullPath || '').replace(/^\/+/, '').trim();
+  if (!normalized) return { bucket: '', objectPath: '' };
+  const [bucket, ...rest] = normalized.split('/');
+  return { bucket: bucket || '', objectPath: rest.join('/') || '' };
+}
+
+// Create a signed URL for a storage path like "bucket/path/file.pdf"
+export async function createSignedUrlForPath(path: string, expiresInSeconds: number = 3600): Promise<string> {
+  try {
+    if (!supabasePublicUrl) return '';
+    const { bucket, objectPath } = splitBucketAndPath(path);
+    if (!bucket || !objectPath) return '';
+
+    const { data, error } = await supabase.storage.from(bucket).createSignedUrl(objectPath, expiresInSeconds);
+    if (error) {
+      console.warn('Supabase signed URL error:', error.message);
+      return '';
+    }
+    return data?.signedUrl || '';
+  } catch (e) {
+    console.warn('Failed to create signed URL:', e);
+    return '';
+  }
+}
+
 export interface BoundingBox {
   x: number;
   y: number;
