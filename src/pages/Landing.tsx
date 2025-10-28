@@ -3,10 +3,44 @@ import { useAuth } from '@/hooks/use-auth';
 import { motion } from 'framer-motion';
 import { ArrowRight, FileText, Loader2, Search, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router';
+import { useEffect, useState } from 'react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function Landing() {
   const { isLoading, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+
+  // Add online/offline detection for error banner
+  const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
+  useEffect(() => {
+    const update = () => setIsOnline(navigator.onLine);
+    window.addEventListener('online', update);
+    window.addEventListener('offline', update);
+    return () => {
+      window.removeEventListener('online', update);
+      window.removeEventListener('offline', update);
+    };
+  }, []);
+
+  // Show a full-screen animated loader while auth initializes
+  if (isLoading) {
+    return (
+      <div className="min-h-screen grid place-items-center bg-background">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.3 }}
+          className="flex flex-col items-center gap-4"
+        >
+          <div className="relative">
+            <Loader2 className="h-10 w-10 animate-spin text-primary" />
+            <div className="absolute inset-0 animate-ping rounded-full border border-primary/30" />
+          </div>
+          <div className="text-sm text-muted-foreground">Loading Doc Dashboard…</div>
+        </motion.div>
+      </div>
+    );
+  }
 
   const handleGetStarted = () => {
     if (isAuthenticated) {
@@ -48,6 +82,18 @@ export default function Landing() {
 
       {/* Hero Section */}
       <main className="flex-1 flex flex-col items-center justify-center px-8 py-24">
+        {/* Offline error banner */}
+        {!isOnline && (
+          <div className="max-w-2xl w-full mx-auto mb-6">
+            <Alert variant="destructive">
+              <AlertTitle>Offline</AlertTitle>
+              <AlertDescription>
+                You're currently offline. Some data may not load until your connection is restored.
+              </AlertDescription>
+            </Alert>
+          </div>
+        )}
+
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
