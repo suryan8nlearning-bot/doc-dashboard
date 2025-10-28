@@ -1,8 +1,9 @@
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase, hasSupabaseEnv, publicUrlForPath } from '@/lib/supabase';
 import { motion } from 'framer-motion';
-import { FileText, Loader2, LogOut, Mail } from 'lucide-react';
+import { FileText, Loader2, LogOut, Mail, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
@@ -47,6 +48,7 @@ export default function Dashboard() {
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [selectedMailContent, setSelectedMailContent] = useState<string | null>(null);
   const [isMailDialogOpen, setIsMailDialogOpen] = useState(false);
+  const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -247,6 +249,26 @@ export default function Dashboard() {
     setIsMailDialogOpen(true);
   };
 
+  const handleSelectDocument = (docId: string) => {
+    setSelectedDocuments((prev) => {
+      const next = new Set(prev);
+      if (next.has(docId)) {
+        next.delete(docId);
+      } else {
+        next.add(docId);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedDocuments.size === filteredDocs.length) {
+      setSelectedDocuments(new Set());
+    } else {
+      setSelectedDocuments(new Set(filteredDocs.map((d) => d.id)));
+    }
+  };
+
   const truncateText = (text: string, maxLength: number = 50) => {
     if (!text) return '—';
     const stripped = text.replace(/<[^>]*>/g, '');
@@ -307,22 +329,53 @@ export default function Dashboard() {
       {/* Main Content */}
       <div className="flex-1 p-8 overflow-auto">
         <div className="max-w-full mx-auto">
-          <div className="mb-6 flex items-center justify-between">
-            <h2 className="text-2xl font-bold tracking-tight">Documents</h2>
-            {uniqueStatuses.length > 0 && (
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Filter by Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Statuses</SelectItem>
-                  {uniqueStatuses.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <div className="mb-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold tracking-tight">Documents</h2>
+              {uniqueStatuses.length > 0 && (
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder="Filter by Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Statuses</SelectItem>
+                    {uniqueStatuses.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {s}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+            {selectedDocuments.size > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center gap-4 p-4 bg-muted rounded-lg"
+              >
+                <span className="text-sm font-medium">
+                  {selectedDocuments.size} document{selectedDocuments.size !== 1 ? 's' : ''} selected
+                </span>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => {
+                    toast.success(`${selectedDocuments.size} documents would be deleted`);
+                    setSelectedDocuments(new Set());
+                  }}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Selected
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedDocuments(new Set())}
+                >
+                  Clear Selection
+                </Button>
+              </motion.div>
             )}
           </div>
 
@@ -347,40 +400,75 @@ export default function Dashboard() {
               </p>
             </div>
           ) : (
-            <div className="border rounded-lg">
+            <div className="border rounded-lg overflow-hidden">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>ID</TableHead>
-                    <TableHead>From</TableHead>
-                    <TableHead>CC</TableHead>
-                    <TableHead>Subject</TableHead>
-                    <TableHead>PDF Name</TableHead>
-                    <TableHead>Mail Content</TableHead>
-                    <TableHead>Actions</TableHead>
+                    <TableHead className="w-12">
+                      <Checkbox
+                        checked={selectedDocuments.size === filteredDocs.length && filteredDocs.length > 0}
+                        onCheckedChange={handleSelectAll}
+                        aria-label="Select all documents"
+                      />
+                    </TableHead>
+                    <TableHead className="w-24">ID</TableHead>
+                    <TableHead className="min-w-[180px]">From</TableHead>
+                    <TableHead className="min-w-[180px]">CC</TableHead>
+                    <TableHead className="min-w-[200px]">Subject</TableHead>
+                    <TableHead className="min-w-[150px]">PDF Name</TableHead>
+                    <TableHead className="min-w-[200px]">Mail Content</TableHead>
+                    <TableHead className="w-32">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredDocs.map((doc) => (
-                    <TableRow key={doc.id}>
+                    <TableRow 
+                      key={doc.id}
+                      className={selectedDocuments.has(doc.id) ? 'bg-muted/50' : ''}
+                    >
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedDocuments.has(doc.id)}
+                          onCheckedChange={() => handleSelectDocument(doc.id)}
+                          aria-label={`Select document ${doc.id}`}
+                        />
+                      </TableCell>
                       <TableCell className="font-mono text-xs">{doc.id}</TableCell>
-                      <TableCell>{doc.from_email || '—'}</TableCell>
+                      <TableCell>
+                        <div className="max-w-[180px] truncate" title={doc.from_email || '—'}>
+                          {doc.from_email || '—'}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         {doc.cc_emails && doc.cc_emails.length > 0 ? (
-                          <div className="text-xs">
-                            {doc.cc_emails.slice(0, 2).join(', ')}
-                            {doc.cc_emails.length > 2 && ` +${doc.cc_emails.length - 2} more`}
+                          <div className="text-xs max-w-[180px]">
+                            <div className="truncate" title={doc.cc_emails.join(', ')}>
+                              {doc.cc_emails.slice(0, 2).join(', ')}
+                            </div>
+                            {doc.cc_emails.length > 2 && (
+                              <span className="text-muted-foreground">
+                                +{doc.cc_emails.length - 2} more
+                              </span>
+                            )}
                           </div>
                         ) : (
                           '—'
                         )}
                       </TableCell>
-                      <TableCell>{doc.subject || '—'}</TableCell>
-                      <TableCell>{doc.bucket_name || '—'}</TableCell>
+                      <TableCell>
+                        <div className="max-w-[200px] truncate" title={doc.subject || '—'}>
+                          {doc.subject || '—'}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="max-w-[150px] truncate" title={doc.bucket_name || '—'}>
+                          {doc.bucket_name || '—'}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         {doc.mail_content ? (
                           <div className="flex items-center gap-2">
-                            <span className="text-xs text-muted-foreground">
+                            <span className="text-xs text-muted-foreground max-w-[150px] truncate">
                               {truncateText(doc.mail_content, 30)}
                             </span>
                             <Button
