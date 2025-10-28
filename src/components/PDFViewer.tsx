@@ -20,38 +20,64 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad }: PDFViewerProps) {
 
   useEffect(() => {
     if (pdfUrl) {
-      console.log('Fetching PDF from:', pdfUrl);
+      console.log('PDFViewer: Starting PDF fetch from:', pdfUrl);
       setIsLoading(true);
       setError(null);
       
       // Fetch PDF as blob to bypass CORS issues
-      fetch(pdfUrl)
+      fetch(pdfUrl, {
+        mode: 'cors',
+        credentials: 'omit',
+      })
         .then(response => {
+          console.log('PDFViewer: Fetch response status:', response.status, response.statusText);
+          console.log('PDFViewer: Response headers:', Object.fromEntries(response.headers.entries()));
+          
           if (!response.ok) {
-            throw new Error(`Failed to fetch PDF: ${response.status} ${response.statusText}`);
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
           }
+          
+          const contentType = response.headers.get('content-type');
+          console.log('PDFViewer: Content-Type:', contentType);
+          
+          if (contentType && !contentType.includes('pdf') && !contentType.includes('octet-stream')) {
+            console.warn('PDFViewer: Unexpected content type:', contentType);
+          }
+          
           return response.blob();
         })
         .then(blob => {
+          console.log('PDFViewer: Blob created, size:', blob.size, 'type:', blob.type);
+          
+          if (blob.size === 0) {
+            throw new Error('PDF file is empty (0 bytes)');
+          }
+          
           const blobUrl = URL.createObjectURL(blob);
+          console.log('PDFViewer: Blob URL created:', blobUrl);
           setPdfBlobUrl(blobUrl);
           setIsLoading(false);
           if (onLoad) onLoad();
-          console.log('PDF loaded successfully as blob');
         })
         .catch(err => {
-          console.error('PDF fetch error:', err);
+          console.error('PDFViewer: PDF fetch error:', err);
+          console.error('PDFViewer: Error details:', {
+            message: err.message,
+            name: err.name,
+            stack: err.stack,
+          });
           setError(`Failed to load PDF: ${err.message}`);
           setIsLoading(false);
         });
 
       return () => {
         if (pdfBlobUrl) {
+          console.log('PDFViewer: Cleaning up blob URL');
           URL.revokeObjectURL(pdfBlobUrl);
         }
       };
     } else {
-      console.warn('No PDF URL provided');
+      console.error('PDFViewer: No PDF URL provided to component');
       setError('No PDF URL available');
       setIsLoading(false);
     }

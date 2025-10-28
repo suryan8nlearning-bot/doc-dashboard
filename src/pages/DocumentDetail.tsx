@@ -95,7 +95,14 @@ export default function DocumentDetail() {
         path,
         pdf_url,
         bucket_name: data?.['Bucket Name'],
+        all_keys: Object.keys(data),
+        raw_data: data,
       });
+      
+      if (!pdf_url) {
+        console.error('No PDF URL could be constructed. Available data:', data);
+        toast.error('PDF URL is missing from document data');
+      }
 
       const status = data?.status ?? data?.Status ?? data?.state ?? data?.State;
       const created_at = data?.created_at ?? data?.createdAt ?? data?.timestamp ?? new Date().toISOString();
