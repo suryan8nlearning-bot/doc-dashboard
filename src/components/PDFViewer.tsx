@@ -406,6 +406,13 @@ const toPxBox = (box: WideBox): WideBox => {
     if (didAutoFocusRef.current) return;
     if (!focusBox || !containerRef.current || !pdfArrayBuffer) return;
 
+    const base = getBaseDims();
+    if (!base.width || !base.height) {
+      // Wait until canvas/base dims are ready
+      console.debug('PDFViewer: defer initial auto-focus, base dims not ready', base);
+      return;
+    }
+
     didAutoFocusRef.current = true;
     const container = containerRef.current;
 
@@ -424,7 +431,7 @@ const toPxBox = (box: WideBox): WideBox => {
         behavior: 'smooth',
       });
     }, 180);
-  }, [focusBox, pdfArrayBuffer]);
+  }, [focusBox, pdfArrayBuffer, canvasSize.width, canvasSize.height]);
 
   const handleZoomIn = () => {
     updateZoom(zoom + 0.5);
@@ -483,10 +490,17 @@ const toPxBox = (box: WideBox): WideBox => {
       }
 
       const container = containerRef.current;
-      // Add guard to satisfy TS and avoid runtime race
       if (!container) return;
 
+      const base = getBaseDims();
+      if (!base.width || !base.height) {
+        console.debug('PDFViewer: skip hover center, base dims not ready', base);
+        return;
+      }
+
       const pxBox = toPxBox(highlightBox as WideBox);
+      console.debug('PDFViewer: hover highlight box (px)', { pxBox, zoom, base });
+
       const targetZoom = clampZoom(Math.max(
         zoom,
         (container.clientWidth * 0.55) / Math.max(pxBox.width, 1),
@@ -504,7 +518,7 @@ const toPxBox = (box: WideBox): WideBox => {
     };
 
     void maybeSwitchPageAndCenter();
-  }, [highlightBox, zoom, currentPage]);
+  }, [highlightBox, zoom, currentPage, canvasSize.width, canvasSize.height]);
 
   if (error) {
     return (
@@ -614,8 +628,8 @@ const toPxBox = (box: WideBox): WideBox => {
           />
 
           {/* Subtle overlays for all boxes (normalized to base pixels, then scaled by zoom) */}
-          {/* Show all bounding boxes by default */}
-          {allBoxes.length > 0 && (
+          {/* Show all bounding boxes by default - ensure canvas is ready for visibility */}
+          {allBoxes.length > 0 && canvasSize.width > 0 && canvasSize.height > 0 && (
             <>
               {allBoxes.map((box, idx) => {
                 const bb = toPxBox(box as any);
@@ -629,9 +643,10 @@ const toPxBox = (box: WideBox): WideBox => {
                       top: `${(bb.y - pad) * zoom}px`,
                       width: `${(bb.width + pad * 2) * zoom}px`,
                       height: `${(bb.height + pad * 2) * zoom}px`,
-                      boxShadow: "0 0 0 1.5px rgba(59,130,246,0.8)",
-                      background: "rgba(59,130,246,0.06)",
-                      zIndex: 10, // under the active hover highlight (which uses z-50) but above the canvas
+                      // Stronger visuals so boxes are clearly visible
+                      boxShadow: "0 0 0 2px rgba(59,130,246,0.95), 0 0 0 8px rgba(59,130,246,0.25)",
+                      background: "rgba(59,130,246,0.10)",
+                      zIndex: 10, // below the active hover highlight (z-50)
                     }}
                   />
                 );
