@@ -368,6 +368,39 @@ export default function Dashboard() {
                   {selectedDocuments.size} document{selectedDocuments.size !== 1 ? 's' : ''} selected
                 </span>
                 <Button
+                  variant="default"
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      const selectedIds = Array.from(selectedDocuments);
+                      const webhookUrl = import.meta.env.VITE_WEBHOOK_URL || 'https://your-webhook-url.com/endpoint';
+                      
+                      const response = await fetch(webhookUrl, {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                          documentIds: selectedIds,
+                          timestamp: new Date().toISOString(),
+                        }),
+                      });
+
+                      if (response.ok) {
+                        toast.success(`Successfully sent ${selectedIds.length} document(s) to webhook`);
+                        setSelectedDocuments(new Set());
+                      } else {
+                        throw new Error(`Webhook returned status ${response.status}`);
+                      }
+                    } catch (error) {
+                      console.error('Webhook error:', error);
+                      toast.error(`Failed to send to webhook: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                    }
+                  }}
+                >
+                  Create
+                </Button>
+                <Button
                   variant="destructive"
                   size="sm"
                   onClick={() => {
