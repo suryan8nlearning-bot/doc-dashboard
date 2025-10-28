@@ -2,11 +2,26 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase, hasSupabaseEnv, publicUrlForPath } from '@/lib/supabase';
 import { motion } from 'framer-motion';
-import { FileText, Loader2, LogOut } from 'lucide-react';
+import { FileText, Loader2, LogOut, Mail } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 export default function Dashboard() {
   const { isLoading: authLoading, isAuthenticated, user, signOut } = useAuth();
@@ -19,12 +34,19 @@ export default function Dashboard() {
     status?: string;
     title?: string;
     document_data?: any;
+    from_email?: string;
+    cc_emails?: string[];
+    subject?: string;
+    bucket_name?: string;
+    mail_content?: string;
     raw?: any;
   };
 
   const [documents, setDocuments] = useState<DashboardDoc[]>([]);
   const [isLoadingDocs, setIsLoadingDocs] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [selectedMailContent, setSelectedMailContent] = useState<string | null>(null);
+  const [isMailDialogOpen, setIsMailDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -66,6 +88,25 @@ export default function Dashboard() {
     return undefined;
   };
 
+  const parseEmailField = (field: any): string => {
+    if (!field) return '';
+    if (typeof field === 'string') return field;
+    if (field.value) return field.value;
+    if (field.address) return field.address;
+    return '';
+  };
+
+  const parseCCEmails = (field: any): string[] => {
+    if (!field) return [];
+    if (Array.isArray(field)) {
+      return field.map(parseEmailField).filter(Boolean);
+    }
+    if (typeof field === 'string') {
+      return field.split(',').map(s => s.trim()).filter(Boolean);
+    }
+    return [];
+  };
+
   const fetchDocuments = async () => {
     try {
       setIsLoadingDocs(true);
@@ -91,6 +132,13 @@ export default function Dashboard() {
           (typeof row?.title === 'string' ? row.title : undefined) ||
           (typeof path === 'string' ? String(path).split('/').pop() : undefined) ||
           'Untitled Document';
+        
+        const from_email = parseEmailField(row?.from ?? row?.From ?? row?.from_email);
+        const cc_emails = parseCCEmails(row?.cc ?? row?.CC ?? row?.cc_emails);
+        const subject = row?.subject ?? row?.Subject ?? '';
+        const bucket_name = row?.['Bucket Name'] ?? row?.bucket_name ?? '';
+        const mail_content = row?.mail_content ?? row?.['Mail Content'] ?? row?.html ?? row?.body ?? '';
+
         return {
           id,
           created_at: String(created_at),
@@ -99,6 +147,11 @@ export default function Dashboard() {
           document_data,
           raw: row,
           title,
+          from_email,
+          cc_emails,
+          subject,
+          bucket_name,
+          mail_content,
         };
       });
 
@@ -114,6 +167,17 @@ export default function Dashboard() {
   const handleSignOut = async () => {
     await signOut();
     navigate('/');
+  };
+
+  const handleViewMailContent = (content: string) => {
+    setSelectedMailContent(content);
+    setIsMailDialogOpen(true);
+  };
+
+  const truncateText = (text: string, maxLength: number = 50) => {
+    if (!text) return '—';
+    const stripped = text.replace(/<[^>]*>/g, '');
+    return stripped.length > maxLength ? stripped.substring(0, maxLength) + '...' : stripped;
   };
 
   if (authLoading) {
@@ -168,8 +232,8 @@ export default function Dashboard() {
       </header>
 
       {/* Main Content */}
-      <div className="flex-1 p-8">
-        <div className="max-w-7xl mx-auto">
+      <div className="flex-1 p-8 overflow-auto">
+        <div className="max-w-full mx-auto">
           <div className="mb-6 flex items-center justify-between">
             <h2 className="text-2xl font-bold tracking-tight">Documents</h2>
             {uniqueStatuses.length > 0 && (
@@ -210,39 +274,85 @@ export default function Dashboard() {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredDocs.map((doc) => (
-                <motion.div
-                  key={doc.id}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => navigate(`/document/${doc.id}`)}
-                  className="cursor-pointer p-6 rounded-lg border bg-card hover:bg-accent transition-colors"
-                >
-                  <div className="flex items-start gap-4">
-                    <div className="p-3 rounded-lg bg-primary/10">
-                      <FileText className="h-6 w-6 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold truncate mb-1">
-                        {doc.title || 'Untitled Document'}
-                      </h3>
-                      {doc.status && (
-                        <div className="inline-block px-2 py-1 rounded text-xs font-medium bg-primary/10 text-primary mb-2">
-                          {doc.status}
-                        </div>
-                      )}
-                      <p className="text-sm text-muted-foreground">
-                        {doc.created_at ? new Date(doc.created_at).toLocaleDateString() : ''}
-                      </p>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
+            <div className="border rounded-lg">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>ID</TableHead>
+                    <TableHead>From</TableHead>
+                    <TableHead>CC</TableHead>
+                    <TableHead>Subject</TableHead>
+                    <TableHead>PDF Name</TableHead>
+                    <TableHead>Mail Content</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredDocs.map((doc) => (
+                    <TableRow key={doc.id}>
+                      <TableCell className="font-mono text-xs">{doc.id}</TableCell>
+                      <TableCell>{doc.from_email || '—'}</TableCell>
+                      <TableCell>
+                        {doc.cc_emails && doc.cc_emails.length > 0 ? (
+                          <div className="text-xs">
+                            {doc.cc_emails.slice(0, 2).join(', ')}
+                            {doc.cc_emails.length > 2 && ` +${doc.cc_emails.length - 2} more`}
+                          </div>
+                        ) : (
+                          '—'
+                        )}
+                      </TableCell>
+                      <TableCell>{doc.subject || '—'}</TableCell>
+                      <TableCell>{doc.bucket_name || '—'}</TableCell>
+                      <TableCell>
+                        {doc.mail_content ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground">
+                              {truncateText(doc.mail_content, 30)}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleViewMailContent(doc.mail_content!)}
+                            >
+                              <Mail className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          '—'
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => navigate(`/document/${doc.id}`)}
+                        >
+                          View Details
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           )}
         </div>
       </div>
+
+      {/* Mail Content Dialog */}
+      <Dialog open={isMailDialogOpen} onOpenChange={setIsMailDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Email Content</DialogTitle>
+            <DialogDescription>Full email message content</DialogDescription>
+          </DialogHeader>
+          <div
+            className="prose prose-sm max-w-none"
+            dangerouslySetInnerHTML={{ __html: selectedMailContent || '' }}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
