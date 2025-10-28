@@ -38,13 +38,13 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
     boundingBox?: BoundingBox[];
   }) => (
     <motion.div
-      whileHover={{ backgroundColor: 'rgba(0, 0, 0, 0.02)' }}
-      className="py-3 px-4 cursor-pointer rounded-md transition-colors"
+      whileHover={{ backgroundColor: 'rgba(59, 130, 246, 0.08)' }}
+      className="py-3 px-4 cursor-pointer rounded-lg transition-all border border-transparent hover:border-primary/20 hover:shadow-sm"
       onMouseEnter={() => boundingBox?.[0] && onFieldHover(boundingBox[0])}
       onMouseLeave={() => onFieldHover(null)}
     >
-      <div className="text-xs text-muted-foreground mb-1">{label}</div>
-      <div className="text-sm font-medium">{value || '—'}</div>
+      <div className="text-xs font-medium text-muted-foreground mb-1.5">{label}</div>
+      <div className="text-sm font-medium text-foreground">{value || '—'}</div>
     </motion.div>
   );
 
@@ -53,13 +53,13 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
     return (
       <button
         onClick={() => toggleSection(id)}
-        className="flex items-center justify-between w-full py-3 px-4 hover:bg-muted/50 transition-colors rounded-md"
+        className="flex items-center justify-between w-full py-3 px-4 hover:bg-muted/50 transition-colors rounded-lg group"
       >
-        <h3 className="font-semibold text-sm">{title}</h3>
+        <h3 className="font-semibold text-sm text-foreground group-hover:text-primary transition-colors">{title}</h3>
         {isExpanded ? (
-          <ChevronDown className="h-4 w-4" />
+          <ChevronDown className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
         ) : (
-          <ChevronRight className="h-4 w-4" />
+          <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
         )}
       </button>
     );
@@ -67,16 +67,16 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
 
   return (
     <ScrollArea className="h-full">
-      <div className="p-6 space-y-6">
+      <div className="p-6 space-y-4">
         {/* Metadata Section */}
-        <div className="space-y-2">
+        <div className="space-y-2 bg-card rounded-lg border p-2">
           <SectionHeader title="Document Metadata" id="metadata" />
           {expandedSections.has('metadata') && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="space-y-1"
+              className="space-y-1 pt-2"
             >
               <FieldItem
                 label="Document Title"
@@ -98,14 +98,14 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
         </div>
 
         {/* Vendor Information */}
-        <div className="space-y-2">
+        <div className="space-y-2 bg-card rounded-lg border p-2">
           <SectionHeader title="Vendor Information" id="vendor" />
           {expandedSections.has('vendor') && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="space-y-1"
+              className="space-y-1 pt-2"
             >
               <FieldItem
                 label="Vendor Name"
@@ -132,14 +132,14 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
         </div>
 
         {/* Customer Information */}
-        <div className="space-y-2">
+        <div className="space-y-2 bg-card rounded-lg border p-2">
           <SectionHeader title="Customer Information" id="customer" />
           {expandedSections.has('customer') && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="space-y-1"
+              className="space-y-1 pt-2"
             >
               <FieldItem
                 label="Customer Name"
@@ -171,39 +171,39 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
         </div>
 
         {/* Items */}
-        <div className="space-y-2">
+        <div className="space-y-2 bg-card rounded-lg border p-2">
           <SectionHeader title="Items" id="items" />
           {expandedSections.has('items') && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="space-y-4"
+              className="space-y-3 pt-2"
             >
               {page.items.map((item, index) => (
                 <motion.div
                   key={index}
-                  whileHover={{ backgroundColor: 'rgba(0, 0, 0, 0.02)' }}
-                  className="p-4 rounded-md border cursor-pointer"
+                  whileHover={{ backgroundColor: 'rgba(59, 130, 246, 0.08)' }}
+                  className="p-4 rounded-lg border border-border hover:border-primary/30 cursor-pointer transition-all hover:shadow-sm"
                   onMouseEnter={() => item.bounding_box[0] && onFieldHover(item.bounding_box[0])}
                   onMouseLeave={() => onFieldHover(null)}
                 >
-                  <div className="text-xs text-muted-foreground mb-2">Item {index + 1}</div>
+                  <div className="text-xs font-semibold text-primary mb-3">Item {index + 1}</div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <div className="text-xs text-muted-foreground">Description</div>
+                      <div className="text-xs text-muted-foreground mb-1">Description</div>
                       <div className="text-sm font-medium">{item.description || '—'}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-muted-foreground">Quantity</div>
+                      <div className="text-xs text-muted-foreground mb-1">Quantity</div>
                       <div className="text-sm font-medium">{item.quantity || '—'}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-muted-foreground">Unit Price</div>
+                      <div className="text-xs text-muted-foreground mb-1">Unit Price</div>
                       <div className="text-sm font-medium">{item.unit_price || '—'}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-muted-foreground">Total</div>
+                      <div className="text-xs text-muted-foreground mb-1">Total</div>
                       <div className="text-sm font-medium">{item.total || '—'}</div>
                     </div>
                   </div>
@@ -215,14 +215,14 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
 
         {/* Other Information */}
         {page.other_information.length > 0 && (
-          <div className="space-y-2">
+          <div className="space-y-2 bg-card rounded-lg border p-2">
             <SectionHeader title="Other Information" id="other" />
             {expandedSections.has('other') && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="space-y-1"
+                className="space-y-1 pt-2"
               >
                 {page.other_information.map((info, index) => (
                   <div key={index}>

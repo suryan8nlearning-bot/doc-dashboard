@@ -14,38 +14,48 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad }: PDFViewerProps) {
   const [zoom, setZoom] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const objectRef = useRef<HTMLObjectElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     if (pdfUrl) {
-      console.log('PDF URL being loaded:', pdfUrl);
-      console.log('PDF URL length:', pdfUrl.length);
-      console.log('PDF URL starts with:', pdfUrl.substring(0, 50));
+      console.log('Fetching PDF from:', pdfUrl);
       setIsLoading(true);
       setError(null);
       
-      // Test if the PDF URL is accessible
-      fetch(pdfUrl, { method: 'HEAD', mode: 'no-cors' })
+      // Fetch PDF as blob to bypass CORS issues
+      fetch(pdfUrl)
         .then(response => {
-          console.log('PDF fetch response:', response.status, response.statusText, response.type);
-          // With no-cors, we won't get status, so just proceed
+          if (!response.ok) {
+            throw new Error(`Failed to fetch PDF: ${response.status} ${response.statusText}`);
+          }
+          return response.blob();
+        })
+        .then(blob => {
+          const blobUrl = URL.createObjectURL(blob);
+          setPdfBlobUrl(blobUrl);
           setIsLoading(false);
           if (onLoad) onLoad();
+          console.log('PDF loaded successfully as blob');
         })
         .catch(err => {
-          console.error('PDF load error:', err);
-          // Even if fetch fails, try to load the PDF anyway
-          console.log('Attempting to load PDF despite fetch error');
+          console.error('PDF fetch error:', err);
+          setError(`Failed to load PDF: ${err.message}`);
           setIsLoading(false);
-          if (onLoad) onLoad();
         });
+
+      return () => {
+        if (pdfBlobUrl) {
+          URL.revokeObjectURL(pdfBlobUrl);
+        }
+      };
     } else {
       console.warn('No PDF URL provided');
       setError('No PDF URL available');
       setIsLoading(false);
     }
-  }, [pdfUrl, onLoad]);
+  }, [pdfUrl]);
 
   useEffect(() => {
     if (highlightBox && containerRef.current) {
@@ -99,6 +109,13 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad }: PDFViewerProps) {
           <div className="text-xs font-mono bg-muted p-4 rounded-md break-all max-w-2xl">
             {pdfUrl || 'No URL provided'}
           </div>
+          <a 
+            href={pdfUrl} 
+            download 
+            className="inline-block text-primary hover:underline mt-4"
+          >
+            Try downloading the PDF directly
+          </a>
         </div>
       </div>
     );
@@ -110,7 +127,7 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad }: PDFViewerProps) {
         <Button
           variant="outline"
           size="icon"
-          className="rounded-full"
+          className="rounded-full h-8 w-8"
           onClick={handleZoomOut}
           disabled={zoom <= 0.5}
           aria-label="Zoom out"
@@ -124,7 +141,7 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad }: PDFViewerProps) {
         <Button
           variant="outline"
           size="icon"
-          className="rounded-full"
+          className="rounded-full h-8 w-8"
           onClick={handleZoomIn}
           disabled={zoom >= 3}
           aria-label="Zoom in"
@@ -135,7 +152,7 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad }: PDFViewerProps) {
         <Button
           variant="outline"
           size="icon"
-          className="rounded-full ml-1"
+          className="rounded-full h-8 w-8 ml-1"
           onClick={handleResetZoom}
           disabled={zoom === 1}
           aria-label="Reset zoom"
@@ -164,42 +181,39 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad }: PDFViewerProps) {
             width: `${100 / zoom}%`,
           }}
         >
-          <object
-            ref={objectRef}
-            data={pdfUrl}
-            type="application/pdf"
-            className="w-full h-[800px] border-0"
-            title="PDF Preview"
-            onLoad={() => console.log('PDF object loaded successfully')}
-            onError={(e) => console.error('PDF object load error:', e)}
-          >
-            <embed
-              src={pdfUrl}
+          {pdfBlobUrl && (
+            <object
+              data={pdfBlobUrl}
               type="application/pdf"
               className="w-full h-[800px] border-0"
-              onLoad={() => console.log('PDF embed loaded successfully')}
-              onError={(e) => console.error('PDF embed load error:', e)}
-            />
-            <div className="p-8 text-center">
-              <p className="text-sm text-muted-foreground mb-4">
-                Your browser cannot display this PDF. Please download it to view.
-              </p>
-              <a 
-                href={pdfUrl} 
-                download 
-                className="text-primary hover:underline"
-              >
-                Download PDF
-              </a>
-            </div>
-          </object>
+              title="PDF Preview"
+            >
+              <embed
+                src={pdfBlobUrl}
+                type="application/pdf"
+                className="w-full h-[800px] border-0"
+              />
+              <div className="p-8 text-center">
+                <p className="text-sm text-muted-foreground mb-4">
+                  Your browser cannot display this PDF. Please download it to view.
+                </p>
+                <a 
+                  href={pdfBlobUrl} 
+                  download 
+                  className="text-primary hover:underline"
+                >
+                  Download PDF
+                </a>
+              </div>
+            </object>
+          )}
           
           {highlightBox && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute border-4 border-primary bg-primary/10 pointer-events-none"
+              className="absolute border-4 border-primary bg-primary/20 pointer-events-none rounded-sm shadow-lg"
               style={{
                 left: `${highlightBox.x}px`,
                 top: `${highlightBox.y}px`,

@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase, type BoundingBox, hasSupabaseEnv, publicUrlForPath } from '@/lib/supabase';
 import { motion } from 'framer-motion';
-import { ArrowLeft, FileText, Loader2 } from 'lucide-react';
+import { ArrowLeft, FileText, Loader2, ExternalLink } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
@@ -159,18 +159,16 @@ export default function DocumentDetail() {
               </div>
             </div>
           </div>
-          <div className="text-xs font-mono text-muted-foreground max-w-2xl">
-            <div className="flex items-center gap-2">
-              <span className="font-semibold">PDF URL:</span>
-              <a 
-                href={document.pdf_url} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-primary hover:underline break-all"
-              >
-                {document.pdf_url || 'No URL'}
-              </a>
-            </div>
+          <div className="flex items-center gap-2">
+            <a 
+              href={document.pdf_url} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-xs text-primary hover:underline flex items-center gap-1"
+            >
+              <ExternalLink className="h-3 w-3" />
+              Open PDF in new tab
+            </a>
           </div>
         </div>
       </header>
