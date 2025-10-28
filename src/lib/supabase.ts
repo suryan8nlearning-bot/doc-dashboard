@@ -35,7 +35,9 @@ export function publicUrlForPath(path: string) {
   if (!supabaseUrl) return '';
   const base = supabaseUrl.replace(/\/$/, '');
   const normalized = String(path).replace(/^\//, '');
-  return `${base}/storage/v1/object/public/${normalized}`;
+  // Encode the path to handle spaces and special characters
+  const encodedPath = normalized.split('/').map(segment => encodeURIComponent(segment)).join('/');
+  return `${base}/storage/v1/object/public/${encodedPath}`;
 }
 
 export interface BoundingBox {

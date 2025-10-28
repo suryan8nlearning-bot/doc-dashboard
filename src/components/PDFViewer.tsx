@@ -26,16 +26,16 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad }: PDFViewerProps) {
       
       // Fetch PDF as blob to bypass CORS issues
       fetch(pdfUrl, {
-        mode: 'no-cors',
+        mode: 'cors',
         cache: 'no-cache',
+        credentials: 'omit',
       })
         .then(response => {
           console.log('PDFViewer: Fetch response status:', response.status, response.statusText);
           console.log('PDFViewer: Response type:', response.type);
           
-          // For no-cors mode, we can't check status or headers
-          if (response.type === 'opaque') {
-            console.log('PDFViewer: Opaque response (no-cors mode), attempting to use blob');
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
           }
           
           return response.blob();
