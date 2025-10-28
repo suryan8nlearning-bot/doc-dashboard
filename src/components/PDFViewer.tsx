@@ -172,13 +172,14 @@ const didAutoFocusRef = useRef(false); // ensure we only auto-focus once
             throw new Error('No PDF data returned from backend');
           }
 
-          // base64 -> Uint8Array -> ArrayBuffer
+          // base64 -> Uint8Array -> ArrayBuffer (create a copy to avoid detachment)
           const binaryString = atob(result.data);
           const bytes = new Uint8Array(binaryString.length);
           for (let i = 0; i < binaryString.length; i++) {
             bytes[i] = binaryString.charCodeAt(i);
           }
-          const arrayBuffer = bytes.buffer;
+          // Create a copy of the buffer to prevent detachment issues
+          const arrayBuffer = bytes.buffer.slice(0);
 
           if (bytes.byteLength === 0) {
             throw new Error('PDF data buffer is empty (0 bytes)');
@@ -398,7 +399,7 @@ const didAutoFocusRef = useRef(false); // ensure we only auto-focus once
 
       <div
         ref={containerRef}
-        className="h-full overflow-auto relative"
+        className="h-full overflow-auto relative flex-1"
         style={{ scrollBehavior: 'smooth' }}
       >
         {/* Canvas-based PDF rendering */}

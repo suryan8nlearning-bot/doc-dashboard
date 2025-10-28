@@ -223,14 +223,14 @@ export default function DocumentDetail() {
       </header>
 
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden gap-0">
         {/* PDF Viewer */}
         <div className="flex-1 overflow-hidden">
           <PDFViewer pdfUrl={doc.pdf_url} highlightBox={highlightBox} documentData={doc.document_data} />
         </div>
 
         {/* Document Fields */}
-        <aside className="w-[420px] border-l bg-background overflow-hidden">
+        <aside className="w-[420px] border-l bg-background overflow-hidden flex-shrink-0">
           {doc.document_data &&
           doc.document_data?.document?.pages?.length > 0 ? (
             <DocumentFields
