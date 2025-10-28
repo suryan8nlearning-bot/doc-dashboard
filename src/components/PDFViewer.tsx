@@ -611,47 +611,28 @@ const toPxBox = (box: WideBox): WideBox => {
           />
 
           {/* Subtle overlays for all boxes (normalized to base pixels, then scaled by zoom) */}
-          {canvasSize.width > 0 &&
-            allBoxes.map((box, idx) => {
-              const b = toPxBox(box as WideBox);
-              return (
-                <motion.div
-                  key={`all-${idx}`}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 0.35 }}
-                  exit={{ opacity: 0 }}
-                  className="absolute rounded-sm pointer-events-none z-10"
-                  style={{
-                    left: `${b.x * zoom}px`,
-                    top: `${b.y * zoom}px`,
-                    width: `${b.width * zoom}px`,
-                    height: `${b.height * zoom}px`,
-                    boxShadow: "0 0 0 1px rgba(59,130,246,0.5)",
-                    background: "linear-gradient(135deg, rgba(59,130,246,0.18), transparent)",
-                  }}
-                />
-              );
-            })}
+          {/* Removed to improve clarity: Only highlight the hovered field */}
+          {/* Intentionally left blank */}
 
           {/* Hover highlight overlay (normalized to base pixels) */}
           {highlightBox && (() => {
             const hb = toPxBox(highlightBox as WideBox);
-            const pad = 6; // make highlight more prominent
+            const pad = 8; // increase padding for clearer highlight
             return (
               <motion.div
                 initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0 }}
-                className="absolute pointer-events-none rounded-md z-20"
+                className="absolute pointer-events-none rounded-md z-50"
                 style={{
                   left: `${(hb.x - pad) * zoom}px`,
                   top: `${(hb.y - pad) * zoom}px`,
                   width: `${(hb.width + pad * 2) * zoom}px`,
                   height: `${(hb.height + pad * 2) * zoom}px`,
                   // Stronger, clearer highlight above the PDF
-                  boxShadow: "0 0 0 3px rgba(59,130,246,1), 0 0 0 6px rgba(59,130,246,0.35)",
-                  background: "radial-gradient(60% 60% at 50% 50%, rgba(59,130,246,0.25), transparent)",
-                  filter: "drop-shadow(0 8px 24px rgba(0,0,0,0.28))",
+                  boxShadow: "0 0 0 4px rgba(59,130,246,1), 0 0 0 8px rgba(59,130,246,0.35)",
+                  background: "radial-gradient(60% 60% at 50% 50%, rgba(59,130,246,0.3), transparent)",
+                  filter: "drop-shadow(0 10px 28px rgba(0,0,0,0.30))",
                   willChange: "transform, opacity",
                 }}
               />

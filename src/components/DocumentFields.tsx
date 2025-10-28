@@ -39,7 +39,6 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
     boundingBox?: BoundingBox[];
   }) => (
     <motion.div
-      whileHover={{ scale: 1.01 }}
       className="py-3 px-4 cursor-pointer rounded-lg transition-all border bg-card/50 hover:bg-primary/5 hover:border-primary/30 hover:shadow-md"
       // Include page number with the first bounding box for accurate page switching
       onMouseEnter={() =>
@@ -188,7 +187,6 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
               {page.items.map((item, index) => (
                 <motion.div
                   key={index}
-                  whileHover={{ scale: 1.01 }}
                   className="p-4 rounded-lg border border-border hover:border-primary/30 cursor-pointer transition-all hover:shadow-md bg-card/50"
                   onMouseEnter={() =>
                     item.bounding_box[0] &&
