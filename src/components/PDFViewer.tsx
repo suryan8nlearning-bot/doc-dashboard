@@ -218,7 +218,9 @@ const [showZoomHud, setShowZoomHud] = useState(false);
             throw new Error('PDF data buffer is empty (0 bytes)');
           }
 
-          setPdfArrayBuffer(arrayBuffer);
+          // Remove duplicate buffer assignment to prevent detachment errors
+          // setPdfArrayBuffer(arrayBuffer);
+
           setIsLoading(false);
           if (onLoad) onLoad();
         })
@@ -454,7 +456,7 @@ const [showZoomHud, setShowZoomHud] = useState(false);
 
       <div
         ref={containerRef}
-        className="h-full overflow-auto relative flex-1 flex items-start justify-center"
+        className="h-full overflow-y-auto overflow-x-hidden relative flex-1 flex items-start justify-center"
         style={{ scrollBehavior: 'smooth' }}
       >
         {/* Canvas-based PDF rendering */}

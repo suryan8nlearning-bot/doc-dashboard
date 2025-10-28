@@ -230,7 +230,7 @@ export default function DocumentDetail() {
         </div>
 
         {/* Document Fields */}
-        <aside className="w-[420px] border-l bg-background overflow-hidden flex-shrink-0">
+        <aside className="w-[560px] border-l bg-background overflow-hidden flex-shrink-0">
           {doc.document_data &&
           doc.document_data?.document?.pages?.length > 0 ? (
             <DocumentFields

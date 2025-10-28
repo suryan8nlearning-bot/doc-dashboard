@@ -76,7 +76,7 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="grid grid-cols-2 gap-2 pt-2"
+              className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 pt-2"
             >
               <FieldItem
                 label="Document Title"
@@ -105,7 +105,7 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="grid grid-cols-2 gap-2 pt-2"
+              className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 pt-2"
             >
               <FieldItem
                 label="Vendor Name"
@@ -139,7 +139,7 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-2"
+              className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 pt-2"
             >
               <FieldItem
                 label="Customer Name"
@@ -178,7 +178,7 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="grid grid-cols-2 gap-3 pt-2"
+              className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 pt-2"
             >
               {page.items.map((item, index) => (
                 <motion.div
@@ -189,7 +189,7 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
                   onMouseLeave={() => onFieldHover(null)}
                 >
                   <div className="text-xs font-semibold text-primary mb-3">Item {index + 1}</div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                     <div>
                       <div className="text-xs text-muted-foreground mb-1">Description</div>
                       <div className="text-sm font-medium truncate">{item.description || '—'}</div>
@@ -222,7 +222,7 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="grid grid-cols-2 gap-2 pt-2"
+                className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 pt-2"
               >
                 {page.other_information.map((info, index) => (
                   <div key={index} className="space-y-2">
