@@ -155,16 +155,21 @@ export default function Dashboard() {
           (typeof path === 'string' ? String(path).split('/').pop() : undefined) ||
           'Untitled Document';
         
-        const from_email = parseEmailField(row?.from ?? row?.From ?? row?.from_email ?? row?.sender);
+        const from_email = parseEmailField(row?.from ?? row?.From ?? row?.from_email ?? row?.sender ?? row?.['From Email']);
+        
+        // Enhanced CC parsing with more field variations
         const cc_emails = parseCCEmails(
           row?.cc ?? 
           row?.CC ?? 
           row?.cc_emails ?? 
           row?.['CC Emails'] ?? 
+          row?.['Cc Emails'] ??
+          row?.ccEmails ??
           row?.recipients ?? 
           row?.Recipients ?? 
           row?.to ?? 
-          row?.To
+          row?.To ??
+          row?.['To Emails']
         );
         
         // Enhanced subject parsing with more field variations and better handling
@@ -177,7 +182,8 @@ export default function Dashboard() {
           row?.email_subject,
           row?.['Email Subject'],
           row?.mail_subject,
-          row?.['Mail Subject']
+          row?.['Mail Subject'],
+          row?.emailSubject
         ];
         
         for (const candidate of subjectCandidates) {
@@ -196,6 +202,7 @@ export default function Dashboard() {
         subject = subject.replace(/<[^>]*>/g, '').trim();
         
         const bucket_name = row?.['Bucket Name'] ?? row?.bucket_name ?? '';
+        
         // Enhanced mail content parsing with more field variations
         const mail_content = 
           row?.mail_content ?? 
@@ -211,7 +218,10 @@ export default function Dashboard() {
           row?.message ?? 
           row?.Message ?? 
           row?.text ?? 
-          row?.Text ?? 
+          row?.Text ??
+          row?.email_body ??
+          row?.['Email Body'] ??
+          row?.emailBody ??
           '';
 
         return {
