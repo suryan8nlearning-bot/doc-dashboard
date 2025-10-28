@@ -26,7 +26,7 @@ export default function DocumentDetail() {
 
   // Rename to avoid shadowing the global window.document
   const [doc, setDoc] = useState<DocumentData | null>(null);
-  const [highlightBox, setHighlightBox] = useState<BoundingBox | null>(null);
+  const [highlightBox, setHighlightBox] = useState<(BoundingBox & { page?: number }) | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Add aside ref for scroll-to-top control

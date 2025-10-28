@@ -6,7 +6,8 @@ import type { BoundingBox, DocumentData } from '@/lib/supabase';
 
 interface DocumentFieldsProps {
   documentData: DocumentData;
-  onFieldHover: (box: BoundingBox | null) => void;
+  // Allow optional page to support cross-page highlight
+  onFieldHover: (box: (BoundingBox & { page?: number }) | null) => void;
 }
 
 export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsProps) {
@@ -40,7 +41,11 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
     <motion.div
       whileHover={{ scale: 1.01 }}
       className="py-3 px-4 cursor-pointer rounded-lg transition-all border bg-card/50 hover:bg-primary/5 hover:border-primary/30 hover:shadow-md"
-      onMouseEnter={() => boundingBox?.[0] && onFieldHover(boundingBox[0])}
+      // Include page number with the first bounding box for accurate page switching
+      onMouseEnter={() =>
+        boundingBox?.[0] &&
+        onFieldHover({ ...boundingBox[0], page: page.page_number })
+      }
       onMouseLeave={() => onFieldHover(null)}
     >
       <div className="text-xs font-medium text-muted-foreground mb-1.5">{label}</div>
@@ -185,7 +190,10 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
                   key={index}
                   whileHover={{ scale: 1.01 }}
                   className="p-4 rounded-lg border border-border hover:border-primary/30 cursor-pointer transition-all hover:shadow-md bg-card/50"
-                  onMouseEnter={() => item.bounding_box[0] && onFieldHover(item.bounding_box[0])}
+                  onMouseEnter={() =>
+                    item.bounding_box[0] &&
+                    onFieldHover({ ...item.bounding_box[0], page: page.page_number })
+                  }
                   onMouseLeave={() => onFieldHover(null)}
                 >
                   <div className="text-xs font-semibold text-primary mb-3">Item {index + 1}</div>

@@ -37,6 +37,55 @@ const pageRef = useRef<pdfjsLib.PDFPageProxy | null>(null);
 const renderTaskRef = useRef<any>(null);
 const baseViewportRef = useRef<{ width: number; height: number } | null>(null);
 
+// Add: normalize/scale helpers and current page state
+type WideBox = BoundingBox & { page?: number };
+
+const [currentPage, setCurrentPage] = useState(1);
+
+const getBaseDims = () => {
+  const base = baseViewportRef.current;
+  if (base?.width && base?.height) return base;
+  const canvas = canvasRef.current;
+  return { width: canvas?.width ?? 0, height: canvas?.height ?? 0 };
+};
+
+const toPxBox = (box: WideBox): WideBox => {
+  // Guard missing values
+  if (
+    box == null ||
+    typeof box.x !== "number" ||
+    typeof box.y !== "number" ||
+    typeof box.width !== "number" ||
+    typeof box.height !== "number"
+  ) {
+    return box;
+  }
+  const base = getBaseDims();
+  if (!base.width || !base.height) return box;
+
+  // If coordinates look normalized (0..1), scale to base pixels
+  const isNormalized =
+    box.x >= 0 &&
+    box.y >= 0 &&
+    box.width > 0 &&
+    box.height > 0 &&
+    box.x <= 1 &&
+    box.y <= 1 &&
+    box.width <= 1 &&
+    box.height <= 1;
+
+  if (isNormalized) {
+    return {
+      x: box.x * base.width,
+      y: box.y * base.height,
+      width: box.width * base.width,
+      height: box.height * base.height,
+      page: (box as any).page,
+    } as WideBox;
+  }
+  return box;
+};
+
   const fetchPdfProxy = useAction(api.documents.fetchPdfProxy);
 
   // Tighten and extend zoom bounds + guard
@@ -289,6 +338,7 @@ const baseViewportRef = useRef<{ width: number; height: number } | null>(null);
         const page = await pdf.getPage(1);
         if (cancelled) return;
         pageRef.current = page;
+        setCurrentPage(1); // Ensure page state is synced
 
         const baseViewport = page.getViewport({ scale: 1 });
         baseViewportRef.current = { width: baseViewport.width, height: baseViewport.height };
@@ -348,14 +398,16 @@ const baseViewportRef = useRef<{ width: number; height: number } | null>(null);
 
     didAutoFocusRef.current = true;
     const container = containerRef.current;
+
+    const pxBox = toPxBox(focusBox as WideBox);
     const desiredZoom = clampZoom(Math.max(
       zoom,
-      (container.clientWidth * 0.6) / Math.max(focusBox.width, 1),
+      (container.clientWidth * 0.6) / Math.max(pxBox.width, 1),
     ));
     setZoom(desiredZoom);
     setTimeout(() => {
-      const cx = focusBox.x + focusBox.width / 2;
-      const cy = focusBox.y + focusBox.height / 2;
+      const cx = pxBox.x + pxBox.width / 2;
+      const cy = pxBox.y + pxBox.height / 2;
       container.scrollTo({
         left: cx * desiredZoom - container.clientWidth / 2,
         top: cy * desiredZoom - container.clientHeight / 2,
@@ -400,26 +452,49 @@ const baseViewportRef = useRef<{ width: number; height: number } | null>(null);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  // Keep hover-centering and zooming for a hovered single box (clamped)
+  // Keep hover-centering and zooming for a hovered single box (clamped) + switch page if needed
   useEffect(() => {
-    if (highlightBox && containerRef.current) {
+    if (!highlightBox || !containerRef.current) return;
+
+    const maybeSwitchPageAndCenter = async () => {
+      const targetPage = (highlightBox as any).page as number | undefined;
+
+      if (typeof targetPage === 'number' && pdfDocRef.current && targetPage !== currentPage) {
+        try {
+          const page = await pdfDocRef.current.getPage(targetPage);
+          pageRef.current = page;
+          const base = page.getViewport({ scale: 1 });
+          baseViewportRef.current = { width: base.width, height: base.height };
+          setCurrentPage(targetPage);
+          await renderPage(zoom);
+        } catch (e) {
+          console.warn('Failed to switch page for highlight box:', e);
+        }
+      }
+
       const container = containerRef.current;
+      // Add guard to satisfy TS and avoid runtime race
+      if (!container) return;
+
+      const pxBox = toPxBox(highlightBox as WideBox);
       const targetZoom = clampZoom(Math.max(
         zoom,
-        (container.clientWidth * 0.55) / Math.max(highlightBox.width, 1),
+        (container.clientWidth * 0.55) / Math.max(pxBox.width, 1),
       ));
       if (targetZoom > zoom + 0.01) {
         setZoom(targetZoom);
       }
-      const boxCenterX = highlightBox.x + highlightBox.width / 2;
-      const boxCenterY = highlightBox.y + highlightBox.height / 2;
+      const boxCenterX = pxBox.x + pxBox.width / 2;
+      const boxCenterY = pxBox.y + pxBox.height / 2;
       container.scrollTo({
         left: boxCenterX * targetZoom - container.clientWidth / 2,
         top: boxCenterY * targetZoom - container.clientHeight / 2,
         behavior: 'smooth',
       });
-    }
-  }, [highlightBox, zoom]);
+    };
+
+    void maybeSwitchPageAndCenter();
+  }, [highlightBox, zoom, currentPage]);
 
   if (error) {
     return (
@@ -526,43 +601,50 @@ const baseViewportRef = useRef<{ width: number; height: number } | null>(null);
             className="block mx-auto"
           />
 
-          {/* Subtle overlays for all boxes - switch to explicit RGBA so they're always visible */}
-          {allBoxes.map((box, idx) => (
-            <motion.div
-              key={`all-${idx}`}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 0.35 }}
-              exit={{ opacity: 0 }}
-              className="absolute rounded-sm pointer-events-none"
-              style={{
-                left: `${box.x * zoom}px`,
-                top: `${box.y * zoom}px`,
-                width: `${box.width * zoom}px`,
-                height: `${box.height * zoom}px`,
-                boxShadow: '0 0 0 1px rgba(59,130,246,0.45)',       // tailwind blue-500 @ ~45%
-                background: 'linear-gradient(135deg, rgba(59,130,246,0.18), transparent)',
-              }}
-            />
-          ))}
+          {/* Subtle overlays for all boxes (normalized to base pixels, then scaled by zoom) */}
+          {allBoxes.map((box, idx) => {
+            const b = toPxBox(box as WideBox);
+            return (
+              <motion.div
+                key={`all-${idx}`}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 0.35 }}
+                exit={{ opacity: 0 }}
+                className="absolute rounded-sm pointer-events-none z-10"
+                style={{
+                  left: `${b.x * zoom}px`,
+                  top: `${b.y * zoom}px`,
+                  width: `${b.width * zoom}px`,
+                  height: `${b.height * zoom}px`,
+                  boxShadow: '0 0 0 1px rgba(59,130,246,0.45)',
+                  background: 'linear-gradient(135deg, rgba(59,130,246,0.18), transparent)',
+                }}
+              />
+            );
+          })}
 
-          {/* Hover highlight overlay - thicker stroke and pleasing glow */}
-          {highlightBox && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute pointer-events-none rounded-md"
-              style={{
-                left: `${highlightBox.x * zoom}px`,
-                top: `${highlightBox.y * zoom}px`,
-                width: `${highlightBox.width * zoom}px`,
-                height: `${highlightBox.height * zoom}px`,
-                boxShadow: '0 0 0 3px rgba(59,130,246,0.9)',
-                background: 'radial-gradient(60% 60% at 50% 50%, rgba(59,130,246,0.3), transparent)',
-                filter: 'drop-shadow(0 8px 24px rgba(0,0,0,0.25))',
-              }}
-            />
-          )}
+          {/* Hover highlight overlay (normalized to base pixels) */}
+          {highlightBox && (() => {
+            const hb = toPxBox(highlightBox as WideBox);
+            const pad = 2; // expand by 2px around for better visibility
+            return (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute pointer-events-none rounded-md z-20"
+                style={{
+                  left: `${(hb.x - pad) * zoom}px`,
+                  top: `${(hb.y - pad) * zoom}px`,
+                  width: `${(hb.width + pad * 2) * zoom}px`,
+                  height: `${(hb.height + pad * 2) * zoom}px`,
+                  boxShadow: '0 0 0 3px rgba(59,130,246,0.9)',
+                  background: 'radial-gradient(60% 60% at 50% 50%, rgba(59,130,246,0.3), transparent)',
+                  filter: 'drop-shadow(0 8px 24px rgba(0,0,0,0.25))',
+                }}
+              />
+            );
+          })()}
         </div>
       </div>
     </div>
