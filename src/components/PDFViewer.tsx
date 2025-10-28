@@ -284,9 +284,24 @@ const didAutoFocusRef = useRef(false); // ensure we only auto-focus once
     }, 180);
   }, [focusBox, pdfArrayBuffer]);
 
-  const handleZoomIn = () => setZoom((prev) => clampZoom(prev + 0.25));
-  const handleZoomOut = () => setZoom((prev) => clampZoom(prev - 0.25));
+  const handleZoomIn = () => {
+    setZoom((prev) => {
+      const newZoom = clampZoom(prev + 0.25);
+      console.log('Zoom in:', prev, '->', newZoom);
+      return newZoom;
+    });
+  };
+  
+  const handleZoomOut = () => {
+    setZoom((prev) => {
+      const newZoom = clampZoom(prev - 0.25);
+      console.log('Zoom out:', prev, '->', newZoom);
+      return newZoom;
+    });
+  };
+  
   const handleResetZoom = () => {
+    console.log('Reset zoom to 1');
     setZoom(clampZoom(1));
     if (containerRef.current) {
       containerRef.current.scrollTo({ left: 0, top: 0, behavior: 'smooth' });

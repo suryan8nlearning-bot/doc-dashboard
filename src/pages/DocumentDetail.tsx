@@ -223,9 +223,9 @@ export default function DocumentDetail() {
       </header>
 
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden gap-0">
+      <div className="flex-1 flex overflow-hidden">
         {/* PDF Viewer */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden relative">
           <PDFViewer pdfUrl={doc.pdf_url} highlightBox={highlightBox} documentData={doc.document_data} />
         </div>
 
