@@ -212,6 +212,7 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad }: PDFViewerProps) {
                 src={pdfBlobUrl}
                 className="w-full h-[800px] border-0"
                 title="PDF Preview"
+                sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
                 onLoad={() => console.log('PDFViewer: iframe loaded successfully')}
                 onError={(e) => console.error('PDFViewer: iframe error:', e)}
               />
