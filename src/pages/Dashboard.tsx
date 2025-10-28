@@ -167,7 +167,14 @@ export default function Dashboard() {
             <h1 className="text-xl font-bold tracking-tight">Document Dashboard</h1>
           </div>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground">{user?.email || 'User'}</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/profile')}
+              className="cursor-pointer"
+            >
+              {user?.email || 'User'}
+            </Button>
             <Button variant="outline" size="sm" onClick={handleSignOut}>
               <LogOut className="h-4 w-4 mr-2" />
               Sign Out
