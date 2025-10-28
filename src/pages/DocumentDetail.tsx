@@ -159,8 +159,18 @@ export default function DocumentDetail() {
               </div>
             </div>
           </div>
-          <div className="text-xs font-mono text-muted-foreground max-w-md truncate">
-            PDF: {document.pdf_url || 'No URL'}
+          <div className="text-xs font-mono text-muted-foreground max-w-2xl">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold">PDF URL:</span>
+              <a 
+                href={document.pdf_url} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-primary hover:underline break-all"
+              >
+                {document.pdf_url || 'No URL'}
+              </a>
+            </div>
           </div>
         </div>
       </header>

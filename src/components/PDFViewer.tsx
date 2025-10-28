@@ -20,23 +20,25 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad }: PDFViewerProps) {
   useEffect(() => {
     if (pdfUrl) {
       console.log('PDF URL being loaded:', pdfUrl);
+      console.log('PDF URL length:', pdfUrl.length);
+      console.log('PDF URL starts with:', pdfUrl.substring(0, 50));
       setIsLoading(true);
       setError(null);
       
       // Test if the PDF URL is accessible
-      fetch(pdfUrl, { method: 'HEAD' })
+      fetch(pdfUrl, { method: 'HEAD', mode: 'no-cors' })
         .then(response => {
-          console.log('PDF fetch response:', response.status, response.statusText);
-          if (!response.ok) {
-            throw new Error('PDF not accessible');
-          }
+          console.log('PDF fetch response:', response.status, response.statusText, response.type);
+          // With no-cors, we won't get status, so just proceed
           setIsLoading(false);
           if (onLoad) onLoad();
         })
         .catch(err => {
           console.error('PDF load error:', err);
-          setError('Failed to load PDF. The file may not be accessible.');
+          // Even if fetch fails, try to load the PDF anyway
+          console.log('Attempting to load PDF despite fetch error');
           setIsLoading(false);
+          if (onLoad) onLoad();
         });
     } else {
       console.warn('No PDF URL provided');
@@ -164,16 +166,32 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad }: PDFViewerProps) {
         >
           <object
             ref={objectRef}
-            data={`${pdfUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+            data={pdfUrl}
             type="application/pdf"
             className="w-full h-[800px] border-0"
             title="PDF Preview"
+            onLoad={() => console.log('PDF object loaded successfully')}
+            onError={(e) => console.error('PDF object load error:', e)}
           >
             <embed
-              src={`${pdfUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+              src={pdfUrl}
               type="application/pdf"
               className="w-full h-[800px] border-0"
+              onLoad={() => console.log('PDF embed loaded successfully')}
+              onError={(e) => console.error('PDF embed load error:', e)}
             />
+            <div className="p-8 text-center">
+              <p className="text-sm text-muted-foreground mb-4">
+                Your browser cannot display this PDF. Please download it to view.
+              </p>
+              <a 
+                href={pdfUrl} 
+                download 
+                className="text-primary hover:underline"
+              >
+                Download PDF
+              </a>
+            </div>
           </object>
           
           {highlightBox && (
