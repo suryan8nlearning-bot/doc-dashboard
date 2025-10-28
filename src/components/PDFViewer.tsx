@@ -26,22 +26,16 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad }: PDFViewerProps) {
       
       // Fetch PDF as blob to bypass CORS issues
       fetch(pdfUrl, {
-        mode: 'cors',
-        credentials: 'omit',
+        mode: 'no-cors',
+        cache: 'no-cache',
       })
         .then(response => {
           console.log('PDFViewer: Fetch response status:', response.status, response.statusText);
-          console.log('PDFViewer: Response headers:', Object.fromEntries(response.headers.entries()));
+          console.log('PDFViewer: Response type:', response.type);
           
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-          }
-          
-          const contentType = response.headers.get('content-type');
-          console.log('PDFViewer: Content-Type:', contentType);
-          
-          if (contentType && !contentType.includes('pdf') && !contentType.includes('octet-stream')) {
-            console.warn('PDFViewer: Unexpected content type:', contentType);
+          // For no-cors mode, we can't check status or headers
+          if (response.type === 'opaque') {
+            console.log('PDFViewer: Opaque response (no-cors mode), attempting to use blob');
           }
           
           return response.blob();
@@ -208,30 +202,15 @@ export function PDFViewer({ pdfUrl, highlightBox, onLoad }: PDFViewerProps) {
           }}
         >
           {pdfBlobUrl && (
-            <object
-              data={pdfBlobUrl}
-              type="application/pdf"
-              className="w-full h-[800px] border-0"
-              title="PDF Preview"
-            >
-              <embed
+            <>
+              <iframe
                 src={pdfBlobUrl}
-                type="application/pdf"
                 className="w-full h-[800px] border-0"
+                title="PDF Preview"
+                onLoad={() => console.log('PDFViewer: iframe loaded successfully')}
+                onError={(e) => console.error('PDFViewer: iframe error:', e)}
               />
-              <div className="p-8 text-center">
-                <p className="text-sm text-muted-foreground mb-4">
-                  Your browser cannot display this PDF. Please download it to view.
-                </p>
-                <a 
-                  href={pdfBlobUrl} 
-                  download 
-                  className="text-primary hover:underline"
-                >
-                  Download PDF
-                </a>
-              </div>
-            </object>
+            </>
           )}
           
           {highlightBox && (

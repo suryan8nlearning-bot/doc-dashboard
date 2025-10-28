@@ -46,6 +46,9 @@ export default function DocumentDetail() {
 
   const coerceDocumentData = (row: any) => {
     const candidates = [
+      row?.PDF_AI_OUTPUT,
+      row?.['PDF_AI_OUTPUT'],
+      row?.pdf_ai_output,
       row?.document_data,
       row?.data,
       row?.json,
