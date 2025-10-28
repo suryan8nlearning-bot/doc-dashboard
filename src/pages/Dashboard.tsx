@@ -3,7 +3,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase, hasSupabaseEnv, publicUrlForPath } from '@/lib/supabase';
 import { motion } from 'framer-motion';
-import { FileText, Loader2, LogOut, Mail, Trash2 } from 'lucide-react';
+import { FileText, Loader2, LogOut, Mail, Trash2, User, Moon, Sun } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
@@ -23,6 +23,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 export default function Dashboard() {
   const { isLoading: authLoading, isAuthenticated, user, signOut } = useAuth();
@@ -49,6 +57,7 @@ export default function Dashboard() {
   const [selectedMailContent, setSelectedMailContent] = useState<string | null>(null);
   const [isMailDialogOpen, setIsMailDialogOpen] = useState(false);
   const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set());
+  const [isDarkMode, setIsDarkMode] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -254,6 +263,11 @@ export default function Dashboard() {
     navigate('/');
   };
 
+  const toggleDarkMode = () => {
+    setIsDarkMode(!isDarkMode);
+    document.documentElement.classList.toggle('dark');
+  };
+
   const handleViewMailContent = (content: string) => {
     setSelectedMailContent(content);
     setIsMailDialogOpen(true);
@@ -320,18 +334,39 @@ export default function Dashboard() {
             <h1 className="text-xl font-bold tracking-tight">Document Dashboard</h1>
           </div>
           <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate('/profile')}
-              className="cursor-pointer"
-            >
-              {user?.email || 'User'}
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleSignOut}>
-              <LogOut className="h-4 w-4 mr-2" />
-              Sign Out
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="rounded-full h-10 w-10 bg-primary/10 hover:bg-primary/20"
+                >
+                  <User className="h-5 w-5 text-primary" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuLabel className="font-normal">
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-xs text-muted-foreground">Signed in as</p>
+                    <p className="text-sm font-medium leading-none">{user?.email || 'User'}</p>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={toggleDarkMode} className="cursor-pointer">
+                  {isDarkMode ? (
+                    <Sun className="h-4 w-4 mr-2" />
+                  ) : (
+                    <Moon className="h-4 w-4 mr-2" />
+                  )}
+                  Dark Mode
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer text-red-600">
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </header>
