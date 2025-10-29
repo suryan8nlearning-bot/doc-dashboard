@@ -44,6 +44,52 @@ const [debugMode, setDebugMode] = useState(false);
 // Add: normalize/scale helpers and current page state
 type WideBox = BoundingBox & { page?: number };
 
+// Normalize incoming bounding boxes to a standard shape for rendering
+function normalizeBoxAny(input: any): (BoundingBox & { page?: number }) | null {
+  if (!input) return null;
+  const toNum = (v: any) => (v === null || v === undefined || v === '' ? NaN : Number(v));
+
+  if (Array.isArray(input)) {
+    if (input.length < 4) return null;
+    const x = toNum(input[0]);
+    const y = toNum(input[1]);
+    let width = toNum(input[2]);
+    let height = toNum(input[3]);
+    if (!Number.isFinite(width) || !Number.isFinite(height)) {
+      width = toNum(input[2]) - x;
+      height = toNum(input[3]) - y;
+    }
+    const page = toNum(input[4]);
+    if ([x, y, width, height].every(Number.isFinite)) {
+      return { x, y, width, height, page: Number.isFinite(page) ? page : undefined };
+    }
+    return null;
+  }
+
+  const x = toNum(input.x ?? input.left ?? input.x0 ?? input.x1 ?? input.startX ?? input.minX);
+  const y = toNum(input.y ?? input.top ?? input.y0 ?? input.y1 ?? input.startY ?? input.minY);
+
+  let width = toNum(input.width ?? input.w);
+  let height = toNum(input.height ?? input.h);
+
+  if (!Number.isFinite(width)) {
+    const x2 = toNum(input.x2 ?? input.right ?? input.maxX);
+    if (Number.isFinite(x) && Number.isFinite(x2)) width = x2 - x;
+  }
+  if (!Number.isFinite(height)) {
+    const y2 = toNum(input.y2 ?? input.bottom ?? input.maxY);
+    if (Number.isFinite(y) && Number.isFinite(y2)) height = y2 - y;
+  }
+
+  const rawPage = input.page ?? input.page_number ?? input.pageIndex ?? input.p;
+  const page = toNum(rawPage);
+
+  if ([x, y, width, height].every(Number.isFinite)) {
+    return { x, y, width, height, page: Number.isFinite(page) ? page : undefined };
+  }
+  return null;
+}
+
 const [currentPage, setCurrentPage] = useState(1);
 
 const getBaseDims = () => {
@@ -182,9 +228,12 @@ const toPxBox = (box: WideBox): WideBox => {
 
     const boxes: Array<BoundingBox & { label?: string }> = [];
 
-    const pushField = (label: string, field?: { value?: string; bounding_box?: BoundingBox[] }) => {
+    const pushField = (label: string, field?: { value?: string; bounding_box?: any[] }) => {
       if (!field?.bounding_box?.length) return;
-      field.bounding_box.forEach((b) => boxes.push({ ...b, label }));
+      field.bounding_box.forEach((b) => {
+        const nb = normalizeBoxAny(b);
+        if (nb) boxes.push({ ...nb, label });
+      });
     };
 
     // Metadata fields
@@ -205,12 +254,15 @@ const toPxBox = (box: WideBox): WideBox => {
     if (Array.isArray(page?.items)) {
       page.items.forEach((item: any, idx: number) => {
         if (item?.bounding_box?.length) {
-          item.bounding_box.forEach((b: any) => boxes.push({ ...b, label: `Item ${idx + 1}` }));
+          item.bounding_box.forEach((b: any) => {
+            const nb = normalizeBoxAny(b);
+            if (nb) boxes.push({ ...nb, label: `Item ${idx + 1}` });
+          });
         }
       });
     }
 
-    // NEW: Recursively collect any bounding_box arrays anywhere on the page object
+    // Recursively collect any bounding_box arrays anywhere on the page object
     const collectBoxes = (node: any) => {
       if (!node) return;
       if (Array.isArray(node)) {
@@ -218,11 +270,10 @@ const toPxBox = (box: WideBox): WideBox => {
         return;
       }
       if (typeof node === 'object') {
-        if (Array.isArray(node.bounding_box)) {
-          node.bounding_box.forEach((b: any) => {
-            if (b && typeof b.x === 'number' && typeof b.y === 'number') {
-              boxes.push({ x: b.x, y: b.y, width: b.width, height: b.height });
-            }
+        if (Array.isArray((node as any).bounding_box)) {
+          (node as any).bounding_box.forEach((b: any) => {
+            const nb = normalizeBoxAny(b);
+            if (nb) boxes.push(nb);
           });
         }
         Object.values(node).forEach(collectBoxes);
@@ -271,8 +322,7 @@ const toPxBox = (box: WideBox): WideBox => {
     // Determine focus box (Purchase Order or Invoice regions)
     const keyLabels = /purchase\s*order|invoice\s*number/i;
     const keyBox =
-      boxes.find((b) => b.label && keyLabels.test(b.label)) ||
-      null;
+      boxes.find((b: any) => b.label && keyLabels.test(String(b.label))) || null;
 
     result.mergedBoxes = merged;
     result.focusBox = keyBox ? { x: keyBox.x, y: keyBox.y, width: keyBox.width, height: keyBox.height } : null;
