@@ -6,10 +6,26 @@ import { useNavigate } from 'react-router';
 import { useEffect, useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
+import { useLocation } from 'react-router';
+import { supabase, hasSupabaseEnv } from '@/lib/supabase';
+import { toast } from 'sonner';
 
 export default function Landing() {
   const { isLoading, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [docId, setDocId] = useState<string>('');
+  const [webhookUrl, setWebhookUrl] = useState<string>('');
+  const [showSap, setShowSap] = useState<boolean>(true);
+  const [rawJson, setRawJson] = useState<string>('');
+  const [sapJson, setSapJson] = useState<string>('');
+  const [editorValue, setEditorValue] = useState<string>('');
+  const [isRowLoading, setIsRowLoading] = useState<boolean>(false);
 
   // Add online/offline detection for error banner
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
@@ -22,6 +38,63 @@ export default function Landing() {
       window.removeEventListener('offline', update);
     };
   }, []);
+
+  // Add: read ?id= from URL
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(location.search);
+      const idParam = params.get('id');
+      if (idParam) setDocId(idParam);
+    } catch {}
+  }, [location.search]);
+
+  // Add: fetch row from Supabase when id present
+  useEffect(() => {
+    const load = async () => {
+      if (!docId || !hasSupabaseEnv) return;
+      setIsRowLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('N8N Logs')
+          .select('pdf_ai_output, SAP_AI_OUTPUT, document_data')
+          .eq('id', docId)
+          .single();
+        if (error) throw error;
+
+        let current = '';
+        const candidates = [data?.pdf_ai_output, data?.document_data];
+        for (const c of candidates) {
+          if (!c) continue;
+          try {
+            current = typeof c === 'string' ? c : JSON.stringify(c, null, 2);
+            break;
+          } catch {}
+        }
+        const sap =
+          data?.SAP_AI_OUTPUT
+            ? (typeof data.SAP_AI_OUTPUT === 'string'
+                ? data.SAP_AI_OUTPUT
+                : JSON.stringify(data.SAP_AI_OUTPUT, null, 2))
+            : '{\n  "output": {\n    "to_Item": []\n  }\n}';
+
+        setRawJson(current);
+        setSapJson(sap);
+        setEditorValue(showSap ? sap : current);
+      } catch (e: any) {
+        console.error('Failed to load row', e);
+        toast.error(`Failed to load row: ${e?.message || e}`);
+      } finally {
+        setIsRowLoading(false);
+      }
+    };
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [docId, hasSupabaseEnv]);
+
+  // Add: sync editor when toggling view
+  useEffect(() => {
+    setEditorValue(showSap ? sapJson : rawJson);
+  }, [showSap, sapJson, rawJson]);
 
   // Show a full-screen animated loader while auth initializes
   if (isLoading) {
@@ -99,6 +172,50 @@ export default function Landing() {
       navigate('/dashboard');
     } else {
       navigate('/auth');
+    }
+  };
+
+  // Add: handlers for SAP panel
+  const handleFormat = () => {
+    try {
+      const parsed = JSON.parse(editorValue || '{}');
+      const pretty = JSON.stringify(parsed, null, 2);
+      setEditorValue(pretty);
+      if (showSap) setSapJson(pretty);
+      else setRawJson(pretty);
+      toast.success('JSON formatted');
+    } catch {
+      toast.error('Invalid JSON; cannot format');
+    }
+  };
+
+  const handleCreate = async () => {
+    if (!webhookUrl) {
+      toast.error('Enter a webhook URL');
+      return;
+    }
+    if (!docId) {
+      toast.error('Enter a document id');
+      return;
+    }
+    // Always send SAP payload (edited)
+    let payload: any = null;
+    try {
+      payload = JSON.parse(sapJson || '{}');
+    } catch {
+      toast.error('SAP payload is not valid JSON');
+      return;
+    }
+    try {
+      const res = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: docId, payload }),
+      });
+      if (!res.ok) throw new Error(`Webhook responded ${res.status}`);
+      toast.success('Webhook called successfully');
+    } catch (e: any) {
+      toast.error(`Webhook failed: ${e?.message || e}`);
     }
   };
 
@@ -246,6 +363,97 @@ export default function Landing() {
               configuration.
             </p>
           </motion.div>
+        </motion.div>
+
+        {/* SAP Webhook Panel */}
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5, duration: 0.6 }}
+          className="max-w-5xl mx-auto mt-12 w-full"
+        >
+          <Card className="bg-card/60">
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span>SAP Webhook</span>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  {hasSupabaseEnv ? (
+                    isRowLoading ? (
+                      <span className="inline-flex items-center gap-1">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading row…
+                      </span>
+                    ) : (
+                      <span>Supabase connected</span>
+                    )
+                  ) : (
+                    <span>Supabase not configured</span>
+                  )}
+                </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="docId">Document ID</Label>
+                  <Input
+                    id="docId"
+                    placeholder="Enter document id (or use ?id= in URL)"
+                    value={docId}
+                    onChange={(e) => setDocId(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="webhookUrl">Webhook URL</Label>
+                  <Input
+                    id="webhookUrl"
+                    placeholder="https://example.com/webhook"
+                    value={webhookUrl}
+                    onChange={(e) => setWebhookUrl(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-4 pt-2">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="toggleSap"
+                    checked={showSap}
+                    onCheckedChange={(v) => setShowSap(Boolean(v))}
+                  />
+                  <Label htmlFor="toggleSap" className="cursor-pointer">
+                    Show SAP Payload
+                  </Label>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {showSap ? 'Editing SAP_AI_OUTPUT' : 'Viewing current JSON'}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="editor">{showSap ? 'SAP Payload (editable)' : 'Current JSON (read-only if from DB)'}</Label>
+                <Textarea
+                  id="editor"
+                  className="min-h-[220px] font-mono text-xs"
+                  value={editorValue}
+                  onChange={(e) => {
+                    setEditorValue(e.target.value);
+                    if (showSap) setSapJson(e.target.value);
+                    else setRawJson(e.target.value);
+                  }}
+                  placeholder={showSap ? '{ "output": { ... } }' : '{ ... }'}
+                />
+              </div>
+            </CardContent>
+            <CardFooter className="flex items-center justify-between">
+              <Button variant="outline" onClick={handleFormat}>
+                Format JSON
+              </Button>
+              <Button onClick={handleCreate}>
+                Create
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </CardFooter>
+          </Card>
         </motion.div>
       </main>
 
