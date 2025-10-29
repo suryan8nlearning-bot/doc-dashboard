@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
-import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase, type BoundingBox, hasSupabaseEnv, publicUrlForPath } from '@/lib/supabase';
@@ -40,6 +40,7 @@ export default function DocumentDetail() {
 
   // Add: editor + saving/creating states for SAP JSON
   const [sapEditorValue, setSapEditorValue] = useState<string>('');
+  const [sapObj, setSapObj] = useState<any>({}); // new: source of truth for inline form fields
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [isCreating, setIsCreating] = useState<boolean>(false);
 
@@ -85,6 +86,22 @@ export default function DocumentDetail() {
       } catch {
         setSapEditorValue('');
       }
+    }
+  }, [sapOut]);
+
+  // Keep editor in sync and initialize editable object when sapOut changes
+  useEffect(() => {
+    if (sapOut) {
+      try {
+        setSapObj(sapOut);
+        setSapEditorValue(JSON.stringify(sapOut, null, 2));
+      } catch {
+        setSapObj({});
+        setSapEditorValue('');
+      }
+    } else {
+      setSapObj({});
+      setSapEditorValue('');
     }
   }, [sapOut]);
 
@@ -435,8 +452,111 @@ export default function DocumentDetail() {
     </div>
   );
 
-  // Hierarchical renderer similar to Dashboard with minor refinements
-  const renderSap = (out: any) => {
+  // Helpers to coerce types and keep JSON string synced with object edits
+  const coerceValue = (input: string, original: any) => {
+    if (typeof original === 'number') {
+      const n = Number(input);
+      return Number.isFinite(n) ? n : 0;
+    }
+    if (typeof original === 'boolean') {
+      const val = input.trim().toLowerCase();
+      return val === 'true' || val === '1';
+    }
+    return input;
+  };
+
+  const syncEditorFromObj = (next: any) => {
+    try {
+      setSapEditorValue(JSON.stringify(next, null, 2));
+    } catch {
+      // ignore stringify errors
+    }
+  };
+
+  const updateHeaderField = (key: string, value: string) => {
+    setSapObj((prev: any) => {
+      const typed = coerceValue(value, prev?.[key]);
+      const next = { ...prev, [key]: typed };
+      syncEditorFromObj(next);
+      return next;
+    });
+  };
+
+  const updatePartnerField = (index: number, key: string, value: string) => {
+    setSapObj((prev: any) => {
+      const arr: any[] = Array.isArray(prev?.to_Partner) ? [...prev.to_Partner] : [];
+      const row = { ...(arr[index] || {}) };
+      const typed = coerceValue(value, row[key]);
+      row[key] = typed;
+      arr[index] = row;
+      const next = { ...prev, to_Partner: arr };
+      syncEditorFromObj(next);
+      return next;
+    });
+  };
+
+  const updatePricingField = (index: number, key: string, value: string) => {
+    setSapObj((prev: any) => {
+      const arr: any[] = Array.isArray(prev?.to_PricingElement) ? [...prev.to_PricingElement] : [];
+      const row = { ...(arr[index] || {}) };
+      const typed = coerceValue(value, row[key]);
+      row[key] = typed;
+      arr[index] = row;
+      const next = { ...prev, to_PricingElement: arr };
+      syncEditorFromObj(next);
+      return next;
+    });
+  };
+
+  const updateItemField = (itemIndex: number, key: string, value: string) => {
+    setSapObj((prev: any) => {
+      const items: any[] = Array.isArray(prev?.to_Item) ? [...prev.to_Item] : [];
+      const item = { ...(items[itemIndex] || {}) };
+      const typed = coerceValue(value, item[key]);
+      item[key] = typed;
+      items[itemIndex] = item;
+      const next = { ...prev, to_Item: items };
+      syncEditorFromObj(next);
+      return next;
+    });
+  };
+
+  const updateItemPartnerField = (itemIndex: number, partnerIndex: number, key: string, value: string) => {
+    setSapObj((prev: any) => {
+      const items: any[] = Array.isArray(prev?.to_Item) ? [...prev.to_Item] : [];
+      const item = { ...(items[itemIndex] || {}) };
+      const partners: any[] = Array.isArray(item.to_ItemPartner) ? [...item.to_ItemPartner] : [];
+      const row = { ...(partners[partnerIndex] || {}) };
+      const typed = coerceValue(value, row[key]);
+      row[key] = typed;
+      partners[partnerIndex] = row;
+      item.to_ItemPartner = partners;
+      items[itemIndex] = item;
+      const next = { ...prev, to_Item: items };
+      syncEditorFromObj(next);
+      return next;
+    });
+  };
+
+  const updateItemPricingField = (itemIndex: number, priceIndex: number, key: string, value: string) => {
+    setSapObj((prev: any) => {
+      const items: any[] = Array.isArray(prev?.to_Item) ? [...prev.to_Item] : [];
+      const item = { ...(items[itemIndex] || {}) };
+      const prices: any[] = Array.isArray(item.to_ItemPricingElement) ? [...item.to_ItemPricingElement] : [];
+      const row = { ...(prices[priceIndex] || {}) };
+      const typed = coerceValue(value, row[key]);
+      row[key] = typed;
+      prices[priceIndex] = row;
+      item.to_ItemPricingElement = prices;
+      items[itemIndex] = item;
+      const next = { ...prev, to_Item: items };
+      syncEditorFromObj(next);
+      return next;
+    });
+  };
+
+  // Editable renderer
+  const renderSapEditable = (out: any) => {
     if (!out || typeof out !== 'object') {
       return <div className="text-sm text-muted-foreground">No SAP data.</div>;
     }
@@ -456,7 +576,14 @@ export default function DocumentDetail() {
           {headerPairs.length ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               {headerPairs.map(([k, v]) => (
-                <KV key={k} label={k} value={v} />
+                <div key={k} className="rounded bg-card/50 p-2">
+                  <div className="text-xs text-muted-foreground mb-1">{k}</div>
+                  <Input
+                    value={String(v ?? '')}
+                    onChange={(e) => updateHeaderField(k, e.target.value)}
+                    className="h-8"
+                  />
+                </div>
               ))}
             </div>
           ) : (
@@ -470,14 +597,16 @@ export default function DocumentDetail() {
             <div className="space-y-2">
               {out.to_Partner.map((p: any, idx: number) => (
                 <div key={idx} className="rounded border p-2">
-                  <div className="text-xs text-muted-foreground mb-1">Partner {idx + 1}</div>
+                  <div className="text-xs text-muted-foreground mb-2">Partner {idx + 1}</div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     {Object.entries(p || {}).map(([k, v]) => (
                       <div key={k} className="rounded bg-card/50 p-2">
-                        <div className="text-xs text-muted-foreground">{k}</div>
-                        <div className="text-sm font-medium whitespace-pre-wrap break-words" title={String(v)}>
-                          {String(v ?? '—')}
-                        </div>
+                        <div className="text-xs text-muted-foreground mb-1">{k}</div>
+                        <Input
+                          value={String(v ?? '')}
+                          onChange={(e) => updatePartnerField(idx, k, e.target.value)}
+                          className="h-8"
+                        />
                       </div>
                     ))}
                   </div>
@@ -493,14 +622,16 @@ export default function DocumentDetail() {
             <div className="space-y-2">
               {out.to_PricingElement.map((pe: any, idx: number) => (
                 <div key={idx} className="rounded border p-2">
-                  <div className="text-xs text-muted-foreground mb-1">Pricing {idx + 1}</div>
+                  <div className="text-xs text-muted-foreground mb-2">Pricing {idx + 1}</div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     {Object.entries(pe || {}).map(([k, v]) => (
-                      <div key={k} className="flex items-center justify-between rounded bg-card/50 p-2">
-                        <div className="text-xs text-muted-foreground">{k}</div>
-                        <div className="text-sm font-medium max-w-[60%] truncate" title={String(v)}>
-                          {String(v ?? '—')}
-                        </div>
+                      <div key={k} className="rounded bg-card/50 p-2">
+                        <div className="text-xs text-muted-foreground mb-1">{k}</div>
+                        <Input
+                          value={String(v ?? '')}
+                          onChange={(e) => updatePricingField(idx, k, e.target.value)}
+                          className="h-8"
+                        />
                       </div>
                     ))}
                   </div>
@@ -525,30 +656,36 @@ export default function DocumentDetail() {
                   )
                   .sort(([a], [b]) => a.localeCompare(b));
                 return (
-                  <div key={idx} className="rounded border p-2 space-y-2">
+                  <div key={idx} className="rounded border p-2 space-y-3">
                     <div className="text-xs text-muted-foreground">Item {idx + 1}</div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                       {itemHeaderPairs.map(([k, v]) => (
-                        <div key={k} className="flex items-center justify-between rounded bg-card/50 p-2">
-                          <div className="text-xs text-muted-foreground">{k}</div>
-                          <div className="text-sm font-medium max-w-[60%] truncate" title={String(v)}>
-                            {String(v ?? '—')}
-                          </div>
+                        <div key={k} className="rounded bg-card/50 p-2">
+                          <div className="text-xs text-muted-foreground mb-1">{k}</div>
+                          <Input
+                            value={String(v ?? '')}
+                            onChange={(e) => updateItemField(idx, k, e.target.value)}
+                            className="h-8"
+                          />
                         </div>
                       ))}
                     </div>
 
                     {partners.length > 0 && (
-                      <div className="space-y-1">
+                      <div className="space-y-2">
                         <div className="text-xs font-medium">Item Partners</div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                           {partners.map((p: any, pi: number) => (
                             <div key={pi} className="rounded border p-2">
-                              <div className="grid grid-cols-1 gap-1">
+                              <div className="grid grid-cols-1 gap-2">
                                 {Object.entries(p || {}).map(([k, v]) => (
-                                  <div key={k} className="space-y-1">
-                                    <span className="text-[11px] text-muted-foreground">{k}</span>
-                                    <span className="text-sm font-medium">{String(v ?? '—')}</span>
+                                  <div key={k} className="rounded bg-card/50 p-2">
+                                    <div className="text-xs text-muted-foreground mb-1">{k}</div>
+                                    <Input
+                                      value={String(v ?? '')}
+                                      onChange={(e) => updateItemPartnerField(idx, pi, k, e.target.value)}
+                                      className="h-8"
+                                    />
                                   </div>
                                 ))}
                               </div>
@@ -559,16 +696,20 @@ export default function DocumentDetail() {
                     )}
 
                     {prices.length > 0 && (
-                      <div className="space-y-1">
+                      <div className="space-y-2">
                         <div className="text-xs font-medium">Item Pricing</div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                           {prices.map((pr: any, ri: number) => (
                             <div key={ri} className="rounded border p-2">
-                              <div className="grid grid-cols-1 gap-1">
+                              <div className="grid grid-cols-1 gap-2">
                                 {Object.entries(pr || {}).map(([k, v]) => (
-                                  <div key={k} className="flex items-center justify-between">
-                                    <span className="text-[11px] text-muted-foreground">{k}</span>
-                                    <span className="text-sm font-medium">{String(v ?? '—')}</span>
+                                  <div key={k} className="rounded bg-card/50 p-2">
+                                    <div className="text-xs text-muted-foreground mb-1">{k}</div>
+                                    <Input
+                                      value={String(v ?? '')}
+                                      onChange={(e) => updateItemPricingField(idx, ri, k, e.target.value)}
+                                      className="h-8"
+                                    />
                                   </div>
                                 ))}
                               </div>
@@ -904,7 +1045,7 @@ export default function DocumentDetail() {
                         (() => {
                           try {
                             const parsed = JSON.parse(sapEditorValue || '{}');
-                            return renderSap(parsed);
+                            return renderSapEditable(parsed);
                           } catch {
                             return <div className="text-sm text-muted-foreground">Invalid JSON in editor. Fix to preview.</div>;
                           }
@@ -912,16 +1053,7 @@ export default function DocumentDetail() {
                       }
                     </ScrollArea>
 
-                    {/* Editable raw JSON */}
-                    <div className="space-y-2">
-                      <Label className="text-xs">Editable SAP JSON</Label>
-                      <Textarea
-                        className="h-[40vh] min-h-[180px] font-mono text-xs resize-y overflow-auto"
-                        value={sapEditorValue}
-                        onChange={(e) => setSapEditorValue(e.target.value)}
-                        placeholder='{ "output": { ... } }'
-                      />
-                    </div>
+                    {/* JSON editor removed; fields are now edited inline above */}
                   </div>
                 ) : null}
               </CardContent>
