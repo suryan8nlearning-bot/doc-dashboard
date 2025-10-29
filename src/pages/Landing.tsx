@@ -237,10 +237,10 @@ export default function Landing() {
     }
   };
 
-  // Re-validate whenever SAP editor changes or when toggled to SAP
+  // Re-validate whenever SAP editor changes
   useEffect(() => {
-    if (showSap) runValidation(editorValue);
-  }, [showSap, editorValue]);
+    runValidation(editorValue);
+  }, [editorValue]);
 
   // Quick-add helpers
   const updateSapJson = (updater: (obj: any) => void) => {
