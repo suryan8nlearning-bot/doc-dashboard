@@ -914,9 +914,8 @@ export default function DocumentDetail() {
       setIsSaving(true);
       // Try updating common "SAP JSON from app" fields; fall back to SAP_AI_OUTPUT
       const fieldCandidates: Array<string> = [
-        // Added exact column name used in your Supabase schema
-        'SAP_JSON_from_APP',
         'SAP_JSON_FROM_APP',
+        'SAP_JSON_from_APP', // added variant seen in error message
         'sap_json_from_app',
         'SAP JSON from app',
         'sap_json_app',
@@ -931,12 +930,18 @@ export default function DocumentDetail() {
         if (!error) {
           saved = true;
           break;
-        } else if (
-          String(error.message || '').toLowerCase().includes('column') &&
-          String(error.message || '').toLowerCase().includes('does not exist')
-        ) {
-          continue;
         } else {
+          const msg = String(error.message || '').toLowerCase();
+          // Be lenient: continue to next field on any "missing column" style error
+          if (
+            msg.includes('column') ||
+            msg.includes('does not exist') ||
+            msg.includes('schema cache') ||
+            msg.includes('could not find') ||
+            msg.includes('not found')
+          ) {
+            continue;
+          }
           throw error;
         }
       }
