@@ -1,10 +1,8 @@
 import { DocumentFields } from '@/components/DocumentFields';
 import { PDFViewer } from '@/components/PDFViewer';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Textarea } from '@/components/ui/textarea';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase, type BoundingBox, hasSupabaseEnv, publicUrlForPath } from '@/lib/supabase';
@@ -34,13 +32,9 @@ export default function DocumentDetail() {
   const [highlightBox, setHighlightBox] = useState<(BoundingBox & { page?: number }) | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Add SAP editor state
-  const [webhookUrl, setWebhookUrl] = useState<string>('');
-  const [showSap, setShowSap] = useState<boolean>(true);
-  const [rawJson, setRawJson] = useState<string>('');
-  const [sapJson, setSapJson] = useState<string>('');
-  const [editorValue, setEditorValue] = useState<string>('');
-  const [isRowLoading, setIsRowLoading] = useState<boolean>(false);
+  // SAP data viewer state
+  const [showSAP, setShowSAP] = useState<boolean>(true);
+  const [sapOut, setSapOut] = useState<any | null>(null);
 
   // Add aside ref for scroll-to-top control
   const asideRef = useRef<HTMLDivElement | null>(null);
@@ -74,10 +68,7 @@ export default function DocumentDetail() {
     }
   }, [isAuthenticated, documentId]);
 
-  // Keep editor in sync with toggle
-  useEffect(() => {
-    setEditorValue(showSap ? sapJson : rawJson);
-  }, [showSap, sapJson, rawJson]);
+  // removed editor sync effect
 
   // Convert new compact array-based format into the old pages-based structure our UI expects
   function convertNewFormatToOld(obj: any) {
@@ -256,10 +247,196 @@ export default function DocumentDetail() {
     return undefined;
   };
 
+  // Add: extract SAP output, key/value renderer, and hierarchical renderer
+  // Extracts SAP output object from a row (handles string/object inputs and nested `output`)
+  const extractSapOutput = (row: any): any | undefined => {
+    if (!row) return undefined;
+    const candidates: Array<any> = [
+      row?.SAP_AI_OUTPUT,
+      row?.sap_ai_output,
+      row?.['SAP_AI_OUTPUT'],
+      row?.sap_payload,
+      row?.SAP,
+      row?.sap,
+    ];
+    for (const cand of candidates) {
+      if (!cand) continue;
+      try {
+        const obj = typeof cand === 'string' ? JSON.parse(cand) : cand;
+        const out = obj?.output ?? obj;
+        if (out && typeof out === 'object') return out;
+      } catch {
+        // ignore parse errors
+      }
+    }
+    return undefined;
+  };
+
+  // Simple key/value row
+  const KV = ({ label, value }: { label: string; value: any }) => (
+    <div className="flex items-center justify-between rounded border p-2">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="text-sm font-medium max-w-[60%] truncate" title={String(value)}>
+        {String(value ?? '—')}
+      </div>
+    </div>
+  );
+
+  // Hierarchical renderer similar to Dashboard with minor refinements
+  const renderSap = (out: any) => {
+    if (!out || typeof out !== 'object') {
+      return <div className="text-sm text-muted-foreground">No SAP data.</div>;
+    }
+    const headerIgnore = new Set(['to_Partner', 'to_PricingElement', 'to_Item']);
+    const headerPairs = Object.entries(out)
+      .filter(
+        ([k, v]) =>
+          !headerIgnore.has(k) &&
+          (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean')
+      )
+      .sort(([a], [b]) => a.localeCompare(b));
+
+    return (
+      <div className="space-y-6">
+        <div>
+          <div className="font-semibold mb-2">Header</div>
+          {headerPairs.length ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {headerPairs.map(([k, v]) => (
+                <KV key={k} label={k} value={v} />
+              ))}
+            </div>
+          ) : (
+            <div className="text-xs text-muted-foreground">No header fields.</div>
+          )}
+        </div>
+
+        {Array.isArray(out?.to_Partner) && (
+          <div>
+            <div className="font-semibold mb-2">Partners</div>
+            <div className="space-y-2">
+              {out.to_Partner.map((p: any, idx: number) => (
+                <div key={idx} className="rounded border p-2">
+                  <div className="text-xs text-muted-foreground mb-1">Partner {idx + 1}</div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {Object.entries(p || {}).map(([k, v]) => (
+                      <div key={k} className="flex items-center justify-between rounded bg-card/50 p-2">
+                        <div className="text-xs text-muted-foreground">{k}</div>
+                        <div className="text-sm font-medium max-w-[60%] truncate" title={String(v)}>
+                          {String(v ?? '—')}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {Array.isArray(out?.to_PricingElement) && (
+          <div>
+            <div className="font-semibold mb-2">Header Pricing</div>
+            <div className="space-y-2">
+              {out.to_PricingElement.map((pe: any, idx: number) => (
+                <div key={idx} className="rounded border p-2">
+                  <div className="text-xs text-muted-foreground mb-1">Pricing {idx + 1}</div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {Object.entries(pe || {}).map(([k, v]) => (
+                      <div key={k} className="flex items-center justify-between rounded bg-card/50 p-2">
+                        <div className="text-xs text-muted-foreground">{k}</div>
+                        <div className="text-sm font-medium max-w-[60%] truncate" title={String(v)}>
+                          {String(v ?? '—')}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {Array.isArray(out?.to_Item) && (
+          <div>
+            <div className="font-semibold mb-2">Items</div>
+            <div className="space-y-3">
+              {out.to_Item.map((it: any, idx: number) => {
+                const partners = Array.isArray(it?.to_ItemPartner) ? it.to_ItemPartner : [];
+                const prices = Array.isArray(it?.to_ItemPricingElement) ? it.to_ItemPricingElement : [];
+                const itemHeaderPairs = Object.entries(it || {})
+                  .filter(
+                    ([k, v]) =>
+                      !['to_ItemPartner', 'to_ItemPricingElement'].includes(k) &&
+                      (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean')
+                  )
+                  .sort(([a], [b]) => a.localeCompare(b));
+                return (
+                  <div key={idx} className="rounded border p-2 space-y-2">
+                    <div className="text-xs text-muted-foreground">Item {idx + 1}</div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {itemHeaderPairs.map(([k, v]) => (
+                        <div key={k} className="flex items-center justify-between rounded bg-card/50 p-2">
+                          <div className="text-xs text-muted-foreground">{k}</div>
+                          <div className="text-sm font-medium max-w-[60%] truncate" title={String(v)}>
+                            {String(v ?? '—')}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {partners.length > 0 && (
+                      <div className="space-y-1">
+                        <div className="text-xs font-medium">Item Partners</div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          {partners.map((p: any, pi: number) => (
+                            <div key={pi} className="rounded border p-2">
+                              <div className="grid grid-cols-1 gap-1">
+                                {Object.entries(p || {}).map(([k, v]) => (
+                                  <div key={k} className="flex items-center justify-between">
+                                    <span className="text-[11px] text-muted-foreground">{k}</span>
+                                    <span className="text-sm font-medium">{String(v ?? '—')}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {prices.length > 0 && (
+                      <div className="space-y-1">
+                        <div className="text-xs font-medium">Item Pricing</div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          {prices.map((pr: any, ri: number) => (
+                            <div key={ri} className="rounded border p-2">
+                              <div className="grid grid-cols-1 gap-1">
+                                {Object.entries(pr || {}).map(([k, v]) => (
+                                  <div key={k} className="flex items-center justify-between">
+                                    <span className="text-[11px] text-muted-foreground">{k}</span>
+                                    <span className="text-sm font-medium">{String(v ?? '—')}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const fetchDocument = async () => {
     try {
       setIsLoading(true);
-      setIsRowLoading(true); // start SAP panel spinner
       const { data, error } = await supabase
         .from('N8N Logs')
         .select('*')
@@ -277,29 +454,9 @@ export default function DocumentDetail() {
         return;
       }
 
-      // NEW: Prepare editor payloads from row
-      try {
-        let current = '';
-        const candidates = [data?.pdf_ai_output, data?.document_data];
-        for (const c of candidates) {
-          if (!c) continue;
-          try {
-            current = typeof c === 'string' ? c : JSON.stringify(c, null, 2);
-            break;
-          } catch {}
-        }
-        const sap =
-          data?.SAP_AI_OUTPUT
-            ? (typeof data.SAP_AI_OUTPUT === 'string'
-                ? data.SAP_AI_OUTPUT
-                : JSON.stringify(data.SAP_AI_OUTPUT, null, 2))
-            : '{\n  "output": {\n    "to_Item": []\n  }\n}';
-        setRawJson(current);
-        setSapJson(sap);
-        setEditorValue(showSap ? sap : current);
-      } catch (e) {
-        console.warn('Failed to prepare SAP panel payloads', e);
-      }
+      // Extract SAP output for viewer
+      const out = extractSapOutput(data);
+      setSapOut(out ?? null);
 
       // Build robust storage path from possible fields
       const bucket = data?.['Bucket Name'] ?? data?.bucket_name ?? data?.bucket ?? '';
@@ -378,52 +535,10 @@ export default function DocumentDetail() {
       navigate('/dashboard');
     } finally {
       setIsLoading(false);
-      setIsRowLoading(false); // stop SAP panel spinner
     }
   };
 
-  // Handlers for SAP editor (format and webhook call)
-  const handleFormat = () => {
-    try {
-      const parsed = JSON.parse(editorValue || '{}');
-      const pretty = JSON.stringify(parsed, null, 2);
-      setEditorValue(pretty);
-      if (showSap) setSapJson(pretty);
-      else setRawJson(pretty);
-      toast.success('JSON formatted');
-    } catch {
-      toast.error('Invalid JSON; cannot format');
-    }
-  };
-
-  const handleCreate = async () => {
-    if (!webhookUrl) {
-      toast.error('Enter a webhook URL');
-      return;
-    }
-    if (!doc?.id) {
-      toast.error('Missing document id');
-      return;
-    }
-    let payload: any = null;
-    try {
-      payload = JSON.parse(sapJson || '{}');
-    } catch {
-      toast.error('SAP payload is not valid JSON');
-      return;
-    }
-    try {
-      const res = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: doc.id, payload }),
-      });
-      if (!res.ok) throw new Error(`Webhook responded ${res.status}`);
-      toast.success('Webhook called successfully');
-    } catch (e: any) {
-      toast.error(`Webhook failed: ${e?.message || e}`);
-    }
-  };
+  // removed SAP editor handlers
 
   if (authLoading || isLoading) {
     return (
@@ -488,68 +603,34 @@ export default function DocumentDetail() {
             <Card className="bg-card/60">
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
-                  <span>SAP Webhook</span>
+                  <span>SAP Data</span>
                   <div className="text-xs text-muted-foreground">
-                    {hasSupabaseEnv ? (isRowLoading ? 'Loading row…' : 'Supabase connected') : 'Supabase not configured'}
+                    {sapOut ? 'Loaded' : 'No SAP data'}
                   </div>
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 gap-4">
-                  <div className="space-y-2">
-                    <Label>Document ID</Label>
-                    <Input value={doc?.id || ''} readOnly />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="webhookUrl">Webhook URL</Label>
-                    <Input
-                      id="webhookUrl"
-                      placeholder="https://example.com/webhook"
-                      value={webhookUrl}
-                      onChange={(e) => setWebhookUrl(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between gap-4 pt-2">
+                <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-2">
                     <Switch
                       id="toggleSap"
-                      checked={showSap}
-                      onCheckedChange={(v) => setShowSap(Boolean(v))}
+                      checked={showSAP}
+                      onCheckedChange={(v) => setShowSAP(Boolean(v))}
                     />
                     <Label htmlFor="toggleSap" className="cursor-pointer">
-                      Show SAP Payload
+                      Show SAP Data
                     </Label>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {showSap ? 'Editing SAP_AI_OUTPUT' : 'Viewing current JSON'}
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="editor">{showSap ? 'SAP Payload (editable)' : 'Current JSON'}</Label>
-                  <Textarea
-                    id="editor"
-                    className="min-h-[220px] font-mono text-xs"
-                    value={editorValue}
-                    onChange={(e) => {
-                      setEditorValue(e.target.value);
-                      if (showSap) setSapJson(e.target.value);
-                      else setRawJson(e.target.value);
-                    }}
-                    placeholder={showSap ? '{ "output": { ... } }' : '{ ... }'}
-                  />
-                </div>
+                {showSAP ? (
+                  <div className="space-y-4">
+                    {sapOut ? renderSap(sapOut) : (
+                      <div className="text-sm text-muted-foreground">No SAP data.</div>
+                    )}
+                  </div>
+                ) : null}
               </CardContent>
-              <CardFooter className="flex items-center justify-between">
-                <Button variant="outline" onClick={handleFormat}>
-                  Format JSON
-                </Button>
-                <Button onClick={handleCreate}>
-                  Create
-                </Button>
-              </CardFooter>
             </Card>
           </div>
 
