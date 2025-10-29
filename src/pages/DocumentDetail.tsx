@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
+import { Textarea } from '@/components/ui/textarea';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase, type BoundingBox, hasSupabaseEnv, publicUrlForPath } from '@/lib/supabase';
 import { createSignedUrlForPath } from '@/lib/supabase';
@@ -35,6 +37,11 @@ export default function DocumentDetail() {
   // SAP data viewer state
   const [showSAP, setShowSAP] = useState<boolean>(true);
   const [sapOut, setSapOut] = useState<any | null>(null);
+
+  // Add: editor + saving/creating states for SAP JSON
+  const [sapEditorValue, setSapEditorValue] = useState<string>('');
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [isCreating, setIsCreating] = useState<boolean>(false);
 
   // Add aside ref for scroll-to-top control
   const asideRef = useRef<HTMLDivElement | null>(null);
@@ -69,6 +76,17 @@ export default function DocumentDetail() {
   }, [isAuthenticated, documentId]);
 
   // removed editor sync effect
+
+  // Initialize editor content whenever sapOut loads/changes
+  useEffect(() => {
+    if (sapOut) {
+      try {
+        setSapEditorValue(JSON.stringify(sapOut, null, 2));
+      } catch {
+        setSapEditorValue('');
+      }
+    }
+  }, [sapOut]);
 
   // Convert new compact array-based format into the old pages-based structure our UI expects
   function convertNewFormatToOld(obj: any) {
@@ -353,6 +371,14 @@ export default function DocumentDetail() {
 
     // Direct candidates (common names)
     const directCandidates: Array<any> = [
+      // Prefer "SAP JSON from app" style fields first
+      row?.SAP_JSON_FROM_APP,
+      row?.sap_json_from_app,
+      row?.['SAP JSON from app'],
+      row?.sap_json_app,
+      row?.sap_app_json,
+
+      // Then fall back to other common SAP payload fields
       row?.SAP_AI_OUTPUT,
       row?.sap_ai_output,
       row?.['SAP_AI_OUTPUT'],
@@ -401,9 +427,9 @@ export default function DocumentDetail() {
 
   // Simple key/value row
   const KV = ({ label, value }: { label: string; value: any }) => (
-    <div className="flex items-center justify-between rounded border p-2">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="text-sm font-medium max-w-[60%] truncate" title={String(value)}>
+    <div className="rounded border p-2">
+      <div className="text-[11px] text-muted-foreground mb-1">{label}</div>
+      <div className="text-sm font-medium whitespace-pre-wrap break-words">
         {String(value ?? '—')}
       </div>
     </div>
@@ -447,9 +473,9 @@ export default function DocumentDetail() {
                   <div className="text-xs text-muted-foreground mb-1">Partner {idx + 1}</div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     {Object.entries(p || {}).map(([k, v]) => (
-                      <div key={k} className="flex items-center justify-between rounded bg-card/50 p-2">
+                      <div key={k} className="rounded bg-card/50 p-2">
                         <div className="text-xs text-muted-foreground">{k}</div>
-                        <div className="text-sm font-medium max-w-[60%] truncate" title={String(v)}>
+                        <div className="text-sm font-medium whitespace-pre-wrap break-words" title={String(v)}>
                           {String(v ?? '—')}
                         </div>
                       </div>
@@ -520,7 +546,7 @@ export default function DocumentDetail() {
                             <div key={pi} className="rounded border p-2">
                               <div className="grid grid-cols-1 gap-1">
                                 {Object.entries(p || {}).map(([k, v]) => (
-                                  <div key={k} className="flex items-center justify-between">
+                                  <div key={k} className="space-y-1">
                                     <span className="text-[11px] text-muted-foreground">{k}</span>
                                     <span className="text-sm font-medium">{String(v ?? '—')}</span>
                                   </div>
@@ -670,12 +696,12 @@ export default function DocumentDetail() {
   // Create button: POST id + current SAP JSON to webhook from env
   const handleCreate = async () => {
     try {
-      if (!sapOut) {
-        toast.error('No SAP data to send');
-        return;
-      }
       if (!doc?.id) {
         toast.error('Missing document id');
+        return;
+      }
+      if (!sapEditorValue?.trim()) {
+        toast.error('No SAP data to send');
         return;
       }
       const webhookUrl = import.meta.env.VITE_WEBHOOK_URL as string | undefined;
@@ -683,10 +709,19 @@ export default function DocumentDetail() {
         toast.error('Webhook URL is not configured');
         return;
       }
+      let parsed: any;
+      try {
+        parsed = JSON.parse(sapEditorValue);
+      } catch {
+        toast.error('Edited SAP JSON is invalid');
+        return;
+      }
+
+      setIsCreating(true);
       const res = await fetch(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: doc.id, sap: sapOut }),
+        body: JSON.stringify({ id: doc.id, sap: parsed }),
       });
       if (!res.ok) {
         throw new Error(`Status ${res.status}`);
@@ -694,6 +729,68 @@ export default function DocumentDetail() {
       toast.success('Create request sent successfully');
     } catch (e) {
       toast.error(`Failed to send: ${e instanceof Error ? e.message : 'Unknown error'}`);
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      if (!doc?.id) {
+        toast.error('Missing document id');
+        return;
+      }
+      if (!hasSupabaseEnv) {
+        toast.error('Supabase is not configured.');
+        return;
+      }
+      let payload: any;
+      try {
+        payload = JSON.parse(sapEditorValue || '{}');
+      } catch {
+        toast.error('Edited JSON is not valid');
+        return;
+      }
+
+      setIsSaving(true);
+      // Try updating common "SAP JSON from app" fields; fall back to SAP_AI_OUTPUT
+      const fieldCandidates: Array<string> = [
+        'SAP_JSON_FROM_APP',
+        'sap_json_from_app',
+        'SAP JSON from app',
+        'sap_json_app',
+        'sap_app_json',
+      ];
+      let saved = false;
+      for (const field of fieldCandidates) {
+        const { error } = await supabase
+          .from('N8N Logs')
+          .update({ [field]: payload })
+          .eq('id', doc.id);
+        if (!error) {
+          saved = true;
+          break;
+        } else if (
+          String(error.message || '').toLowerCase().includes('column') &&
+          String(error.message || '').toLowerCase().includes('does not exist')
+        ) {
+          continue;
+        } else {
+          throw error;
+        }
+      }
+      if (!saved) {
+        const { error: fbError } = await supabase
+          .from('N8N Logs')
+          .update({ SAP_AI_OUTPUT: payload })
+          .eq('id', doc.id);
+        if (fbError) throw fbError;
+      }
+      toast.success('Saved successfully');
+    } catch (e: any) {
+      toast.error(`Save failed: ${e?.message || e}`);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -734,6 +831,23 @@ export default function DocumentDetail() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSave}
+              disabled={!sapEditorValue?.trim() || isSaving || !doc?.id}
+            >
+              {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+              Save
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleCreate}
+              disabled={!sapEditorValue?.trim() || isCreating || !doc?.id}
+            >
+              {isCreating ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+              Create
+            </Button>
             <a 
               href={doc.pdf_url} 
               target="_blank" 
@@ -755,7 +869,7 @@ export default function DocumentDetail() {
         </div>
 
         {/* Document Fields */}
-        <aside ref={asideRef} className="relative w-[420px] lg:w-[560px] border-l bg-background overflow-hidden flex-shrink-0 flex flex-col">
+        <aside ref={asideRef} className="relative w-[420px] lg:w-[560px] border-l bg-background overflow-y-auto flex-shrink-0 flex flex-col">
           <div className="p-4 border-b">
             <Card className="bg-card/60">
               <CardHeader>
@@ -765,9 +879,6 @@ export default function DocumentDetail() {
                     <div className="text-xs text-muted-foreground">
                       {sapOut ? 'Loaded' : 'No SAP data'}
                     </div>
-                    <Button size="sm" disabled={!sapOut} onClick={handleCreate}>
-                      Create
-                    </Button>
                   </div>
                 </CardTitle>
               </CardHeader>
@@ -787,9 +898,30 @@ export default function DocumentDetail() {
 
                 {showSAP ? (
                   <div className="space-y-4">
-                    {sapOut ? renderSap(sapOut) : (
-                      <div className="text-sm text-muted-foreground">No SAP data.</div>
-                    )}
+                    {/* Scrollable hierarchical view */}
+                    <ScrollArea className="max-h-[60vh] pr-1 overflow-y-auto">
+                      {
+                        (() => {
+                          try {
+                            const parsed = JSON.parse(sapEditorValue || '{}');
+                            return renderSap(parsed);
+                          } catch {
+                            return <div className="text-sm text-muted-foreground">Invalid JSON in editor. Fix to preview.</div>;
+                          }
+                        })()
+                      }
+                    </ScrollArea>
+
+                    {/* Editable raw JSON */}
+                    <div className="space-y-2">
+                      <Label className="text-xs">Editable SAP JSON</Label>
+<Textarea
+                        className="h-[40vh] min-h-[180px] font-mono text-xs resize-y overflow-auto"
+                        value={sapEditorValue}
+                        onChange={(e) => setSapEditorValue(e.target.value)}
+                        placeholder="{ \"output\": { ... } }"
+/>
+                    </div>
                   </div>
                 ) : null}
               </CardContent>
