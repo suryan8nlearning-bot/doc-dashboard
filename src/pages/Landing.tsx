@@ -26,6 +26,9 @@ export default function Landing() {
   const [sapJson, setSapJson] = useState<string>('');
   const [editorValue, setEditorValue] = useState<string>('');
   const [isRowLoading, setIsRowLoading] = useState<boolean>(false);
+  // Add saving/creating states
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [isCreating, setIsCreating] = useState<boolean>(false);
 
   // Add online/offline detection for error banner
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
@@ -56,7 +59,7 @@ export default function Landing() {
       try {
         const { data, error } = await supabase
           .from('N8N Logs')
-          .select('pdf_ai_output, SAP_AI_OUTPUT, document_data')
+          .select('*')
           .eq('id', docId)
           .single();
         if (error) throw error;
@@ -70,11 +73,29 @@ export default function Landing() {
             break;
           } catch {}
         }
+
+        // Prefer SAP JSON saved from the app first, then fall back to SAP_AI_OUTPUT
+        const appSapCandidates: any[] = [
+          data?.SAP_JSON_FROM_APP,
+          data?.sap_json_from_app,
+          data?.['SAP JSON from app'],
+          data?.sap_json_app,
+          data?.sap_app_json,
+        ];
+        let appSap: any = undefined;
+        for (const c of appSapCandidates) {
+          if (c !== undefined && c !== null && String(c).trim() !== '') {
+            appSap = c;
+            break;
+          }
+        }
+        const sapSource = appSap ?? data?.SAP_AI_OUTPUT;
+
         const sap =
-          data?.SAP_AI_OUTPUT
-            ? (typeof data.SAP_AI_OUTPUT === 'string'
-                ? data.SAP_AI_OUTPUT
-                : JSON.stringify(data.SAP_AI_OUTPUT, null, 2))
+          sapSource
+            ? (typeof sapSource === 'string'
+                ? sapSource
+                : JSON.stringify(sapSource, null, 2))
             : '{\n  "output": {\n    "to_Item": []\n  }\n}';
 
         setRawJson(current);
@@ -189,11 +210,67 @@ export default function Landing() {
     }
   };
 
-  const handleCreate = async () => {
-    if (!webhookUrl) {
-      toast.error('Enter a webhook URL');
+  // Add: handler to save current editor JSON to app field in DB
+  const handleSave = async () => {
+    if (!docId) {
+      toast.error('Enter a document id');
       return;
     }
+    let payload: any = null;
+    try {
+      payload = JSON.parse(editorValue || '{}');
+    } catch {
+      toast.error('JSON is not valid');
+      return;
+    }
+    if (!hasSupabaseEnv) {
+      toast.error('Supabase is not configured');
+      return;
+    }
+    setIsSaving(true);
+    try {
+      // Try updating a list of likely app fields; fall back to SAP_AI_OUTPUT
+      const fieldCandidates: Array<string> = [
+        'SAP_JSON_FROM_APP',
+        'sap_json_from_app',
+        'SAP JSON from app',
+        'sap_json_app',
+        'sap_app_json',
+      ];
+      let saved = false;
+      for (const field of fieldCandidates) {
+        const { error } = await supabase
+          .from('N8N Logs')
+          .update({ [field]: payload })
+          .eq('id', docId);
+        if (!error) {
+          saved = true;
+          break;
+        } else if (String(error.message || '').toLowerCase().includes('column') && String(error.message || '').toLowerCase().includes('does not exist')) {
+          // Try next candidate if column missing
+          continue;
+        } else {
+          // Other errors should be surfaced
+          throw error;
+        }
+      }
+      if (!saved) {
+        // Fallback to SAP_AI_OUTPUT if none of the app fields worked
+        const { error: fbError } = await supabase
+          .from('N8N Logs')
+          .update({ SAP_AI_OUTPUT: payload })
+          .eq('id', docId);
+        if (fbError) throw fbError;
+      }
+      toast.success('Saved successfully');
+    } catch (e: any) {
+      toast.error(`Save failed: ${e?.message || e}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCreate = async () => {
     if (!docId) {
       toast.error('Enter a document id');
       return;
@@ -206,8 +283,15 @@ export default function Landing() {
       toast.error('SAP payload is not valid JSON');
       return;
     }
+
+    const envWebhook = import.meta.env.VITE_WEBHOOK_URL as string | undefined;
+    if (!envWebhook) {
+      toast.error('Webhook URL is not configured');
+      return;
+    }
+    setIsCreating(true);
     try {
-      const res = await fetch(webhookUrl, {
+      const res = await fetch(envWebhook, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: docId, payload }),
@@ -216,6 +300,8 @@ export default function Landing() {
       toast.success('Webhook called successfully');
     } catch (e: any) {
       toast.error(`Webhook failed: ${e?.message || e}`);
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -376,22 +462,41 @@ export default function Landing() {
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
                 <span>SAP Webhook</span>
-                <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                  {hasSupabaseEnv ? (
-                    isRowLoading ? (
-                      <span className="inline-flex items-center gap-1">
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading row…
-                      </span>
-                    ) : (
-                      <span>Supabase connected</span>
-                    )
-                  ) : (
-                    <span>Supabase not configured</span>
-                  )}
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSave}
+                    disabled={!docId || isSaving}
+                  >
+                    {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                    Save
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleCreate}
+                    disabled={!docId || isCreating}
+                  >
+                    {isCreating ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                    Create
+                  </Button>
                 </div>
               </CardTitle>
+              <div className="text-xs text-muted-foreground">
+                {hasSupabaseEnv ? (
+                  isRowLoading ? (
+                    <span className="inline-flex items-center gap-1">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading row…
+                    </span>
+                  ) : (
+                    <span>Supabase connected</span>
+                  )
+                ) : (
+                  <span>Supabase not configured</span>
+                )}
+              </div>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 max-h-[70vh] overflow-auto">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="docId">Document ID</Label>
@@ -433,7 +538,7 @@ export default function Landing() {
                 <Label htmlFor="editor">{showSap ? 'SAP Payload (editable)' : 'Current JSON (read-only if from DB)'}</Label>
                 <Textarea
                   id="editor"
-                  className="min-h-[220px] font-mono text-xs"
+                  className="h-[55vh] min-h-[220px] font-mono text-xs resize-y overflow-auto"
                   value={editorValue}
                   onChange={(e) => {
                     setEditorValue(e.target.value);
@@ -444,13 +549,9 @@ export default function Landing() {
                 />
               </div>
             </CardContent>
-            <CardFooter className="flex items-center justify-between">
+            <CardFooter className="flex items-center justify-end">
               <Button variant="outline" onClick={handleFormat}>
                 Format JSON
-              </Button>
-              <Button onClick={handleCreate}>
-                Create
-                <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </CardFooter>
           </Card>
