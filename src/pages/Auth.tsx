@@ -33,46 +33,16 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // If already signed in, show manual navigation instead of auto-redirect
+  // Auto-redirect authenticated users away from the sign-in page
+  useEffect(() => {
+    if (alreadySignedIn) {
+      navigate(redirectAfterAuth || "/dashboard");
+    }
+  }, [alreadySignedIn, navigate, redirectAfterAuth]);
+
+  // If already signed in, do not show the sign in UI
   if (alreadySignedIn) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md border shadow-md">
-          <CardHeader className="text-center">
-            <div className="flex justify-center">
-              <img
-                src="/logo.svg"
-                alt="Logo"
-                width={64}
-                height={64}
-                className="rounded-lg mb-4 mt-4 cursor-pointer"
-                onClick={() => navigate("/")}
-              />
-            </div>
-            <CardTitle className="text-xl">You're already signed in</CardTitle>
-            <CardDescription>
-              Continue to your dashboard when you're ready.
-            </CardDescription>
-          </CardHeader>
-          <CardFooter className="flex flex-col gap-2">
-            <Button
-              className="w-full"
-              onClick={() => navigate(redirectAfterAuth || "/dashboard")}
-            >
-              Go to Dashboard
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              className="w-full"
-              onClick={() => navigate("/")}
-            >
-              Back to Home
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
-    );
+    return null;
   }
 
   // New: Handle email+password login submit (triggers OTP flow under the hood)
