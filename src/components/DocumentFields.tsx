@@ -98,6 +98,15 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
       ? `x:${Math.round(bb.x)} y:${Math.round(bb.y)} w:${Math.round(bb.width)} h:${Math.round(bb.height)} p:${bb.page ?? page.page_number}`
       : 'x:— y:— w:— h:— p:—';
 
+    // Add: raw bounding box debug helpers
+    const boxesCount = Array.isArray(boundingBox) ? boundingBox.length : 0;
+    let rawLabel = '[]';
+    try {
+      rawLabel = boxesCount > 0 ? JSON.stringify(boundingBox![0]) : '[]';
+    } catch {
+      rawLabel = '[unserializable]';
+    }
+
     return (
       <motion.div
         className="py-3 px-4 cursor-pointer rounded-lg transition-all border bg-card/50 hover:bg-primary/5 hover:border-primary/30 hover:shadow-md"
@@ -110,6 +119,10 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
         <div className="text-xs font-medium text-muted-foreground mb-1.5">{label}</div>
         <div className="text-sm font-medium text-foreground truncate">{value || '—'}</div>
         <div className="mt-1 text-[10px] text-muted-foreground font-mono">{dbg}</div>
+        {/* New: show raw bounding_box for debugging */}
+        <div className="mt-0.5 text-[10px] text-muted-foreground font-mono break-all">
+          bbox: {rawLabel} {boxesCount > 1 ? `(total ${boxesCount})` : ''}
+        </div>
       </motion.div>
     );
   };
@@ -278,11 +291,20 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
                   {(() => {
                     const ibb = normalizeBoxAny(item.bounding_box?.[0]);
                     return (
-                      <div className="mt-2 text-[10px] text-muted-foreground font-mono">
-                        {ibb
-                          ? `x:${Math.round(ibb.x)} y:${Math.round(ibb.y)} w:${Math.round(ibb.width)} h:${Math.round(ibb.height)} p:${ibb.page ?? page.page_number}`
-                          : 'x:— y:— w:— h:— p:—'}
-                      </div>
+                      <>
+                        <div className="mt-2 text-[10px] text-muted-foreground font-mono">
+                          {ibb
+                            ? `x:${Math.round(ibb.x)} y:${Math.round(ibb.y)} w:${Math.round(ibb.width)} h:${Math.round(ibb.height)} p:${ibb.page ?? page.page_number}`
+                            : 'x:— y:— w:— h:— p:—'}
+                        </div>
+                        {/* New: raw bbox debug for items */}
+                        <div className="mt-0.5 text-[10px] text-muted-foreground font-mono break-all">
+                          bbox: {Array.isArray(item.bounding_box) && item.bounding_box.length > 0 ? (() => {
+                            try { return JSON.stringify(item.bounding_box[0]); } catch { return '[unserializable]'; }
+                          })() : '[]'}
+                          {Array.isArray(item.bounding_box) && item.bounding_box.length > 1 ? ` (total ${item.bounding_box.length})` : ''}
+                        </div>
+                      </>
                     );
                   })()}
                 </motion.div>
