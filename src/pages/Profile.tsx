@@ -97,6 +97,8 @@ export default function Profile() {
               src="/logo.svg"
               alt="Logo"
               className="h-8 w-8 cursor-pointer"
+              loading="lazy"
+              decoding="async"
               onClick={() => navigate('/')}
             />
             <h1 className="text-xl font-bold tracking-tight">User Profile</h1>

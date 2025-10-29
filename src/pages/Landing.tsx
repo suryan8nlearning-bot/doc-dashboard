@@ -3,7 +3,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { motion } from 'framer-motion';
 import { ArrowRight, FileText, Loader2, Search, Zap, User } from 'lucide-react';
 import { useNavigate } from 'react-router';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useDeferredValue } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
@@ -13,7 +13,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/componen
 import { useLocation } from 'react-router';
 import { supabase, hasSupabaseEnv } from '@/lib/supabase';
 import { toast } from 'sonner';
-import Ajv, { type ErrorObject } from "ajv";
+import type { ErrorObject } from "ajv";
 import { salesOrderCreateSchema } from "@/schemas/salesOrderCreate";
 import {
   DropdownMenu,
@@ -137,14 +137,29 @@ export default function Landing() {
     setEditorValue(showSap ? sapJson : rawJson);
   }, [showSap, sapJson, rawJson]);
 
-  // Initialize AJV validator once (memoized)
-  const ajv = useMemo(() => {
-    const a = new Ajv({ allErrors: true, coerceTypes: true, useDefaults: true });
-    // Add custom date format: YYYY-MM-DDT00:00:00
-    a.addFormat("ymdT00", /^\d{4}-\d{2}-\d{2}T00:00:00$/);
-    return a;
+  // Initialize AJV validator lazily (code-split) to reduce initial bundle size
+  const [ajvInstance, setAjvInstance] = useState<any>(null);
+  const [validateSalesOrder, setValidateSalesOrder] = useState<any>(null);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const { default: Ajv } = await import("ajv");
+        const a = new Ajv({ allErrors: true, coerceTypes: true, useDefaults: true });
+        // Add custom date format: YYYY-MM-DDT00:00:00
+        a.addFormat("ymdT00", /^\d{4}-\d{2}-\d{2}T00:00:00$/);
+        const validate = a.compile(salesOrderCreateSchema);
+        if (!active) return;
+        setAjvInstance(a);
+        setValidateSalesOrder(() => validate);
+      } catch (e) {
+        console.error("Failed to load validator", e);
+      }
+    })();
+    return () => {
+      active = false;
+    };
   }, []);
-  const validateSalesOrder = useMemo(() => ajv.compile(salesOrderCreateSchema), [ajv]);
 
   // Add: helpers to arrange fields by schema order
   const reorderSapPayload = (payload: any) => {
@@ -327,6 +342,12 @@ export default function Landing() {
 
   // Validate helper
   const runValidation = (jsonStr: string): boolean => {
+    if (!validateSalesOrder) {
+      // Validator not ready yet; don't block user actions
+      setIsValid(null);
+      setValidationErrors(null);
+      return true;
+    }
     try {
       const parsed = JSON.parse(jsonStr || "{}");
       const ok = validateSalesOrder(parsed) as boolean;
@@ -348,13 +369,15 @@ export default function Landing() {
     }
   };
 
-  // Re-validate whenever SAP editor changes (debounced to improve perf)
+  // Re-validate whenever SAP editor changes (debounced + deferred to improve perf)
+  const deferredEditorValue = useDeferredValue(editorValue);
   useEffect(() => {
+    if (!showSap) return;
     const t = window.setTimeout(() => {
-      runValidation(editorValue);
+      runValidation(deferredEditorValue);
     }, 300);
     return () => window.clearTimeout(t);
-  }, [editorValue]);
+  }, [deferredEditorValue, showSap]);
 
   // Apply theme from user profile on this page + persist to localStorage and fallback to stored theme
   useEffect(() => {
@@ -743,7 +766,7 @@ export default function Landing() {
       <header className="border-b">
         <div className="max-w-7xl mx-auto px-8 py-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/logo.svg" alt="Logo" className="h-8 w-8" />
+            <img src="/logo.svg" alt="Logo" className="h-8 w-8" loading="lazy" decoding="async" />
             <span className="text-xl font-bold tracking-tight">DocuVision</span>
           </div>
           <div className="flex items-center gap-3">
