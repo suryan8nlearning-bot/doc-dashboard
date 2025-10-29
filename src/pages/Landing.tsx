@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
 import { motion } from 'framer-motion';
-import { ArrowRight, FileText, Loader2, Search, Zap } from 'lucide-react';
+import { ArrowRight, FileText, Loader2, Search, Zap, User } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { useEffect, useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -15,9 +15,17 @@ import { supabase, hasSupabaseEnv } from '@/lib/supabase';
 import { toast } from 'sonner';
 import Ajv, { type ErrorObject } from "ajv";
 import { salesOrderCreateSchema } from "@/schemas/salesOrderCreate";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 export default function Landing() {
-  const { isLoading, isAuthenticated, user } = useAuth();
+  const { isLoading, isAuthenticated, user, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [docId, setDocId] = useState<string>('');
@@ -592,19 +600,60 @@ export default function Landing() {
             <img src="/logo.svg" alt="Logo" className="h-8 w-8" />
             <span className="text-xl font-bold tracking-tight">DocuVision</span>
           </div>
-          <Button
-            variant="outline"
-            onClick={handleGetStarted}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : isAuthenticated ? (
-              'Dashboard'
-            ) : (
-              'Sign In'
+          <div className="flex items-center gap-3">
+            {isAuthenticated && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="rounded-full h-10 w-10 bg-primary/10 hover:bg-primary/20"
+                    aria-label="User menu"
+                  >
+                    <User className="h-5 w-5 text-primary" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-64">
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-xs text-muted-foreground">Signed in as</p>
+                      <p className="text-sm font-medium leading-none">{user?.email || 'User'}</p>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => navigate('/profile')} className="cursor-pointer">
+                    Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/dashboard')} className="cursor-pointer">
+                    Dashboard
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={async () => {
+                      await signOut();
+                      navigate('/');
+                    }}
+                    className="cursor-pointer text-red-600"
+                  >
+                    Sign Out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
-          </Button>
+            <Button
+              variant="outline"
+              onClick={handleGetStarted}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : isAuthenticated ? (
+                'Dashboard'
+              ) : (
+                'Sign In'
+              )}
+            </Button>
+          </div>
         </div>
       </header>
 
