@@ -9,6 +9,18 @@ import { BrowserRouter, Route, Routes, useLocation } from "react-router";
 import "./index.css";
 import "./types/global.d.ts";
 
+const isVlyHost = (() => {
+  try {
+    if (typeof window === "undefined" || typeof document === "undefined") return false;
+    const ref = document.referrer || "";
+    const host = window.location.hostname || "";
+    const inIframe = window.top !== window.self;
+    return inIframe && (ref.includes("vly.ai") || ref.includes("vly.sh") || host.endsWith("vly.sh"));
+  } catch {
+    return false;
+  }
+})();
+
 const Landing = lazy(() => import("./pages/Landing.tsx"));
 const AuthPage = lazy(() => import("@/pages/Auth.tsx"));
 const Dashboard = lazy(() => import("./pages/Dashboard.tsx"));
@@ -21,6 +33,7 @@ const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL as string);
 function RouteSyncer() {
   const location = useLocation();
   useEffect(() => {
+    if (!isVlyHost) return; // Only talk to parent when inside vly iframe
     window.parent.postMessage(
       { type: "iframe-route-change", path: location.pathname },
       "*",
@@ -28,6 +41,7 @@ function RouteSyncer() {
   }, [location.pathname]);
 
   useEffect(() => {
+    if (!isVlyHost) return; // Only listen for parent navigation when inside vly iframe
     function handleMessage(event: MessageEvent) {
       if (event.data?.type === "navigate") {
         if (event.data.direction === "back") window.history.back();
@@ -98,7 +112,7 @@ function RouteProgressBar() {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <VlyToolbar />
+    {isVlyHost ? <VlyToolbar /> : null}
     <InstrumentationProvider>
       <ConvexAuthProvider client={convex}>
         <BrowserRouter>
