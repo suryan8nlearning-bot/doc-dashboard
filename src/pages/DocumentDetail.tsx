@@ -247,18 +247,25 @@ export default function DocumentDetail() {
     return undefined;
   };
 
-  // Extracts SAP output object from a row (handles string/object inputs and nested `output`)
+  // Extracts SAP output object from a row and normalizes nested arrays/keys for UI rendering.
   const extractSapOutput = (row: any): any | undefined => {
     if (!row) return undefined;
 
     const isSapLike = (obj: any): boolean => {
       if (!obj || typeof obj !== 'object') return false;
-      // Heuristics for SAP Sales Order structures
-      if (Array.isArray(obj.to_Item) || Array.isArray(obj.to_Partner) || Array.isArray(obj.to_PricingElement)) {
-        return true;
-      }
-      // Common header fields that often appear
-      const headerHints = ['DocType', 'SalesOrganization', 'DistributionChannel', 'Division'];
+      const hasSub =
+        Array.isArray(obj.to_Item) ||
+        Array.isArray(obj.to_Partner) ||
+        Array.isArray(obj.to_PricingElement);
+      if (hasSub) return true;
+      const headerHints = [
+        'DocType',
+        'SalesOrganization',
+        'DistributionChannel',
+        'Division',
+        'SalesOrg',
+        'SalesOffice',
+      ];
       for (const key of headerHints) {
         if (typeof obj[key] === 'string' || typeof obj[key] === 'number') return true;
       }
@@ -269,13 +276,79 @@ export default function DocumentDetail() {
       try {
         const obj = typeof val === 'string' ? JSON.parse(val) : val;
         if (obj && typeof obj === 'object') {
-          const out = obj?.output ?? obj;
-          if (isSapLike(out)) return out;
+          return obj?.output ?? obj;
         }
       } catch {
         // ignore parse errors
       }
       return undefined;
+    };
+
+    const pickArray = (obj: any, keys: string[]) => {
+      for (const k of keys) {
+        const v = obj?.[k];
+        if (Array.isArray(v)) return v;
+        if (v && Array.isArray(v.results)) return v.results;
+      }
+      return undefined;
+    };
+
+    const normalizeSap = (src: any) => {
+      if (!src || typeof src !== 'object') return undefined;
+      let root = src;
+
+      // OData-like wrapping
+      if (root?.d) {
+        const d = root.d;
+        if (Array.isArray(d?.results) && d.results.length > 0) {
+          root = d.results[0];
+        } else {
+          root = d;
+        }
+      }
+
+      const out: any = { ...root };
+
+      // Top-level collections (support varied casings/aliases)
+      const items = pickArray(root, ['to_Item', 'to_item', 'Items', 'items', 'TO_ITEM', 'to_Items']);
+      if (items) out.to_Item = items;
+
+      const partners = pickArray(root, ['to_Partner', 'to_partner', 'Partners', 'partners', 'TO_PARTNER']);
+      if (partners) out.to_Partner = partners;
+
+      const pricing = pickArray(
+        root,
+        ['to_PricingElement', 'to_pricingelement', 'to_PricingElements', 'pricing', 'Pricing', 'TO_PRICINGELEMENT']
+      );
+      if (pricing) out.to_PricingElement = pricing;
+
+      // Normalize each item nested arrays
+      if (Array.isArray(out.to_Item)) {
+        out.to_Item = out.to_Item.map((it: any) => {
+          const i: any = { ...it };
+          const itemPartners = pickArray(it, [
+            'to_ItemPartner',
+            'to_itempartner',
+            'ItemPartners',
+            'item_partners',
+            'to_Item_Partner',
+          ]);
+          if (itemPartners) i.to_ItemPartner = itemPartners;
+
+          const itemPricing = pickArray(it, [
+            'to_ItemPricingElement',
+            'to_itempricingelement',
+            'ItemPricing',
+            'item_pricing',
+            'to_Item_PricingElement',
+          ]);
+          if (itemPricing) i.to_ItemPricingElement = itemPricing;
+
+          return i;
+        });
+      }
+
+      return out;
     };
 
     // Direct candidates (common names)
@@ -293,22 +366,34 @@ export default function DocumentDetail() {
       row?.sap_payload_string,
     ];
     for (const cand of directCandidates) {
-      const out = tryParse(cand);
-      if (out) return out;
+      const parsed = tryParse(cand);
+      if (parsed) {
+        const norm = normalizeSap(parsed);
+        if (norm && isSapLike(norm)) return norm;
+        if (isSapLike(parsed)) return parsed;
+      }
     }
 
     // Keys that include 'sap' anywhere
     for (const [key, value] of Object.entries(row)) {
       if (key.toLowerCase().includes('sap')) {
-        const out = tryParse(value);
-        if (out) return out;
+        const parsed = tryParse(value);
+        if (parsed) {
+          const norm = normalizeSap(parsed);
+          if (norm && isSapLike(norm)) return norm;
+          if (isSapLike(parsed)) return parsed;
+        }
       }
     }
 
     // Fallback: scan all values for any JSON that looks like SAP
     for (const value of Object.values(row)) {
-      const out = tryParse(value);
-      if (out) return out;
+      const parsed = tryParse(value);
+      if (parsed) {
+        const norm = normalizeSap(parsed);
+        if (norm && isSapLike(norm)) return norm;
+        if (isSapLike(parsed)) return parsed;
+      }
     }
 
     return undefined;
@@ -582,6 +667,36 @@ export default function DocumentDetail() {
 
   // removed SAP editor handlers
 
+  // Create button: POST id + current SAP JSON to webhook from env
+  const handleCreate = async () => {
+    try {
+      if (!sapOut) {
+        toast.error('No SAP data to send');
+        return;
+      }
+      if (!doc?.id) {
+        toast.error('Missing document id');
+        return;
+      }
+      const webhookUrl = import.meta.env.VITE_WEBHOOK_URL as string | undefined;
+      if (!webhookUrl) {
+        toast.error('Webhook URL is not configured');
+        return;
+      }
+      const res = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: doc.id, sap: sapOut }),
+      });
+      if (!res.ok) {
+        throw new Error(`Status ${res.status}`);
+      }
+      toast.success('Create request sent successfully');
+    } catch (e) {
+      toast.error(`Failed to send: ${e instanceof Error ? e.message : 'Unknown error'}`);
+    }
+  };
+
   if (authLoading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -646,8 +761,13 @@ export default function DocumentDetail() {
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <span>SAP Data</span>
-                  <div className="text-xs text-muted-foreground">
-                    {sapOut ? 'Loaded' : 'No SAP data'}
+                  <div className="flex items-center gap-3">
+                    <div className="text-xs text-muted-foreground">
+                      {sapOut ? 'Loaded' : 'No SAP data'}
+                    </div>
+                    <Button size="sm" disabled={!sapOut} onClick={handleCreate}>
+                      Create
+                    </Button>
                   </div>
                 </CardTitle>
               </CardHeader>
