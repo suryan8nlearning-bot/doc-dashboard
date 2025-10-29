@@ -61,6 +61,9 @@ export default function Dashboard() {
   const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set());
   const [isDarkMode, setIsDarkMode] = useState(false);
 
+  // Add MotionTableRow for animating rows
+  const MotionTableRow = motion(TableRow);
+
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       navigate('/auth');
@@ -522,7 +525,7 @@ export default function Dashboard() {
       : documents.filter((d) => (d.status ?? '').toLowerCase() === statusFilter.toLowerCase());
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="min-h-screen flex flex-col bg-background scroll-smooth">
       {/* Header */}
       <header className="border-b bg-background sticky top-0 z-10">
         <div className="flex items-center justify-between px-8 py-4">
@@ -578,7 +581,7 @@ export default function Dashboard() {
       </header>
 
       {/* Main Content */}
-      <div className="flex-1 p-8 overflow-auto">
+      <div className="flex-1 p-8 overflow-auto scroll-smooth">
         <div className="max-w-full mx-auto">
           <div className="mb-6 space-y-4">
             <div className="flex items-center justify-between">
@@ -705,10 +708,13 @@ export default function Dashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredDocs.map((doc) => (
-                    <TableRow 
+                  {filteredDocs.map((doc, idx) => (
+                    <MotionTableRow 
                       key={doc.id}
                       className={selectedDocuments.has(doc.id) ? 'bg-muted/50' : ''}
+                      initial={{ opacity: 0, y: 16 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.35, ease: 'easeOut', delay: Math.min(idx * 0.03, 0.4) }}
                     >
                       <TableCell>
                         <Checkbox
@@ -775,23 +781,8 @@ export default function Dashboard() {
                         >
                           View Details
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            const out = extractSapOutput(doc.raw);
-                            if (!out) {
-                              toast.error('No SAP payload found for this row');
-                              return;
-                            }
-                            setSelectedSAP(out);
-                            setIsSAPDialogOpen(true);
-                          }}
-                        >
-                          SAP
-                        </Button>
                       </TableCell>
-                    </TableRow>
+                    </MotionTableRow>
                   ))}
                 </TableBody>
               </Table>
