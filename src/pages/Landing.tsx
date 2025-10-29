@@ -14,6 +14,8 @@ import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/componen
 import { useLocation } from 'react-router';
 import { supabase, hasSupabaseEnv } from '@/lib/supabase';
 import { toast } from 'sonner';
+import Ajv, { type ErrorObject } from "ajv";
+import { salesOrderCreateSchema } from "@/schemas/salesOrderCreate";
 
 export default function Landing() {
   const { isLoading, isAuthenticated } = useAuth();
@@ -29,6 +31,8 @@ export default function Landing() {
   // Add saving/creating states
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [isCreating, setIsCreating] = useState<boolean>(false);
+  const [validationErrors, setValidationErrors] = useState<ErrorObject[] | null>(null);
+  const [isValid, setIsValid] = useState<boolean | null>(null);
 
   // Add online/offline detection for error banner
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
@@ -116,6 +120,141 @@ export default function Landing() {
   useEffect(() => {
     setEditorValue(showSap ? sapJson : rawJson);
   }, [showSap, sapJson, rawJson]);
+
+  // Initialize AJV validator once
+  const ajv = new Ajv({ allErrors: true, coerceTypes: true, useDefaults: true });
+  // Add custom date format: YYYY-MM-DDT00:00:00
+  ajv.addFormat("ymdT00", /^\d{4}-\d{2}-\d{2}T00:00:00$/);
+  const validateSalesOrder = ajv.compile(salesOrderCreateSchema);
+
+  // Validate helper
+  const runValidation = (jsonStr: string): boolean => {
+    try {
+      const parsed = JSON.parse(jsonStr || "{}");
+      const ok = validateSalesOrder(parsed) as boolean;
+      setIsValid(ok);
+      setValidationErrors(ok ? null : (validateSalesOrder.errors as ErrorObject[] | null));
+      return ok;
+    } catch {
+      setIsValid(false);
+      setValidationErrors([
+        {
+          instancePath: "",
+          keyword: "parse",
+          message: "Invalid JSON",
+          params: {},
+          schemaPath: "",
+        } as any,
+      ]);
+      return false;
+    }
+  };
+
+  // Re-validate whenever SAP editor changes or when toggled to SAP
+  useEffect(() => {
+    if (showSap) runValidation(editorValue);
+  }, [showSap, editorValue]);
+
+  // Quick-add helpers
+  const updateSapJson = (updater: (obj: any) => void) => {
+    try {
+      const obj = JSON.parse(sapJson || "{}");
+      if (typeof obj.output !== "object" || obj.output === null) obj.output = {};
+      updater(obj);
+      const pretty = JSON.stringify(obj, null, 2);
+      setSapJson(pretty);
+      if (showSap) setEditorValue(pretty);
+    } catch {
+      toast.error("Current SAP JSON is invalid; cannot modify.");
+    }
+  };
+
+  const handleAddHeaderPartner = () => {
+    updateSapJson((obj) => {
+      if (!Array.isArray(obj.output.to_Partner)) obj.output.to_Partner = [];
+      obj.output.to_Partner.push({
+        PartnerFunction: "",
+        Customer: "",
+        Supplier: "",
+        Personnel: "",
+        ContactPerson: "",
+      });
+    });
+    toast.success("Added header partner");
+  };
+
+  const handleAddHeaderPricing = () => {
+    updateSapJson((obj) => {
+      if (!Array.isArray(obj.output.to_PricingElement)) obj.output.to_PricingElement = [];
+      obj.output.to_PricingElement.push({
+        PricingProcedureStep: "",
+        PricingProcedureCounter: "",
+        ConditionType: "",
+        ConditionAmount: 0,
+        ConditionCurrency: "",
+      });
+    });
+    toast.success("Added header pricing");
+  };
+
+  const handleAddItem = () => {
+    updateSapJson((obj) => {
+      if (!Array.isArray(obj.output.to_Item)) obj.output.to_Item = [];
+      obj.output.to_Item.push({
+        SalesOrderItem: String(obj.output.to_Item.length + 10).padStart(4, "0"),
+        Material: "",
+        RequestedQuantity: 1,
+        RequestedQuantityUnit: "EA",
+        to_ItemPartner: [],
+        to_ItemPricingElement: [],
+      });
+    });
+    toast.success("Added item");
+  };
+
+  const handleAddItemPartner = () => {
+    updateSapJson((obj) => {
+      if (!Array.isArray(obj.output.to_Item) || obj.output.to_Item.length === 0) {
+        obj.output.to_Item = [
+          { SalesOrderItem: "0010", Material: "", RequestedQuantity: 1, RequestedQuantityUnit: "EA", to_ItemPartner: [], to_ItemPricingElement: [] },
+        ];
+      }
+      const last = obj.output.to_Item[obj.output.to_Item.length - 1];
+      if (!Array.isArray(last.to_ItemPartner)) last.to_ItemPartner = [];
+      last.to_ItemPartner.push({ PartnerFunction: "", Customer: "" });
+    });
+    toast.success("Added item partner to last item");
+  };
+
+  const handleAddItemPricing = () => {
+    updateSapJson((obj) => {
+      if (!Array.isArray(obj.output.to_Item) || obj.output.to_Item.length === 0) {
+        obj.output.to_Item = [
+          { SalesOrderItem: "0010", Material: "", RequestedQuantity: 1, RequestedQuantityUnit: "EA", to_ItemPartner: [], to_ItemPricingElement: [] },
+        ];
+      }
+      const last = obj.output.to_Item[obj.output.to_Item.length - 1];
+      if (!Array.isArray(last.to_ItemPricingElement)) last.to_ItemPricingElement = [];
+      last.to_ItemPricingElement.push({
+        PricingProcedureStep: "",
+        PricingProcedureCounter: "",
+        ConditionType: "",
+        ConditionAmount: 0,
+        ConditionCurrency: "",
+      });
+    });
+    toast.success("Added item pricing to last item");
+  };
+
+  const handleValidate = () => {
+    if (!showSap) {
+      toast.message("Switch to SAP Payload to validate");
+      return;
+    }
+    const ok = runValidation(editorValue);
+    if (ok) toast.success("SAP payload is valid");
+    else toast.error("SAP payload is invalid");
+  };
 
   // Show a full-screen animated loader while auth initializes
   if (isLoading) {
@@ -210,7 +349,7 @@ export default function Landing() {
     }
   };
 
-  // Add: handler to save current editor JSON to app field in DB
+  // Update Save to validate SAP when editing SAP
   const handleSave = async () => {
     if (!docId) {
       toast.error('Enter a document id');
@@ -222,6 +361,14 @@ export default function Landing() {
     } catch {
       toast.error('JSON is not valid');
       return;
+    }
+    // Validate SAP when saving SAP JSON
+    if (showSap) {
+      const ok = runValidation(editorValue);
+      if (!ok) {
+        toast.error('Validation failed; fix errors before saving');
+        return;
+      }
     }
     if (!hasSupabaseEnv) {
       toast.error('Supabase is not configured');
@@ -270,6 +417,7 @@ export default function Landing() {
     }
   };
 
+  // Update Create to validate SAP payload
   const handleCreate = async () => {
     if (!docId) {
       toast.error('Enter a document id');
@@ -281,6 +429,12 @@ export default function Landing() {
       payload = JSON.parse(sapJson || '{}');
     } catch {
       toast.error('SAP payload is not valid JSON');
+      return;
+    }
+    // Validate SAP before sending
+    const ok = runValidation(JSON.stringify(payload));
+    if (!ok) {
+      toast.error('Validation failed; fix errors before sending');
       return;
     }
 
@@ -463,6 +617,15 @@ export default function Landing() {
               <CardTitle className="flex items-center justify-between">
                 <span>SAP Webhook</span>
                 <div className="flex items-center gap-2">
+                  {/* Validation status */}
+                  <span className={`text-xs px-2 py-0.5 rounded ${
+                    isValid === null ? 'bg-muted text-muted-foreground' : isValid ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                  }`}>
+                    {isValid === null ? '—' : isValid ? 'Valid' : `${validationErrors?.length || 0} errors`}
+                  </span>
+                  <Button variant="outline" size="sm" onClick={handleValidate}>
+                    Validate
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"
@@ -534,6 +697,16 @@ export default function Landing() {
                 </div>
               </div>
 
+              {showSap && (
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <Button variant="outline" size="sm" onClick={handleAddHeaderPartner}>Add Header Partner</Button>
+                  <Button variant="outline" size="sm" onClick={handleAddHeaderPricing}>Add Header Pricing</Button>
+                  <Button variant="outline" size="sm" onClick={handleAddItem}>Add Item</Button>
+                  <Button variant="outline" size="sm" onClick={handleAddItemPartner}>Add Item Partner (last)</Button>
+                  <Button variant="outline" size="sm" onClick={handleAddItemPricing}>Add Item Pricing (last)</Button>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label htmlFor="editor">{showSap ? 'SAP Payload (editable)' : 'Current JSON (read-only if from DB)'}</Label>
                 <Textarea
@@ -548,6 +721,19 @@ export default function Landing() {
                   placeholder={showSap ? '{ "output": { ... } }' : '{ ... }'}
                 />
               </div>
+
+              {showSap && isValid === false && validationErrors && (
+                <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800 space-y-1">
+                  {validationErrors.slice(0, 8).map((e, idx) => (
+                    <div key={idx}>
+                      {(e.instancePath || '') || '/'}: {e.message}
+                    </div>
+                  ))}
+                  {validationErrors.length > 8 && (
+                    <div>+{validationErrors.length - 8} more…</div>
+                  )}
+                </div>
+              )}
             </CardContent>
             <CardFooter className="flex items-center justify-end">
               <Button variant="outline" onClick={handleFormat}>
