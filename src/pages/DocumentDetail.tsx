@@ -1,6 +1,11 @@
 import { DocumentFields } from '@/components/DocumentFields';
 import { PDFViewer } from '@/components/PDFViewer';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase, type BoundingBox, hasSupabaseEnv, publicUrlForPath } from '@/lib/supabase';
 import { createSignedUrlForPath } from '@/lib/supabase';
@@ -28,6 +33,14 @@ export default function DocumentDetail() {
   const [doc, setDoc] = useState<DocumentData | null>(null);
   const [highlightBox, setHighlightBox] = useState<(BoundingBox & { page?: number }) | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Add SAP editor state
+  const [webhookUrl, setWebhookUrl] = useState<string>('');
+  const [showSap, setShowSap] = useState<boolean>(true);
+  const [rawJson, setRawJson] = useState<string>('');
+  const [sapJson, setSapJson] = useState<string>('');
+  const [editorValue, setEditorValue] = useState<string>('');
+  const [isRowLoading, setIsRowLoading] = useState<boolean>(false);
 
   // Add aside ref for scroll-to-top control
   const asideRef = useRef<HTMLDivElement | null>(null);
@@ -60,6 +73,11 @@ export default function DocumentDetail() {
       }
     }
   }, [isAuthenticated, documentId]);
+
+  // Keep editor in sync with toggle
+  useEffect(() => {
+    setEditorValue(showSap ? sapJson : rawJson);
+  }, [showSap, sapJson, rawJson]);
 
   // Convert new compact array-based format into the old pages-based structure our UI expects
   function convertNewFormatToOld(obj: any) {
@@ -241,6 +259,7 @@ export default function DocumentDetail() {
   const fetchDocument = async () => {
     try {
       setIsLoading(true);
+      setIsRowLoading(true); // start SAP panel spinner
       const { data, error } = await supabase
         .from('N8N Logs')
         .select('*')
@@ -256,6 +275,30 @@ export default function DocumentDetail() {
         toast.error('Document not found');
         navigate('/dashboard');
         return;
+      }
+
+      // NEW: Prepare editor payloads from row
+      try {
+        let current = '';
+        const candidates = [data?.pdf_ai_output, data?.document_data];
+        for (const c of candidates) {
+          if (!c) continue;
+          try {
+            current = typeof c === 'string' ? c : JSON.stringify(c, null, 2);
+            break;
+          } catch {}
+        }
+        const sap =
+          data?.SAP_AI_OUTPUT
+            ? (typeof data.SAP_AI_OUTPUT === 'string'
+                ? data.SAP_AI_OUTPUT
+                : JSON.stringify(data.SAP_AI_OUTPUT, null, 2))
+            : '{\n  "output": {\n    "to_Item": []\n  }\n}';
+        setRawJson(current);
+        setSapJson(sap);
+        setEditorValue(showSap ? sap : current);
+      } catch (e) {
+        console.warn('Failed to prepare SAP panel payloads', e);
       }
 
       // Build robust storage path from possible fields
@@ -335,6 +378,50 @@ export default function DocumentDetail() {
       navigate('/dashboard');
     } finally {
       setIsLoading(false);
+      setIsRowLoading(false); // stop SAP panel spinner
+    }
+  };
+
+  // Handlers for SAP editor (format and webhook call)
+  const handleFormat = () => {
+    try {
+      const parsed = JSON.parse(editorValue || '{}');
+      const pretty = JSON.stringify(parsed, null, 2);
+      setEditorValue(pretty);
+      if (showSap) setSapJson(pretty);
+      else setRawJson(pretty);
+      toast.success('JSON formatted');
+    } catch {
+      toast.error('Invalid JSON; cannot format');
+    }
+  };
+
+  const handleCreate = async () => {
+    if (!webhookUrl) {
+      toast.error('Enter a webhook URL');
+      return;
+    }
+    if (!doc?.id) {
+      toast.error('Missing document id');
+      return;
+    }
+    let payload: any = null;
+    try {
+      payload = JSON.parse(sapJson || '{}');
+    } catch {
+      toast.error('SAP payload is not valid JSON');
+      return;
+    }
+    try {
+      const res = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: doc.id, payload }),
+      });
+      if (!res.ok) throw new Error(`Webhook responded ${res.status}`);
+      toast.success('Webhook called successfully');
+    } catch (e: any) {
+      toast.error(`Webhook failed: ${e?.message || e}`);
     }
   };
 
@@ -397,6 +484,75 @@ export default function DocumentDetail() {
 
         {/* Document Fields */}
         <aside ref={asideRef} className="relative w-[420px] lg:w-[560px] border-l bg-background overflow-hidden flex-shrink-0">
+          <div className="p-4 border-b">
+            <Card className="bg-card/60">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span>SAP Webhook</span>
+                  <div className="text-xs text-muted-foreground">
+                    {hasSupabaseEnv ? (isRowLoading ? 'Loading row…' : 'Supabase connected') : 'Supabase not configured'}
+                  </div>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="space-y-2">
+                    <Label>Document ID</Label>
+                    <Input value={doc?.id || ''} readOnly />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="webhookUrl">Webhook URL</Label>
+                    <Input
+                      id="webhookUrl"
+                      placeholder="https://example.com/webhook"
+                      value={webhookUrl}
+                      onChange={(e) => setWebhookUrl(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-4 pt-2">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="toggleSap"
+                      checked={showSap}
+                      onCheckedChange={(v) => setShowSap(Boolean(v))}
+                    />
+                    <Label htmlFor="toggleSap" className="cursor-pointer">
+                      Show SAP Payload
+                    </Label>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {showSap ? 'Editing SAP_AI_OUTPUT' : 'Viewing current JSON'}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="editor">{showSap ? 'SAP Payload (editable)' : 'Current JSON'}</Label>
+                  <Textarea
+                    id="editor"
+                    className="min-h-[220px] font-mono text-xs"
+                    value={editorValue}
+                    onChange={(e) => {
+                      setEditorValue(e.target.value);
+                      if (showSap) setSapJson(e.target.value);
+                      else setRawJson(e.target.value);
+                    }}
+                    placeholder={showSap ? '{ "output": { ... } }' : '{ ... }'}
+                  />
+                </div>
+              </CardContent>
+              <CardFooter className="flex items-center justify-between">
+                <Button variant="outline" onClick={handleFormat}>
+                  Format JSON
+                </Button>
+                <Button onClick={handleCreate}>
+                  Create
+                </Button>
+              </CardFooter>
+            </Card>
+          </div>
+
           {doc.document_data &&
           doc.document_data?.document?.pages?.length > 0 ? (
             <DocumentFields
@@ -408,6 +564,7 @@ export default function DocumentDetail() {
               No structured data available for this document.
             </div>
           )}
+
           {/* Scroll to top button for fields panel */}
           <Button
             variant="outline"

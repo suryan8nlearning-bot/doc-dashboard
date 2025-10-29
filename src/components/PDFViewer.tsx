@@ -54,17 +54,24 @@ function normalizeBoxAny(input: any): (BoundingBox & { page?: number }) | null {
 
   if (Array.isArray(input)) {
     if (input.length < 4) return null;
-    const x = toNum(input[0]);
-    const y = toNum(input[1]);
-    let width = toNum(input[2]);
-    let height = toNum(input[3]);
-    if (!Number.isFinite(width) || !Number.isFinite(height)) {
-      width = toNum(input[2]) - x;
-      height = toNum(input[3]) - y;
-    }
+    const x1 = toNum(input[0]);
+    const y1 = toNum(input[1]);
+    const a2 = toNum(input[2]);
+    const b2 = toNum(input[3]);
     const page = toNum(input[4]);
-    if ([x, y, width, height].every(Number.isFinite)) {
-      return { x, y, width, height, page: Number.isFinite(page) ? page : undefined };
+
+    // Prefer interpreting arrays as [x1, y1, x2, y2, (page?)]
+    let width = a2 - x1;
+    let height = b2 - y1;
+
+    // Fallback: if that produces invalid values, treat as [x, y, w, h, (page?)]
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+      width = a2;
+      height = b2;
+    }
+
+    if ([x1, y1, width, height].every(Number.isFinite) && width > 0 && height > 0) {
+      return { x: x1, y: y1, width, height, page: Number.isFinite(page) ? page : undefined };
     }
     return null;
   }
@@ -237,7 +244,8 @@ const toPxBox = (box: WideBox): WideBox => {
     const pages = documentData.document.pages;
     const page = pages.find((p: any) => p?.page_number === currentPage) ?? pages[0];
 
-    const boxes: Array<BoundingBox & { label?: string }> = [];
+    // Boxes container should include optional page
+    const boxes: Array<(BoundingBox & { page?: number; label?: string })> = [];
 
     const pushField = (label: string, field?: { value?: string; bounding_box?: any[] }) => {
       if (!field?.bounding_box?.length) return;
