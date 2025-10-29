@@ -61,6 +61,149 @@ export default function DocumentDetail() {
     }
   }, [isAuthenticated, documentId]);
 
+  // Convert new compact array-based format into the old pages-based structure our UI expects
+  function convertNewFormatToOld(obj: any) {
+    const toNum = (v: any) => (v === null || v === undefined || v === '' ? NaN : Number(v));
+
+    const fromPair = (pair: any) => {
+      // Accept both new [value, [x1,y1,x2,y2,p]] and old { value, bounding_box } shapes
+      if (Array.isArray(pair) && pair.length >= 2 && Array.isArray(pair[1])) {
+        return { value: String(pair[0] ?? ''), bounding_box: [pair[1]] };
+      }
+      if (pair && typeof pair === 'object' && 'value' in pair && 'bounding_box' in pair) {
+        return pair;
+      }
+      return { value: String(pair ?? ''), bounding_box: [] };
+    };
+
+    const combineBoxes = (boxes: any[]): any[] => {
+      // Combine multiple [x1,y1,x2,y2,p] into a single encompassing box
+      const coords = boxes
+        .filter((b) => Array.isArray(b) && b.length >= 4)
+        .map((b) => ({
+          x1: toNum(b[0]),
+          y1: toNum(b[1]),
+          x2: toNum(b[2]),
+          y2: toNum(b[3]),
+          p: toNum(b[4]),
+        }))
+        .filter((c) => [c.x1, c.y1, c.x2, c.y2].every(Number.isFinite));
+      if (!coords.length) return [];
+      const x1 = Math.min(...coords.map((c) => c.x1));
+      const y1 = Math.min(...coords.map((c) => c.y1));
+      const x2 = Math.max(...coords.map((c) => c.x2));
+      const y2 = Math.max(...coords.map((c) => c.y2));
+      // Prefer the most common page number if provided, else default to 1
+      const pageCounts: Record<string, number> = {};
+      for (const c of coords) {
+        const key = Number.isFinite(c.p) ? String(c.p) : '1';
+        pageCounts[key] = (pageCounts[key] || 0) + 1;
+      }
+      const page = Number(Object.keys(pageCounts).sort((a, b) => pageCounts[b] - pageCounts[a])[0] || '1');
+      return [[x1, y1, x2, y2, page]];
+    };
+
+    const doc = obj?.document;
+    if (!doc) return undefined;
+
+    // Detect new format: no pages array, metadata fields are pairs
+    const looksNew =
+      !Array.isArray(doc.pages) &&
+      doc.metadata &&
+      (Array.isArray(doc.metadata.document_type) || Array.isArray(doc.metadata.date) || Array.isArray(doc.metadata.purchase_order_no));
+
+    if (!looksNew) return undefined;
+
+    const md = doc.metadata || {};
+    const parties = doc.parties || {};
+    const vendor = parties.vendor_information || parties.vendor || {};
+    const customer = parties.customer_information || parties.customer || {};
+
+    const items = Array.isArray(doc.items) ? doc.items : [];
+    const otherInfoObj = doc.other_information && typeof doc.other_information === 'object' ? doc.other_information : {};
+
+    // Attempt to infer a page number from any available bbox in metadata
+    const inferPage = () => {
+      const candidates: any[] = [
+        md.document_type?.[1],
+        md.date?.[1],
+        md.purchase_order_no?.[1],
+      ].filter(Boolean);
+      for (const c of candidates) {
+        const p = toNum(Array.isArray(c) ? c[4] : undefined);
+        if (Number.isFinite(p)) return p;
+      }
+      return 1;
+    };
+    const page_number = inferPage();
+
+    // Map metadata
+    const metadata = {
+      document_title: fromPair(md.document_type),
+      date: fromPair(md.date),
+      purchase_order_no: fromPair(md.purchase_order_no),
+    };
+
+    // Map vendor info (sales_person may not exist in new format)
+    const vendor_information = {
+      vendor_name: fromPair(vendor.vendor_name),
+      address: fromPair(vendor.address),
+      contact_no: fromPair(vendor.contact_no),
+      sales_person: fromPair(vendor.sales_person),
+    };
+
+    // Map customer info (email may be missing)
+    const customer_information = {
+      customer_name: fromPair(customer.customer_name),
+      address: fromPair(customer.address),
+      contact_no: fromPair(customer.contact_no),
+      contact_person: fromPair(customer.contact_person),
+      email_address: fromPair(customer.email_address),
+    };
+
+    // Map items to our shape; combine their subfield boxes into one bbox for the item row
+    const mappedItems = items.map((it: any) => {
+      const details = fromPair(it.details);
+      const quantity = fromPair(it.quantity);
+      const unit_price = fromPair(it.unit_price);
+      const total = fromPair(it.total);
+
+      const candidateBoxes: any[] = [];
+      [it.item_no?.[1], it.details?.[1], it.unit?.[1], it.quantity?.[1], it.unit_price?.[1], it.total?.[1]].forEach((b) => {
+        if (Array.isArray(b)) candidateBoxes.push(b);
+      });
+
+      return {
+        description: details.value || '',
+        quantity: quantity.value || '',
+        unit_price: unit_price.value || '',
+        total: total.value || '',
+        bounding_box: combineBoxes(candidateBoxes),
+      };
+    });
+
+    // Map other_information object => array of objects with FieldValue
+    const other_information: Array<any> = [];
+    for (const [key, pair] of Object.entries(otherInfoObj)) {
+      other_information.push({ [key]: fromPair(pair) });
+    }
+
+    return {
+      document: {
+        pages: [
+          {
+            page_number,
+            metadata,
+            parties: { vendor_information },
+            customerparties: { customer_information },
+            items: mappedItems,
+            other_information,
+          },
+        ],
+      },
+    };
+  }
+
   const coerceDocumentData = (row: any) => {
     const candidates = [
       row?.PDF_AI_OUTPUT,
@@ -77,8 +220,16 @@ export default function DocumentDetail() {
     for (const cand of candidates) {
       try {
         const obj = typeof cand === 'string' ? JSON.parse(cand) : cand;
+
+        // Old format: already has pages
         if (obj?.document?.pages && Array.isArray(obj.document.pages) && obj.document.pages.length > 0) {
           return obj;
+        }
+        // New format: convert to old shape
+        const converted = convertNewFormatToOld(obj);
+        // Fix: avoid comparing possibly undefined length
+        if (converted && Array.isArray(converted.document?.pages) && converted.document.pages.length > 0) {
+          return converted;
         }
       } catch {
         // ignore parse errors
@@ -154,6 +305,18 @@ export default function DocumentDetail() {
       const document_data = coerceDocumentData(data);
       const title =
         document_data?.document?.pages?.[0]?.metadata?.document_title?.value ||
+        // fallback to new format (if conversion failed for some reason)
+        (typeof data?.pdf_ai_output === 'string'
+          ? (() => {
+              try {
+                const parsed = JSON.parse(data.pdf_ai_output);
+                const dt = parsed?.document?.metadata?.document_type?.[0];
+                return typeof dt === 'string' ? dt : undefined;
+              } catch {
+                return undefined;
+              }
+            })()
+          : undefined) ||
         (typeof data?.title === 'string' ? data.title : undefined) ||
         (typeof path === 'string' ? String(path).split('/').pop() : undefined) ||
         'Untitled Document';
