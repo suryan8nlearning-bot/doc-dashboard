@@ -242,15 +242,27 @@ export default function Landing() {
     runValidation(editorValue);
   }, [editorValue]);
 
-  // Apply theme from user profile on this page
+  // Apply theme from user profile on this page + persist to localStorage and fallback to stored theme
   useEffect(() => {
-    if (!user?.theme) return;
     const root = document.documentElement;
-    root.classList.remove('dark', 'glass-theme');
-    if (user.theme === 'glass') {
-      root.classList.add('glass-theme');
-    } else if (user.theme === 'dark') {
-      root.classList.add('dark');
+    const applyTheme = (theme: string) => {
+      root.classList.remove('dark', 'glass-theme');
+      if (theme === 'glass') {
+        root.classList.add('glass-theme');
+      } else if (theme === 'dark') {
+        root.classList.add('dark');
+      }
+    };
+    if (user?.theme) {
+      try {
+        localStorage.setItem('theme', user.theme);
+      } catch {}
+      applyTheme(user.theme);
+    } else {
+      try {
+        const stored = localStorage.getItem('theme');
+        if (stored) applyTheme(stored);
+      } catch {}
     }
   }, [user?.theme]);
 
