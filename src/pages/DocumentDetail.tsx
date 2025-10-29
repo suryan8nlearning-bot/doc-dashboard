@@ -247,28 +247,70 @@ export default function DocumentDetail() {
     return undefined;
   };
 
-  // Add: extract SAP output, key/value renderer, and hierarchical renderer
   // Extracts SAP output object from a row (handles string/object inputs and nested `output`)
   const extractSapOutput = (row: any): any | undefined => {
     if (!row) return undefined;
-    const candidates: Array<any> = [
+
+    const isSapLike = (obj: any): boolean => {
+      if (!obj || typeof obj !== 'object') return false;
+      // Heuristics for SAP Sales Order structures
+      if (Array.isArray(obj.to_Item) || Array.isArray(obj.to_Partner) || Array.isArray(obj.to_PricingElement)) {
+        return true;
+      }
+      // Common header fields that often appear
+      const headerHints = ['DocType', 'SalesOrganization', 'DistributionChannel', 'Division'];
+      for (const key of headerHints) {
+        if (typeof obj[key] === 'string' || typeof obj[key] === 'number') return true;
+      }
+      return false;
+    };
+
+    const tryParse = (val: any): any | undefined => {
+      try {
+        const obj = typeof val === 'string' ? JSON.parse(val) : val;
+        if (obj && typeof obj === 'object') {
+          const out = obj?.output ?? obj;
+          if (isSapLike(out)) return out;
+        }
+      } catch {
+        // ignore parse errors
+      }
+      return undefined;
+    };
+
+    // Direct candidates (common names)
+    const directCandidates: Array<any> = [
       row?.SAP_AI_OUTPUT,
       row?.sap_ai_output,
       row?.['SAP_AI_OUTPUT'],
       row?.sap_payload,
       row?.SAP,
       row?.sap,
+      row?.sap_output,
+      row?.SAP_Output,
+      row?.sapOutput,
+      row?.sap_payload_json,
+      row?.sap_payload_string,
     ];
-    for (const cand of candidates) {
-      if (!cand) continue;
-      try {
-        const obj = typeof cand === 'string' ? JSON.parse(cand) : cand;
-        const out = obj?.output ?? obj;
-        if (out && typeof out === 'object') return out;
-      } catch {
-        // ignore parse errors
+    for (const cand of directCandidates) {
+      const out = tryParse(cand);
+      if (out) return out;
+    }
+
+    // Keys that include 'sap' anywhere
+    for (const [key, value] of Object.entries(row)) {
+      if (key.toLowerCase().includes('sap')) {
+        const out = tryParse(value);
+        if (out) return out;
       }
     }
+
+    // Fallback: scan all values for any JSON that looks like SAP
+    for (const value of Object.values(row)) {
+      const out = tryParse(value);
+      if (out) return out;
+    }
+
     return undefined;
   };
 
@@ -598,7 +640,7 @@ export default function DocumentDetail() {
         </div>
 
         {/* Document Fields */}
-        <aside ref={asideRef} className="relative w-[420px] lg:w-[560px] border-l bg-background overflow-hidden flex-shrink-0">
+        <aside ref={asideRef} className="relative w-[420px] lg:w-[560px] border-l bg-background overflow-hidden flex-shrink-0 flex flex-col">
           <div className="p-4 border-b">
             <Card className="bg-card/60">
               <CardHeader>
@@ -634,17 +676,19 @@ export default function DocumentDetail() {
             </Card>
           </div>
 
-          {doc.document_data &&
-          doc.document_data?.document?.pages?.length > 0 ? (
-            <DocumentFields
-              documentData={doc.document_data}
-              onFieldHover={setHighlightBox}
-            />
-          ) : (
-            <div className="h-full p-6 text-sm text-muted-foreground">
-              No structured data available for this document.
-            </div>
-          )}
+          <div className="flex-1 min-h-0">
+            {doc.document_data &&
+            doc.document_data?.document?.pages?.length > 0 ? (
+              <DocumentFields
+                documentData={doc.document_data}
+                onFieldHover={setHighlightBox}
+              />
+            ) : (
+              <div className="h-full p-6 text-sm text-muted-foreground">
+                No structured data available for this document.
+              </div>
+            )}
+          </div>
 
           {/* Scroll to top button for fields panel */}
           <Button
