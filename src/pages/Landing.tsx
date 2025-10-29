@@ -760,8 +760,12 @@ export default function Landing() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
-      className="min-h-screen flex flex-col bg-background"
+      className="min-h-screen flex flex-col bg-gradient-to-b from-background to-background/60 relative overflow-hidden"
     >
+      {/* Decorative background blobs for visual interest */}
+      <div aria-hidden className="pointer-events-none absolute -top-24 -right-24 h-80 w-80 rounded-full bg-primary/20 blur-3xl dark:bg-primary/30" />
+      <div aria-hidden className="pointer-events-none absolute -bottom-24 -left-24 h-80 w-80 rounded-full bg-purple-500/20 blur-3xl dark:bg-purple-500/20" />
+
       {/* Header */}
       <header className="border-b">
         <div className="max-w-7xl mx-auto px-8 py-6 flex items-center justify-between">
@@ -853,8 +857,17 @@ export default function Landing() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2, duration: 0.6 }}
-          className="max-w-4xl mx-auto text-center space-y-8"
+          className="max-w-4xl mx-auto text-center space-y-8 relative"
         >
+          {/* Subtle background graphic behind hero */}
+          <img
+            src="/logo_bg.svg"
+            alt=""
+            aria-hidden
+            className="pointer-events-none select-none absolute inset-0 m-auto opacity-10 -z-10 max-w-[720px]"
+            loading="lazy"
+            decoding="async"
+          />
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-muted text-sm font-medium">
             <Zap className="h-4 w-4" />
             Intelligent Document Processing
@@ -863,7 +876,9 @@ export default function Landing() {
           <h1 className="text-5xl md:text-6xl font-bold tracking-tight leading-tight">
             Extract insights from
             <br />
-            <span className="text-primary">documents instantly</span>
+            <span className="bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
+              documents instantly
+            </span>
           </h1>
 
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
@@ -876,7 +891,7 @@ export default function Landing() {
               size="lg"
               onClick={handleGetStarted}
               disabled={isLoading}
-              className="text-base px-8"
+              className="text-base px-8 bg-gradient-to-r from-primary to-purple-600 text-white hover:from-primary/90 hover:to-purple-600/90 shadow-lg shadow-primary/20"
               onMouseEnter={() => {
                 if (!isLoading) {
                   if (isAuthenticated) {
@@ -907,9 +922,9 @@ export default function Landing() {
           className="max-w-5xl mx-auto mt-32 grid md:grid-cols-3 gap-8"
         >
           <motion.div
-            whileHover={{ y: -8, boxShadow: '0 20px 40px rgba(0,0,0,0.1)' }}
+            whileHover={{ y: -8, boxShadow: '0 20px 40px rgba(0,0,0,0.08)' }}
             transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-            className="text-center space-y-4 p-8 rounded-lg border bg-card/50 hover:bg-card transition-colors cursor-pointer"
+            className="text-center space-y-4 p-8 rounded-lg border bg-card/60 hover:bg-card shadow-sm hover:shadow-xl transition-all cursor-pointer"
           >
             <motion.div
               whileHover={{ scale: 1.1, rotate: 5 }}
@@ -925,9 +940,9 @@ export default function Landing() {
           </motion.div>
 
           <motion.div
-            whileHover={{ y: -8, boxShadow: '0 20px 40px rgba(0,0,0,0.1)' }}
+            whileHover={{ y: -8, boxShadow: '0 20px 40px rgba(0,0,0,0.08)' }}
             transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-            className="text-center space-y-4 p-8 rounded-lg border bg-card/50 hover:bg-card transition-colors cursor-pointer"
+            className="text-center space-y-4 p-8 rounded-lg border bg-card/60 hover:bg-card shadow-sm hover:shadow-xl transition-all cursor-pointer"
           >
             <motion.div
               whileHover={{ scale: 1.1, rotate: -5 }}
@@ -942,9 +957,9 @@ export default function Landing() {
           </motion.div>
 
           <motion.div
-            whileHover={{ y: -8, boxShadow: '0 20px 40px rgba(0,0,0,0.1)' }}
+            whileHover={{ y: -8, boxShadow: '0 20px 40px rgba(0,0,0,0.08)' }}
             transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-            className="text-center space-y-4 p-8 rounded-lg border bg-card/50 hover:bg-card transition-colors cursor-pointer"
+            className="text-center space-y-4 p-8 rounded-lg border bg-card/60 hover:bg-card shadow-sm hover:shadow-xl transition-all cursor-pointer"
           >
             <motion.div
               whileHover={{ scale: 1.1, rotate: 5 }}
@@ -967,7 +982,7 @@ export default function Landing() {
           transition={{ delay: 0.5, duration: 0.6 }}
           className="max-w-5xl mx-auto mt-12 w-full"
         >
-          <Card className="bg-card/60">
+          <Card className="bg-card/60 supports-[backdrop-filter]:bg-card/60 backdrop-blur shadow-lg">
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
                 <span>SAP Webhook</span>
