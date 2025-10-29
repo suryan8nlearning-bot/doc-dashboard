@@ -37,6 +37,10 @@ const pageRef = useRef<pdfjsLib.PDFPageProxy | null>(null);
 const renderTaskRef = useRef<any>(null);
 const baseViewportRef = useRef<{ width: number; height: number } | null>(null);
 
+// Add: debugging and Y-axis handling state
+const [invertY, setInvertY] = useState(true);
+const [debugMode, setDebugMode] = useState(false);
+
 // Add: normalize/scale helpers and current page state
 type WideBox = BoundingBox & { page?: number };
 
@@ -70,7 +74,6 @@ const toPxBox = (box: WideBox): WideBox => {
   const base = getBaseDims();
   if (!base.width || !base.height) return box;
 
-  // If coordinates look normalized (0..1), scale to base pixels
   const isNormalized =
     box.x >= 0 &&
     box.y >= 0 &&
@@ -81,16 +84,18 @@ const toPxBox = (box: WideBox): WideBox => {
     box.width <= 1 &&
     box.height <= 1;
 
-  if (isNormalized) {
-    return {
-      x: box.x * base.width,
-      y: box.y * base.height,
-      width: box.width * base.width,
-      height: box.height * base.height,
-      page: (box as any).page,
-    } as WideBox;
+  // Convert to base pixels first
+  let pxX = isNormalized ? box.x * base.width : box.x;
+  let pxY = isNormalized ? box.y * base.height : box.y;
+  let pxW = isNormalized ? box.width * base.width : box.width;
+  let pxH = isNormalized ? box.height * base.height : box.height;
+
+  // Apply optional bottom-left → top-left conversion
+  if (invertY) {
+    pxY = base.height - (pxY + pxH);
   }
-  return box;
+
+  return { x: pxX, y: pxY, width: pxW, height: pxH, page: (box as any).page } as WideBox;
 };
 
   const fetchPdfProxy = useAction(api.documents.fetchPdfProxy);
@@ -464,10 +469,18 @@ const toPxBox = (box: WideBox): WideBox => {
         e.preventDefault();
         handleResetZoom();
       }
+      // Debug shortcuts
+      if (e.key.toLowerCase() === 'd') {
+        setDebugMode((v) => !v);
+      }
+      if (e.shiftKey && e.key.toLowerCase() === 'i') {
+        setInvertY((v) => !v);
+        console.log('PDFViewer: invertY set to', !invertY);
+      }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  }, [invertY]);
 
   // Keep hover-centering and zooming for a hovered single box (clamped) + switch page if needed
   useEffect(() => {
@@ -587,6 +600,26 @@ const toPxBox = (box: WideBox): WideBox => {
         >
           <RotateCcw className="h-4 w-4" />
         </Button>
+
+        {/* Debug + Invert Y toggles */}
+        <Button
+          variant="outline"
+          size="sm"
+          className="ml-2 h-8 px-2 rounded-full"
+          onClick={() => setDebugMode((v) => !v)}
+          title="Toggle debug overlays (D)"
+        >
+          {debugMode ? 'Debug: On' : 'Debug: Off'}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 px-2 rounded-full"
+          onClick={() => setInvertY((v) => !v)}
+          title="Invert Y axis (Shift+I)"
+        >
+          Y:{invertY ? '↓' : '↑'}
+        </Button>
       </div>
 
       {/* Scroll to top button inside PDF container */}
@@ -634,6 +667,10 @@ const toPxBox = (box: WideBox): WideBox => {
               {allBoxes.map((box, idx) => {
                 const bb = toPxBox(box as any);
                 const pad = 2;
+                // Optional: only render when debugMode OR always – we keep them always visible for now
+                if (debugMode) {
+                  console.debug('PDFViewer: box', idx, { bb, zoom, canvasSize });
+                }
                 return (
                   <div
                     key={idx}
@@ -658,24 +695,39 @@ const toPxBox = (box: WideBox): WideBox => {
           {highlightBox && (() => {
             const hb = toPxBox(highlightBox as WideBox);
             const pad = 8; // increase padding for clearer highlight
+            const label = `x:${Math.round(hb.x)}, y:${Math.round(hb.y)}, w:${Math.round(hb.width)}, h:${Math.round(hb.height)}${(highlightBox as any).page ? `, p:${(highlightBox as any).page}` : ""}`;
             return (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute pointer-events-none rounded-md z-50"
-                style={{
-                  left: `${(hb.x - pad) * zoom}px`,
-                  top: `${(hb.y - pad) * zoom}px`,
-                  width: `${(hb.width + pad * 2) * zoom}px`,
-                  height: `${(hb.height + pad * 2) * zoom}px`,
-                  // Stronger, clearer highlight above the PDF
-                  boxShadow: "0 0 0 4px rgba(59,130,246,1), 0 0 0 8px rgba(59,130,246,0.35)",
-                  background: "radial-gradient(60% 60% at 50% 50%, rgba(59,130,246,0.3), transparent)",
-                  filter: "drop-shadow(0 10px 28px rgba(0,0,0,0.30))",
-                  willChange: "transform, opacity",
-                }}
-              />
+              <>
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.98 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute pointer-events-none rounded-md z-50"
+                  style={{
+                    left: `${(hb.x - pad) * zoom}px`,
+                    top: `${(hb.y - pad) * zoom}px`,
+                    width: `${(hb.width + pad * 2) * zoom}px`,
+                    height: `${(hb.height + pad * 2) * zoom}px`,
+                    // Stronger, clearer highlight above the PDF
+                    boxShadow: "0 0 0 4px rgba(59,130,246,1), 0 0 0 8px rgba(59,130,246,0.35)",
+                    background: "radial-gradient(60% 60% at 50% 50%, rgba(59,130,246,0.3), transparent)",
+                    filter: "drop-shadow(0 10px 28px rgba(0,0,0,0.30))",
+                    willChange: "transform, opacity",
+                  }}
+                />
+                {/* Tooltip label with bounding box values */}
+                <div
+                  className="absolute z-[60] pointer-events-none px-2 py-1 rounded-md text-[10px] font-medium bg-background/85 border shadow-sm"
+                  style={{
+                    left: `${(hb.x - pad) * zoom}px`,
+                    top: `${(hb.y - pad - 22) * zoom}px`,
+                    transform: "translateY(-4px)",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {label}
+                </div>
+              </>
             );
           })()}
         </div>
