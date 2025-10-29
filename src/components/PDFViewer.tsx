@@ -37,6 +37,9 @@ const pageRef = useRef<pdfjsLib.PDFPageProxy | null>(null);
 const renderTaskRef = useRef<any>(null);
 const baseViewportRef = useRef<{ width: number; height: number } | null>(null);
 
+// Track the source coordinate space of incoming boxes (auto-guessed per page)
+const sourceDimsRef = useRef<{ width: number; height: number } | null>(null);
+
 // Add: debugging and Y-axis handling state
 const [invertY, setInvertY] = useState(true);
 const [debugMode, setDebugMode] = useState(false);
@@ -117,9 +120,11 @@ const toPxBox = (box: WideBox): WideBox => {
   ) {
     return box;
   }
+
   const base = getBaseDims();
   if (!base.width || !base.height) return box;
 
+  // Heuristic: if coords are <= 1, treat as normalized [0..1]
   const isNormalized =
     box.x >= 0 &&
     box.y >= 0 &&
@@ -130,13 +135,18 @@ const toPxBox = (box: WideBox): WideBox => {
     box.width <= 1 &&
     box.height <= 1;
 
-  // Convert to base pixels first
-  let pxX = isNormalized ? box.x * base.width : box.x;
-  let pxY = isNormalized ? box.y * base.height : box.y;
-  let pxW = isNormalized ? box.width * base.width : box.width;
-  let pxH = isNormalized ? box.height * base.height : box.height;
+  // Auto-detect the source coordinate space (e.g., OCR pixel space)
+  const src = sourceDimsRef.current;
+  const srcW = src?.width && src.width > 0 ? src.width : base.width;
+  const srcH = src?.height && src.height > 0 ? src.height : base.height;
 
-  // Apply optional bottom-left → top-left conversion
+  // Map source -> canvas base pixels
+  let pxX = isNormalized ? box.x * base.width : (box.x / srcW) * base.width;
+  let pxY = isNormalized ? box.y * base.height : (box.y / srcH) * base.height;
+  let pxW = isNormalized ? box.width * base.width : (box.width / srcW) * base.width;
+  let pxH = isNormalized ? box.height * base.height : (box.height / srcH) * base.height;
+
+  // Optional bottom-left → top-left conversion
   if (invertY) {
     pxY = base.height - (pxY + pxH);
   }
@@ -214,11 +224,12 @@ const toPxBox = (box: WideBox): WideBox => {
   };
 
   // Compute candidate boxes from documentData and simple merging/focus logic
-  const { mergedBoxes, focusBox, allBoxes } = useMemo(() => {
+  const { mergedBoxes, focusBox, allBoxes, sourceDims } = useMemo(() => {
     const result = { 
       mergedBoxes: [] as BoundingBox[], 
       focusBox: null as BoundingBox | null,
       allBoxes: [] as BoundingBox[],
+      sourceDims: { width: 0, height: 0 } as { width: number; height: number },
     };
     if (!documentData?.document?.pages?.length) return result;
 
@@ -324,11 +335,34 @@ const toPxBox = (box: WideBox): WideBox => {
     const keyBox =
       boxes.find((b: any) => b.label && keyLabels.test(String(b.label))) || null;
 
+    // Compute source coordinate space guess from raw boxes before scaling
+    let maxRight = 0;
+    let maxBottom = 0;
+    for (const b of boxes) {
+      const r = b.x + b.width;
+      const bt = b.y + b.height;
+      if (Number.isFinite(r) && r > maxRight) maxRight = r;
+      if (Number.isFinite(bt) && bt > maxBottom) maxBottom = bt;
+    }
+    // Fallbacks to avoid zeros
+    if (!Number.isFinite(maxRight) || maxRight <= 0) maxRight = 1;
+    if (!Number.isFinite(maxBottom) || maxBottom <= 0) maxBottom = 1;
+
     result.mergedBoxes = merged;
     result.focusBox = keyBox ? { x: keyBox.x, y: keyBox.y, width: keyBox.width, height: keyBox.height } : null;
-    result.allBoxes = boxes.map(({ x, y, width, height }) => ({ x, y, width, height }));
+    result.allBoxes = boxes.map(({ x, y, width, height, page }) => ({ x, y, width, height, page } as any));
+    result.sourceDims = { width: maxRight, height: maxBottom };
     return result;
   }, [documentData, currentPage]);
+
+  // Keep source dimension guess in a ref for the projector
+  useEffect(() => {
+    if (sourceDims?.width && sourceDims?.height) {
+      sourceDimsRef.current = sourceDims;
+      // Optional: log once for diagnostics
+      console.debug("PDFViewer: sourceDims guessed", sourceDims);
+    }
+  }, [sourceDims?.width, sourceDims?.height, currentPage]);
 
   // Fetch PDF via backend proxy; convert to ArrayBuffer for pdf.js
   useEffect(() => {
@@ -730,10 +764,10 @@ const toPxBox = (box: WideBox): WideBox => {
                       top: `${(bb.y - pad) * zoom}px`,
                       width: `${(bb.width + pad * 2) * zoom}px`,
                       height: `${(bb.height + pad * 2) * zoom}px`,
-                      // Stronger visuals so boxes are clearly visible
-                      boxShadow: "0 0 0 2px rgba(59,130,246,0.95), 0 0 0 8px rgba(59,130,246,0.25)",
-                      background: "rgba(59,130,246,0.10)",
-                      zIndex: 10, // below the active hover highlight (z-50)
+                      // Lighter visuals so overlaps don't flood the page
+                      boxShadow: "0 0 0 1px rgba(59,130,246,0.8), 0 0 0 6px rgba(59,130,246,0.18)",
+                      background: "rgba(59,130,246,0.05)",
+                      zIndex: 10,
                     }}
                   />
                 );
