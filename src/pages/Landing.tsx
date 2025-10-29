@@ -8,7 +8,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { useLocation } from 'react-router';
@@ -18,7 +17,7 @@ import Ajv, { type ErrorObject } from "ajv";
 import { salesOrderCreateSchema } from "@/schemas/salesOrderCreate";
 
 export default function Landing() {
-  const { isLoading, isAuthenticated } = useAuth();
+  const { isLoading, isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [docId, setDocId] = useState<string>('');
@@ -555,6 +554,18 @@ export default function Landing() {
     }
   };
 
+  // Apply theme from user profile on this page
+  useEffect(() => {
+    if (!user?.theme) return;
+    const root = document.documentElement;
+    root.classList.remove('dark', 'glass-theme');
+    if (user.theme === 'glass') {
+      root.classList.add('glass-theme');
+    } else if (user.theme === 'dark') {
+      root.classList.add('dark');
+    }
+  }, [user?.theme]);
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -778,20 +789,23 @@ export default function Landing() {
               </div>
 
               <div className="flex items-center justify-between gap-4 pt-2">
-                <div className="flex items-center gap-2">
-                  <Switch
-                    id="toggleSap"
-                    checked={showSap}
-                    onCheckedChange={(v) => setShowSap(Boolean(v))}
-                  />
-                  <Label htmlFor="toggleSap" className="cursor-pointer">
-                    Show SAP Payload
-                  </Label>
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {showSap ? 'Editing SAP_AI_OUTPUT' : 'Viewing current JSON'}
-                </div>
+                <div className="text-sm font-medium">Editing SAP Payload</div>
+                <div className="text-xs text-muted-foreground">Schema-validated</div>
               </div>
+
+              {isRowLoading && (
+                <div className="space-y-2 pt-1">
+                  {[...Array(6)].map((_, i) => (
+                    <motion.div
+                      key={i}
+                      initial={{ opacity: 0, y: 24 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.06, type: 'spring', stiffness: 260, damping: 20 }}
+                      className="h-4 bg-muted rounded"
+                    />
+                  ))}
+                </div>
+              )}
 
               {showSap && (
                 <div className="flex flex-wrap gap-2 pt-2">
