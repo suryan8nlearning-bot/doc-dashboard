@@ -222,6 +222,105 @@ export default function Landing() {
     }
   };
 
+  // Add: coerce values by schema types (numbers/integers/booleans)
+  const coerceSapBySchema = (payload: any) => {
+    try {
+      if (!payload || typeof payload !== "object") return payload;
+      const output = payload.output;
+      if (!output || typeof output !== "object") return payload;
+
+      const headerSchemaProps = salesOrderCreateSchema?.properties?.output?.properties || {};
+      const partnerItemSchemaProps = headerSchemaProps?.to_Partner?.items?.properties || {};
+      const pricingItemSchemaProps = headerSchemaProps?.to_PricingElement?.items?.properties || {};
+      const itemSchemaProps = headerSchemaProps?.to_Item?.items?.properties || {};
+      const itemPartnerItemSchemaProps = itemSchemaProps?.to_ItemPartner?.items?.properties || {};
+      const itemPricingItemSchemaProps = itemSchemaProps?.to_ItemPricingElement?.items?.properties || {};
+
+      const includesType = (typeDef: any, t: string) => {
+        if (!typeDef) return false;
+        if (typeof typeDef === "string") return typeDef === t;
+        if (Array.isArray(typeDef)) return typeDef.includes(t);
+        return false;
+      };
+
+      const isNumericString = (val: any) =>
+        typeof val === "string" && /^-?\d+(\.\d+)?$/.test(val.trim());
+
+      const coerceValueToSchemaType = (val: any, typeDef: any) => {
+        // integers and numbers
+        if (includesType(typeDef, "integer") || includesType(typeDef, "number")) {
+          if (typeof val === "number") return val;
+          if (isNumericString(val)) return Number(val);
+          return val;
+        }
+        // booleans
+        if (includesType(typeDef, "boolean")) {
+          if (typeof val === "boolean") return val;
+          if (typeof val === "string") {
+            const s = val.trim().toLowerCase();
+            if (s === "true" || s === "1") return true;
+            if (s === "false" || s === "0") return false;
+          }
+          return val;
+        }
+        return val;
+      };
+
+      const coerceObjectByProps = (obj: any, props: Record<string, any>) => {
+        if (!obj || typeof obj !== "object") return obj;
+        const out: any = { ...obj };
+        for (const [k, v] of Object.entries(out)) {
+          const propSchema = (props as any)[k];
+          if (propSchema && "type" in propSchema) {
+            out[k] = coerceValueToSchemaType(v, (propSchema as any).type);
+          }
+        }
+        return out;
+      };
+
+      const next: any = { ...payload, output: { ...output } };
+
+      // Header fields
+      next.output = coerceObjectByProps(next.output, headerSchemaProps);
+
+      // Header partners
+      if (Array.isArray(next.output.to_Partner)) {
+        next.output.to_Partner = next.output.to_Partner.map((p: any) =>
+          coerceObjectByProps(p, partnerItemSchemaProps)
+        );
+      }
+
+      // Header pricing
+      if (Array.isArray(next.output.to_PricingElement)) {
+        next.output.to_PricingElement = next.output.to_PricingElement.map((pe: any) =>
+          coerceObjectByProps(pe, pricingItemSchemaProps)
+        );
+      }
+
+      // Items + nested
+      if (Array.isArray(next.output.to_Item)) {
+        next.output.to_Item = next.output.to_Item.map((it: any) => {
+          const coercedItem = coerceObjectByProps(it, itemSchemaProps);
+          if (Array.isArray(coercedItem.to_ItemPartner)) {
+            coercedItem.to_ItemPartner = coercedItem.to_ItemPartner.map((ip: any) =>
+              coerceObjectByProps(ip, itemPartnerItemSchemaProps)
+            );
+          }
+          if (Array.isArray(coercedItem.to_ItemPricingElement)) {
+            coercedItem.to_ItemPricingElement = coercedItem.to_ItemPricingElement.map((ipr: any) =>
+              coerceObjectByProps(ipr, itemPricingItemSchemaProps)
+            );
+          }
+          return coercedItem;
+        });
+      }
+
+      return next;
+    } catch {
+      return payload;
+    }
+  };
+
   // Validate helper
   const runValidation = (jsonStr: string): boolean => {
     try {
@@ -461,7 +560,8 @@ export default function Landing() {
     try {
       const parsed = JSON.parse(editorValue || '{}');
       if (showSap) {
-        const ordered = reorderSapPayload(parsed);
+        const coerced = coerceSapBySchema(parsed);
+        const ordered = reorderSapPayload(coerced);
         const pretty = JSON.stringify(ordered, null, 2);
         setEditorValue(pretty);
         setSapJson(pretty);
@@ -489,14 +589,24 @@ export default function Landing() {
       toast.error('JSON is not valid');
       return;
     }
+
     // Validate SAP when saving SAP JSON
     if (showSap) {
-      const ok = runValidation(editorValue);
+      // Coerce by schema and reorder before validating and saving
+      const coerced = coerceSapBySchema(payload);
+      const ordered = reorderSapPayload(coerced);
+      const pretty = JSON.stringify(ordered, null, 2);
+      setEditorValue(pretty);
+      setSapJson(pretty);
+      payload = ordered;
+
+      const ok = runValidation(pretty);
       if (!ok) {
         toast.error('Validation failed; fix errors before saving');
         return;
       }
     }
+
     if (!hasSupabaseEnv) {
       toast.error('Supabase is not configured');
       return;
@@ -558,7 +668,13 @@ export default function Landing() {
       toast.error('SAP payload is not valid JSON');
       return;
     }
-    // Validate SAP before sending
+
+    // Coerce and reorder before validation and sending
+    payload = reorderSapPayload(coerceSapBySchema(payload));
+    const pretty = JSON.stringify(payload, null, 2);
+    setSapJson(pretty);
+    if (showSap) setEditorValue(pretty);
+
     const ok = runValidation(JSON.stringify(payload));
     if (!ok) {
       toast.error('Validation failed; fix errors before sending');
@@ -827,8 +943,8 @@ export default function Landing() {
                 )}
               </div>
             </CardHeader>
-            <CardContent className="space-y-4 max-h-[70vh] overflow-auto">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <CardContent className="space-y-5 max-h-[70vh] overflow-auto">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-2">
                   <Label htmlFor="docId">Document ID</Label>
                   <Input
@@ -869,7 +985,7 @@ export default function Landing() {
               )}
 
               {showSap && (
-                <div className="flex flex-wrap gap-2 pt-2">
+                <div className="flex flex-wrap gap-2.5 pt-2">
                   <Button variant="outline" size="sm" onClick={handleAddHeaderPartner}>Add Header Partner</Button>
                   <Button variant="outline" size="sm" onClick={handleAddHeaderPricing}>Add Header Pricing</Button>
                   <Button variant="outline" size="sm" onClick={handleAddItem}>Add Item</Button>
@@ -888,6 +1004,19 @@ export default function Landing() {
                     setEditorValue(e.target.value);
                     if (showSap) setSapJson(e.target.value);
                     else setRawJson(e.target.value);
+                  }}
+                  onBlur={() => {
+                    if (!showSap) return;
+                    try {
+                      const parsed = JSON.parse(editorValue || "{}");
+                      const coerced = coerceSapBySchema(parsed);
+                      const ordered = reorderSapPayload(coerced);
+                      const pretty = JSON.stringify(ordered, null, 2);
+                      setEditorValue(pretty);
+                      setSapJson(pretty);
+                    } catch {
+                      // ignore
+                    }
                   }}
                   placeholder={showSap ? '{ "output": { ... } }' : '{ ... }'}
                 />
