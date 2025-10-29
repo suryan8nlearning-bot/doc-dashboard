@@ -63,7 +63,7 @@ export const salesOrderCreateSchema: any = {
               PricingProcedureStep: { type: "string" },
               PricingProcedureCounter: { type: "string" },
               ConditionType: { type: "string" },
-              PricingDateTime: { type: "string", format: "date-time" },
+              PricingDateTime: { type: "string", format: "ymdT00" },
               ConditionAmount: { type: "number" },
               ConditionCurrency: { type: "string" },
               ConditionQuantity: { type: "number" },
