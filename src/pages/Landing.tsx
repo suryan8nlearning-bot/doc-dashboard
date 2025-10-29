@@ -993,21 +993,29 @@ export default function Landing() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-2">
                   <Label htmlFor="docId">Document ID</Label>
-                  <Input
-                    id="docId"
-                    placeholder="Enter document id (or use ?id= in URL)"
-                    value={docId}
-                    onChange={(e) => setDocId(e.target.value)}
-                  />
+                  {isRowLoading ? (
+                    <Skeleton className="h-9 w-full rounded-md" />
+                  ) : (
+                    <Input
+                      id="docId"
+                      placeholder="Enter document id (or use ?id= in URL)"
+                      value={docId}
+                      onChange={(e) => setDocId(e.target.value)}
+                    />
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="webhookUrl">Webhook URL</Label>
-                  <Input
-                    id="webhookUrl"
-                    placeholder="https://example.com/webhook"
-                    value={webhookUrl}
-                    onChange={(e) => setWebhookUrl(e.target.value)}
-                  />
+                  {isRowLoading ? (
+                    <Skeleton className="h-9 w-full rounded-md" />
+                  ) : (
+                    <Input
+                      id="webhookUrl"
+                      placeholder="https://example.com/webhook"
+                      value={webhookUrl}
+                      onChange={(e) => setWebhookUrl(e.target.value)}
+                    />
+                  )}
                 </div>
               </div>
 
@@ -1032,11 +1040,21 @@ export default function Landing() {
 
               {showSap && (
                 <div className="flex flex-wrap gap-2.5 pt-2">
-                  <Button variant="outline" size="sm" onClick={handleAddHeaderPartner}>Add Header Partner</Button>
-                  <Button variant="outline" size="sm" onClick={handleAddHeaderPricing}>Add Header Pricing</Button>
-                  <Button variant="outline" size="sm" onClick={handleAddItem}>Add Item</Button>
-                  <Button variant="outline" size="sm" onClick={handleAddItemPartner}>Add Item Partner (last)</Button>
-                  <Button variant="outline" size="sm" onClick={handleAddItemPricing}>Add Item Pricing (last)</Button>
+                  {isRowLoading ? (
+                    <>
+                      {[...Array(5)].map((_, i) => (
+                        <Skeleton key={i} className="h-8 w-36 rounded-md" />
+                      ))}
+                    </>
+                  ) : (
+                    <>
+                      <Button variant="outline" size="sm" onClick={handleAddHeaderPartner}>Add Header Partner</Button>
+                      <Button variant="outline" size="sm" onClick={handleAddHeaderPricing}>Add Header Pricing</Button>
+                      <Button variant="outline" size="sm" onClick={handleAddItem}>Add Item</Button>
+                      <Button variant="outline" size="sm" onClick={handleAddItemPartner}>Add Item Partner (last)</Button>
+                      <Button variant="outline" size="sm" onClick={handleAddItemPricing}>Add Item Pricing (last)</Button>
+                    </>
+                  )}
                 </div>
               )}
 
