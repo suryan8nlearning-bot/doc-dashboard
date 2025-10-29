@@ -379,6 +379,28 @@ export default function Landing() {
     }
   }, [user?.theme]);
 
+  // Prefetch next route chunk to speed navigation
+  useEffect(() => {
+    if (isLoading) return;
+    const timer = setTimeout(() => {
+      const prefetch = async () => {
+        try {
+          await Promise.all([
+            import("@/pages/Dashboard"),
+            import("@/pages/Auth"),
+            import("@/pages/DocumentDetail"),
+          ]);
+        } catch {}
+      };
+      if (typeof requestIdleCallback !== 'undefined') {
+        requestIdleCallback(() => prefetch());
+      } else {
+        prefetch();
+      }
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [isLoading]);
+
   // Quick-add helpers
   const updateSapJson = (updater: (obj: any) => void) => {
     try {
@@ -560,21 +582,6 @@ export default function Landing() {
       navigate('/auth');
     }
   };
-
-  // Prefetch next route chunk to speed navigation
-  useEffect(() => {
-    if (isLoading) return;
-    const prefetch = async () => {
-      try {
-        if (isAuthenticated) {
-          await import("@/pages/Dashboard");
-        } else {
-          await import("@/pages/Auth");
-        }
-      } catch {}
-    };
-    prefetch();
-  }, [isLoading, isAuthenticated]);
 
   // Add: handlers for SAP panel
   const handleFormat = () => {
