@@ -914,6 +914,8 @@ export default function DocumentDetail() {
       setIsSaving(true);
       // Try updating common "SAP JSON from app" fields; fall back to SAP_AI_OUTPUT
       const fieldCandidates: Array<string> = [
+        // Added exact column name used in your Supabase schema
+        'SAP_JSON_from_APP',
         'SAP_JSON_FROM_APP',
         'sap_json_from_app',
         'SAP JSON from app',
