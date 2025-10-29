@@ -707,12 +707,13 @@ export default function Landing() {
     }
   };
 
-  // Update Create to validate SAP payload
+  // Replace: handleCreate with a hardened version that validates URL, confirms, and times out requests
   const handleCreate = async () => {
     if (!docId) {
       toast.error('Enter a document id');
       return;
     }
+
     // Always send SAP payload (edited)
     let payload: any = null;
     try {
@@ -734,22 +735,49 @@ export default function Landing() {
       return;
     }
 
-    const envWebhook = import.meta.env.VITE_WEBHOOK_URL as string | undefined;
-    if (!envWebhook) {
+    // Prefer user-entered URL if present, else fallback to env
+    const candidateUrl = (webhookUrl || '').trim() || (import.meta.env.VITE_WEBHOOK_URL as string | undefined);
+    if (!candidateUrl) {
       toast.error('Webhook URL is not configured');
       return;
     }
+
+    // Validate URL and enforce HTTPS
+    let parsed: URL;
+    try {
+      parsed = new URL(candidateUrl);
+      if (parsed.protocol !== 'https:') {
+        toast.error('Webhook URL must use HTTPS');
+        return;
+      }
+    } catch {
+      toast.error('Invalid webhook URL');
+      return;
+    }
+
+    // Confirm before sending externally
+    const proceed = window.confirm('Send the SAP payload to the configured webhook now?');
+    if (!proceed) return;
+
     setIsCreating(true);
     try {
-      const res = await fetch(envWebhook, {
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 15000);
+
+      const res = await fetch(parsed.toString(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: docId, payload }),
+        signal: controller.signal,
       });
+
+      window.clearTimeout(timeoutId);
+
       if (!res.ok) throw new Error(`Webhook responded ${res.status}`);
       toast.success('Webhook called successfully');
     } catch (e: any) {
-      toast.error(`Webhook failed: ${e?.message || e}`);
+      const msg = e?.name === 'AbortError' ? 'Request timed out' : (e?.message || e);
+      toast.error(`Webhook failed: ${msg}`);
     } finally {
       setIsCreating(false);
     }

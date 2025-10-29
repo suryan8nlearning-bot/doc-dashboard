@@ -92,6 +92,7 @@ function ErrorDialog({
           <a
             href={`https://vly.ai/project/${import.meta.env.VITE_VLY_APP_ID}`}
             target="_blank"
+            rel="noopener noreferrer"
           >
             <Button>
               <ExternalLink /> Open editor

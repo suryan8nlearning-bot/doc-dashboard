@@ -99,7 +99,7 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
       const formData = new FormData(event.currentTarget);
       await signIn("email-otp", formData);
 
-      console.log("signed in");
+      // signed in successfully
 
       const redirect = redirectAfterAuth || "/";
       navigate(redirect);
