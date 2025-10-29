@@ -103,8 +103,16 @@ export default function Landing() {
             : '{\n  "output": {\n    "to_Item": []\n  }\n}';
 
         setRawJson(current);
-        setSapJson(sap);
-        setEditorValue(showSap ? sap : current);
+        const orderedSap = (() => {
+          try {
+            const p = JSON.parse(sap);
+            return JSON.stringify(reorderSapPayload(p), null, 2);
+          } catch {
+            return sap;
+          }
+        })();
+        setSapJson(orderedSap);
+        setEditorValue(showSap ? orderedSap : current);
       } catch (e: any) {
         console.error('Failed to load row', e);
         toast.error(`Failed to load row: ${e?.message || e}`);
@@ -126,6 +134,86 @@ export default function Landing() {
   // Add custom date format: YYYY-MM-DDT00:00:00
   ajv.addFormat("ymdT00", /^\d{4}-\d{2}-\d{2}T00:00:00$/);
   const validateSalesOrder = ajv.compile(salesOrderCreateSchema);
+
+  // Add: helpers to arrange fields by schema order
+  const reorderSapPayload = (payload: any) => {
+    try {
+      if (!payload || typeof payload !== "object") return payload;
+      const output = payload.output;
+      if (!output || typeof output !== "object") return payload;
+
+      const headerSchemaProps = salesOrderCreateSchema?.properties?.output?.properties || {};
+      const headerOrder: string[] = Object.keys(headerSchemaProps);
+
+      const orderObjectByKeys = (obj: any, keysInOrder: string[]) => {
+        if (!obj || typeof obj !== "object") return obj;
+        const next: any = {};
+        // Add known keys in order
+        for (const k of keysInOrder) {
+          if (Object.prototype.hasOwnProperty.call(obj, k)) {
+            next[k] = obj[k];
+          }
+        }
+        // Append any extra keys not in schema, alphabetically
+        const remaining = Object.keys(obj).filter((k) => !keysInOrder.includes(k)).sort();
+        for (const k of remaining) {
+          next[k] = obj[k];
+        }
+        return next;
+      };
+
+      // Reorder header
+      const orderedOutput: any = orderObjectByKeys(output, headerOrder);
+
+      // Reorder header partners
+      const partnerItemSchemaProps = headerSchemaProps?.to_Partner?.items?.properties || {};
+      const partnerOrder: string[] = Object.keys(partnerItemSchemaProps);
+      if (Array.isArray(orderedOutput.to_Partner)) {
+        orderedOutput.to_Partner = orderedOutput.to_Partner.map((p: any) =>
+          orderObjectByKeys(p, partnerOrder)
+        );
+      }
+
+      // Reorder header pricing
+      const pricingItemSchemaProps = headerSchemaProps?.to_PricingElement?.items?.properties || {};
+      const pricingOrder: string[] = Object.keys(pricingItemSchemaProps);
+      if (Array.isArray(orderedOutput.to_PricingElement)) {
+        orderedOutput.to_PricingElement = orderedOutput.to_PricingElement.map((pe: any) =>
+          orderObjectByKeys(pe, pricingOrder)
+        );
+      }
+
+      // Reorder items and nested arrays
+      const itemSchemaProps = headerSchemaProps?.to_Item?.items?.properties || {};
+      const itemOrder: string[] = Object.keys(itemSchemaProps);
+      const itemPartnerItemSchemaProps = itemSchemaProps?.to_ItemPartner?.items?.properties || {};
+      const itemPartnerOrder: string[] = Object.keys(itemPartnerItemSchemaProps);
+      const itemPricingItemSchemaProps =
+        itemSchemaProps?.to_ItemPricingElement?.items?.properties || {};
+      const itemPricingOrder: string[] = Object.keys(itemPricingItemSchemaProps);
+
+      if (Array.isArray(orderedOutput.to_Item)) {
+        orderedOutput.to_Item = orderedOutput.to_Item.map((it: any) => {
+          const orderedItem = orderObjectByKeys(it, itemOrder);
+          if (Array.isArray(orderedItem.to_ItemPartner)) {
+            orderedItem.to_ItemPartner = orderedItem.to_ItemPartner.map((ip: any) =>
+              orderObjectByKeys(ip, itemPartnerOrder)
+            );
+          }
+          if (Array.isArray(orderedItem.to_ItemPricingElement)) {
+            orderedItem.to_ItemPricingElement = orderedItem.to_ItemPricingElement.map((ipr: any) =>
+              orderObjectByKeys(ipr, itemPricingOrder)
+            );
+          }
+          return orderedItem;
+        });
+      }
+
+      return { ...payload, output: orderedOutput };
+    } catch {
+      return payload;
+    }
+  };
 
   // Validate helper
   const runValidation = (jsonStr: string): boolean => {
@@ -161,7 +249,9 @@ export default function Landing() {
       const obj = JSON.parse(sapJson || "{}");
       if (typeof obj.output !== "object" || obj.output === null) obj.output = {};
       updater(obj);
-      const pretty = JSON.stringify(obj, null, 2);
+      // Arrange by schema order after updates
+      const ordered = reorderSapPayload(obj);
+      const pretty = JSON.stringify(ordered, null, 2);
       setSapJson(pretty);
       if (showSap) setEditorValue(pretty);
     } catch {
@@ -339,10 +429,16 @@ export default function Landing() {
   const handleFormat = () => {
     try {
       const parsed = JSON.parse(editorValue || '{}');
-      const pretty = JSON.stringify(parsed, null, 2);
-      setEditorValue(pretty);
-      if (showSap) setSapJson(pretty);
-      else setRawJson(pretty);
+      if (showSap) {
+        const ordered = reorderSapPayload(parsed);
+        const pretty = JSON.stringify(ordered, null, 2);
+        setEditorValue(pretty);
+        setSapJson(pretty);
+      } else {
+        const pretty = JSON.stringify(parsed, null, 2);
+        setEditorValue(pretty);
+        setRawJson(pretty);
+      }
       toast.success('JSON formatted');
     } catch {
       toast.error('Invalid JSON; cannot format');
