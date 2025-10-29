@@ -88,6 +88,7 @@ export default function Landing() {
         // Prefer SAP JSON saved from the app first, then fall back to SAP_AI_OUTPUT
         const appSapCandidates: any[] = [
           data?.SAP_JSON_FROM_APP,
+          data?.SAP_JSON_from_APP, // Added mixed-case column name to support your schema
           data?.sap_json_from_app,
           data?.['SAP JSON from app'],
           data?.sap_json_app,
@@ -644,6 +645,7 @@ export default function Landing() {
       // Try updating a list of likely app fields; fall back to SAP_AI_OUTPUT
       const fieldCandidates: Array<string> = [
         'SAP_JSON_FROM_APP',
+        'SAP_JSON_from_APP', // Added mixed-case column name to support your schema
         'sap_json_from_app',
         'SAP JSON from app',
         'sap_json_app',
