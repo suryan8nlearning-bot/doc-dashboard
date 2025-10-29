@@ -6,6 +6,9 @@ import { Switch } from '@/components/ui/switch';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
+import { User } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase, type BoundingBox, hasSupabaseEnv, publicUrlForPath } from '@/lib/supabase';
 import { createSignedUrlForPath } from '@/lib/supabase';
@@ -16,7 +19,7 @@ import { useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
 
 export default function DocumentDetail() {
-  const { isLoading: authLoading, isAuthenticated, user } = useAuth();
+  const { isLoading: authLoading, isAuthenticated, user, signOut } = useAuth();
   const navigate = useNavigate();
   const { documentId } = useParams<{ documentId: string }>();
 
@@ -555,7 +558,6 @@ export default function DocumentDetail() {
     });
   };
 
-  // Editable renderer
   const renderSapEditable = (out: any) => {
     if (!out || typeof out !== 'object') {
       return <div className="text-sm text-muted-foreground">No SAP data.</div>;
@@ -570,161 +572,177 @@ export default function DocumentDetail() {
       .sort(([a], [b]) => a.localeCompare(b));
 
     return (
-      <div className="space-y-6">
-        <div>
-          <div className="font-semibold mb-2">Header</div>
-          {headerPairs.length ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {headerPairs.map(([k, v]) => (
-                <div key={k} className="rounded bg-card/50 p-2">
-                  <div className="text-xs text-muted-foreground mb-1">{k}</div>
-                  <Input
-                    value={String(v ?? '')}
-                    onChange={(e) => updateHeaderField(k, e.target.value)}
-                    className="h-8"
-                  />
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-xs text-muted-foreground">No header fields.</div>
-          )}
-        </div>
+      <Accordion type="multiple" className="space-y-3">
+        <AccordionItem value="header">
+          <AccordionTrigger className="text-sm font-semibold">
+            Header ({headerPairs.length})
+          </AccordionTrigger>
+          <AccordionContent>
+            {headerPairs.length ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {headerPairs.map(([k, v]) => (
+                  <div key={k} className="rounded bg-card/50 p-2 border">
+                    <div className="text-xs text-muted-foreground mb-1">{k}</div>
+                    <Input
+                      value={String(v ?? '')}
+                      onChange={(e) => updateHeaderField(k, e.target.value)}
+                      className="h-8"
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs text-muted-foreground">No header fields.</div>
+            )}
+          </AccordionContent>
+        </AccordionItem>
 
         {Array.isArray(out?.to_Partner) && (
-          <div>
-            <div className="font-semibold mb-2">Partners</div>
-            <div className="space-y-2">
-              {out.to_Partner.map((p: any, idx: number) => (
-                <div key={idx} className="rounded border p-2">
-                  <div className="text-xs text-muted-foreground mb-2">Partner {idx + 1}</div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {Object.entries(p || {}).map(([k, v]) => (
-                      <div key={k} className="rounded bg-card/50 p-2">
-                        <div className="text-xs text-muted-foreground mb-1">{k}</div>
-                        <Input
-                          value={String(v ?? '')}
-                          onChange={(e) => updatePartnerField(idx, k, e.target.value)}
-                          className="h-8"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {Array.isArray(out?.to_PricingElement) && (
-          <div>
-            <div className="font-semibold mb-2">Header Pricing</div>
-            <div className="space-y-2">
-              {out.to_PricingElement.map((pe: any, idx: number) => (
-                <div key={idx} className="rounded border p-2">
-                  <div className="text-xs text-muted-foreground mb-2">Pricing {idx + 1}</div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {Object.entries(pe || {}).map(([k, v]) => (
-                      <div key={k} className="rounded bg-card/50 p-2">
-                        <div className="text-xs text-muted-foreground mb-1">{k}</div>
-                        <Input
-                          value={String(v ?? '')}
-                          onChange={(e) => updatePricingField(idx, k, e.target.value)}
-                          className="h-8"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {Array.isArray(out?.to_Item) && (
-          <div>
-            <div className="font-semibold mb-2">Items</div>
-            <div className="space-y-3">
-              {out.to_Item.map((it: any, idx: number) => {
-                const partners = Array.isArray(it?.to_ItemPartner) ? it.to_ItemPartner : [];
-                const prices = Array.isArray(it?.to_ItemPricingElement) ? it.to_ItemPricingElement : [];
-                const itemHeaderPairs = Object.entries(it || {})
-                  .filter(
-                    ([k, v]) =>
-                      !['to_ItemPartner', 'to_ItemPricingElement'].includes(k) &&
-                      (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean')
-                  )
-                  .sort(([a], [b]) => a.localeCompare(b));
-                return (
-                  <div key={idx} className="rounded border p-2 space-y-3">
-                    <div className="text-xs text-muted-foreground">Item {idx + 1}</div>
+          <AccordionItem value="partners">
+            <AccordionTrigger className="text-sm font-semibold">
+              Partners ({out.to_Partner.length})
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className="space-y-2">
+                {out.to_Partner.map((p: any, idx: number) => (
+                  <div key={idx} className="rounded border p-2 bg-card/40">
+                    <div className="text-xs text-muted-foreground mb-2">Partner {idx + 1}</div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      {itemHeaderPairs.map(([k, v]) => (
-                        <div key={k} className="rounded bg-card/50 p-2">
+                      {Object.entries(p || {}).map(([k, v]) => (
+                        <div key={k} className="rounded bg-card/50 p-2 border">
                           <div className="text-xs text-muted-foreground mb-1">{k}</div>
                           <Input
                             value={String(v ?? '')}
-                            onChange={(e) => updateItemField(idx, k, e.target.value)}
+                            onChange={(e) => updatePartnerField(idx, k, e.target.value)}
                             className="h-8"
                           />
                         </div>
                       ))}
                     </div>
-
-                    {partners.length > 0 && (
-                      <div className="space-y-2">
-                        <div className="text-xs font-medium">Item Partners</div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                          {partners.map((p: any, pi: number) => (
-                            <div key={pi} className="rounded border p-2">
-                              <div className="grid grid-cols-1 gap-2">
-                                {Object.entries(p || {}).map(([k, v]) => (
-                                  <div key={k} className="rounded bg-card/50 p-2">
-                                    <div className="text-xs text-muted-foreground mb-1">{k}</div>
-                                    <Input
-                                      value={String(v ?? '')}
-                                      onChange={(e) => updateItemPartnerField(idx, pi, k, e.target.value)}
-                                      className="h-8"
-                                    />
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {prices.length > 0 && (
-                      <div className="space-y-2">
-                        <div className="text-xs font-medium">Item Pricing</div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                          {prices.map((pr: any, ri: number) => (
-                            <div key={ri} className="rounded border p-2">
-                              <div className="grid grid-cols-1 gap-2">
-                                {Object.entries(pr || {}).map(([k, v]) => (
-                                  <div key={k} className="rounded bg-card/50 p-2">
-                                    <div className="text-xs text-muted-foreground mb-1">{k}</div>
-                                    <Input
-                                      value={String(v ?? '')}
-                                      onChange={(e) => updateItemPricingField(idx, ri, k, e.target.value)}
-                                      className="h-8"
-                                    />
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
-                );
-              })}
-            </div>
-          </div>
+                ))}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
         )}
-      </div>
+
+        {Array.isArray(out?.to_PricingElement) && (
+          <AccordionItem value="pricing">
+            <AccordionTrigger className="text-sm font-semibold">
+              Header Pricing ({out.to_PricingElement.length})
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className="space-y-2">
+                {out.to_PricingElement.map((pe: any, idx: number) => (
+                  <div key={idx} className="rounded border p-2 bg-card/40">
+                    <div className="text-xs text-muted-foreground mb-2">Pricing {idx + 1}</div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {Object.entries(pe || {}).map(([k, v]) => (
+                        <div key={k} className="rounded bg-card/50 p-2 border">
+                          <div className="text-xs text-muted-foreground mb-1">{k}</div>
+                          <Input
+                            value={String(v ?? '')}
+                            onChange={(e) => updatePricingField(idx, k, e.target.value)}
+                            className="h-8"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        )}
+
+        {Array.isArray(out?.to_Item) && (
+          <AccordionItem value="items">
+            <AccordionTrigger className="text-sm font-semibold">
+              Items ({out.to_Item.length})
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className="space-y-3">
+                {out.to_Item.map((it: any, idx: number) => {
+                  const partners = Array.isArray(it?.to_ItemPartner) ? it.to_ItemPartner : [];
+                  const prices = Array.isArray(it?.to_ItemPricingElement) ? it.to_ItemPricingElement : [];
+                  const itemHeaderPairs = Object.entries(it || {})
+                    .filter(
+                      ([k, v]) =>
+                        !['to_ItemPartner', 'to_ItemPricingElement'].includes(k) &&
+                        (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean')
+                    )
+                    .sort(([a], [b]) => a.localeCompare(b));
+                  return (
+                    <div key={idx} className="rounded border p-2 space-y-3 bg-card/40">
+                      <div className="text-xs text-muted-foreground">Item {idx + 1}</div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {itemHeaderPairs.map(([k, v]) => (
+                          <div key={k} className="rounded bg-card/50 p-2 border">
+                            <div className="text-xs text-muted-foreground mb-1">{k}</div>
+                            <Input
+                              value={String(v ?? '')}
+                              onChange={(e) => updateItemField(idx, k, e.target.value)}
+                              className="h-8"
+                            />
+                          </div>
+                        ))}
+                      </div>
+
+                      {partners.length > 0 && (
+                        <div className="space-y-2">
+                          <div className="text-xs font-medium">Item Partners ({partners.length})</div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {partners.map((p: any, pi: number) => (
+                              <div key={pi} className="rounded border p-2 bg-card/30">
+                                <div className="grid grid-cols-1 gap-2">
+                                  {Object.entries(p || {}).map(([k, v]) => (
+                                    <div key={k} className="rounded bg-card/50 p-2 border">
+                                      <div className="text-xs text-muted-foreground mb-1">{k}</div>
+                                      <Input
+                                        value={String(v ?? '')}
+                                        onChange={(e) => updateItemPartnerField(idx, pi, k, e.target.value)}
+                                        className="h-8"
+                                      />
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {prices.length > 0 && (
+                        <div className="space-y-2">
+                          <div className="text-xs font-medium">Item Pricing ({prices.length})</div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {prices.map((pr: any, ri: number) => (
+                              <div key={ri} className="rounded border p-2 bg-card/30">
+                                <div className="grid grid-cols-1 gap-2">
+                                  {Object.entries(pr || {}).map(([k, v]) => (
+                                    <div key={k} className="rounded bg-card/50 p-2 border">
+                                      <div className="text-xs text-muted-foreground mb-1">{k}</div>
+                                      <Input
+                                        value={String(v ?? '')}
+                                        onChange={(e) => updateItemPricingField(idx, ri, k, e.target.value)}
+                                        className="h-8"
+                                      />
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        )}
+      </Accordion>
     );
   };
 
@@ -999,6 +1017,43 @@ export default function DocumentDetail() {
               Open PDF in new tab
             </a>
           </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="rounded-full h-9 w-9 bg-primary/10 hover:bg-primary/20"
+                aria-label="User menu"
+              >
+                <User className="h-4 w-4 text-primary" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuLabel className="font-normal">
+                <div className="flex flex-col space-y-1">
+                  <p className="text-xs text-muted-foreground">Signed in as</p>
+                  <p className="text-sm font-medium leading-none">{user?.email || 'User'}</p>
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => navigate('/profile')} className="cursor-pointer">
+                Profile
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate('/dashboard')} className="cursor-pointer">
+                Dashboard
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={async () => {
+                  await signOut();
+                  navigate('/');
+                }}
+                className="cursor-pointer text-red-600"
+              >
+                Sign Out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 
@@ -1010,7 +1065,7 @@ export default function DocumentDetail() {
         </div>
 
         {/* Document Fields */}
-        <aside ref={asideRef} className="relative w-[420px] lg:w-[560px] border-l bg-background overflow-y-auto flex-shrink-0 flex flex-col">
+        <aside ref={asideRef} className="relative w-[420px] lg:w-[560px] border-l bg-background overflow-y-auto flex-shrink-0 flex flex-col scroll-smooth">
           <div className="p-4 border-b">
             <Card className="bg-card/60">
               <CardHeader>
