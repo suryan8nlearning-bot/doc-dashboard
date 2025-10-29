@@ -37,20 +37,27 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
     label: string;
     value: string;
     boundingBox?: BoundingBox[];
-  }) => (
-    <motion.div
-      className="py-3 px-4 cursor-pointer rounded-lg transition-all border bg-card/50 hover:bg-primary/5 hover:border-primary/30 hover:shadow-md"
-      // Include page number with the first bounding box for accurate page switching
-      onMouseEnter={() =>
-        boundingBox?.[0] &&
-        onFieldHover({ ...boundingBox[0], page: page.page_number })
-      }
-      onMouseLeave={() => onFieldHover(null)}
-    >
-      <div className="text-xs font-medium text-muted-foreground mb-1.5">{label}</div>
-      <div className="text-sm font-medium text-foreground truncate">{value || '—'}</div>
-    </motion.div>
-  );
+  }) => {
+    const bb = boundingBox?.[0];
+    return (
+      <motion.div
+        className="py-3 px-4 cursor-pointer rounded-lg transition-all border bg-card/50 hover:bg-primary/5 hover:border-primary/30 hover:shadow-md"
+        // Include page number with the first bounding box for accurate page switching
+        onMouseEnter={() =>
+          bb && onFieldHover({ ...bb, page: page.page_number })
+        }
+        onMouseLeave={() => onFieldHover(null)}
+      >
+        <div className="text-xs font-medium text-muted-foreground mb-1.5">{label}</div>
+        <div className="text-sm font-medium text-foreground truncate">{value || '—'}</div>
+        {bb && (
+          <div className="mt-1 text-[10px] text-muted-foreground font-mono">
+            x:{Math.round(bb.x)} y:{Math.round(bb.y)} w:{Math.round(bb.width)} h:{Math.round(bb.height)} p:{page.page_number}
+          </div>
+        )}
+      </motion.div>
+    );
+  };
 
   const SectionHeader = ({ title, id }: { title: string; id: string }) => {
     const isExpanded = expandedSections.has(id);
@@ -213,6 +220,11 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
                       <div className="text-sm font-medium">{item.total || '—'}</div>
                     </div>
                   </div>
+                  {item.bounding_box?.[0] && (
+                    <div className="mt-2 text-[10px] text-muted-foreground font-mono">
+                      x:{Math.round(item.bounding_box[0].x)} y:{Math.round(item.bounding_box[0].y)} w:{Math.round(item.bounding_box[0].width)} h:{Math.round(item.bounding_box[0].height)} p:{page.page_number}
+                    </div>
+                  )}
                 </motion.div>
               ))}
             </motion.div>
