@@ -3,7 +3,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { motion } from 'framer-motion';
 import { ArrowRight, FileText, Loader2, Search, Zap, User } from 'lucide-react';
 import { useNavigate } from 'react-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
@@ -137,10 +137,12 @@ export default function Landing() {
   }, [showSap, sapJson, rawJson]);
 
   // Initialize AJV validator once
-  const ajv = new Ajv({ allErrors: true, coerceTypes: true, useDefaults: true });
-  // Add custom date format: YYYY-MM-DDT00:00:00
-  ajv.addFormat("ymdT00", /^\d{4}-\d{2}-\d{2}T00:00:00$/);
-  const validateSalesOrder = ajv.compile(salesOrderCreateSchema);
+  const { validateSalesOrder } = useMemo(() => {
+    const ajv = new Ajv({ allErrors: true, coerceTypes: true, useDefaults: true });
+    // Add custom date format: YYYY-MM-DDT00:00:00
+    ajv.addFormat("ymdT00", /^\d{4}-\d{2}-\d{2}T00:00:00$/);
+    return { validateSalesOrder: ajv.compile(salesOrderCreateSchema) };
+  }, []);
 
   // Add: helpers to arrange fields by schema order
   const reorderSapPayload = (payload: any) => {
@@ -346,7 +348,10 @@ export default function Landing() {
 
   // Re-validate whenever SAP editor changes
   useEffect(() => {
-    runValidation(editorValue);
+    const handle = setTimeout(() => {
+      runValidation(editorValue);
+    }, 250);
+    return () => clearTimeout(handle);
   }, [editorValue]);
 
   // Apply theme from user profile on this page + persist to localStorage and fallback to stored theme
@@ -372,6 +377,24 @@ export default function Landing() {
       } catch {}
     }
   }, [user?.theme]);
+
+  // Prefetch likely next routes after idle to speed up navigation
+  useEffect(() => {
+    const prefetch = () => {
+      // Fire and forget; this warms route chunks
+      import("@/pages/Dashboard");
+      import("@/pages/Auth");
+      import("@/pages/DocumentDetail");
+    };
+    const w = window as any;
+    if (typeof w.requestIdleCallback === "function") {
+      const id = w.requestIdleCallback(prefetch);
+      return () => w.cancelIdleCallback && w.cancelIdleCallback(id);
+    } else {
+      const t = setTimeout(prefetch, 600);
+      return () => clearTimeout(t);
+    }
+  }, []);
 
   // Quick-add helpers
   const updateSapJson = (updater: (obj: any) => void) => {
