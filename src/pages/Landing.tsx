@@ -136,13 +136,14 @@ export default function Landing() {
     setEditorValue(showSap ? sapJson : rawJson);
   }, [showSap, sapJson, rawJson]);
 
-  // Initialize AJV validator once
-  const { validateSalesOrder } = useMemo(() => {
-    const ajv = new Ajv({ allErrors: true, coerceTypes: true, useDefaults: true });
+  // Initialize AJV validator once (memoized)
+  const ajv = useMemo(() => {
+    const a = new Ajv({ allErrors: true, coerceTypes: true, useDefaults: true });
     // Add custom date format: YYYY-MM-DDT00:00:00
-    ajv.addFormat("ymdT00", /^\d{4}-\d{2}-\d{2}T00:00:00$/);
-    return { validateSalesOrder: ajv.compile(salesOrderCreateSchema) };
+    a.addFormat("ymdT00", /^\d{4}-\d{2}-\d{2}T00:00:00$/);
+    return a;
   }, []);
+  const validateSalesOrder = useMemo(() => ajv.compile(salesOrderCreateSchema), [ajv]);
 
   // Add: helpers to arrange fields by schema order
   const reorderSapPayload = (payload: any) => {
@@ -346,12 +347,12 @@ export default function Landing() {
     }
   };
 
-  // Re-validate whenever SAP editor changes
+  // Re-validate whenever SAP editor changes (debounced to improve perf)
   useEffect(() => {
-    const handle = setTimeout(() => {
+    const t = window.setTimeout(() => {
       runValidation(editorValue);
-    }, 250);
-    return () => clearTimeout(handle);
+    }, 300);
+    return () => window.clearTimeout(t);
   }, [editorValue]);
 
   // Apply theme from user profile on this page + persist to localStorage and fallback to stored theme
@@ -377,24 +378,6 @@ export default function Landing() {
       } catch {}
     }
   }, [user?.theme]);
-
-  // Prefetch likely next routes after idle to speed up navigation
-  useEffect(() => {
-    const prefetch = () => {
-      // Fire and forget; this warms route chunks
-      import("@/pages/Dashboard");
-      import("@/pages/Auth");
-      import("@/pages/DocumentDetail");
-    };
-    const w = window as any;
-    if (typeof w.requestIdleCallback === "function") {
-      const id = w.requestIdleCallback(prefetch);
-      return () => w.cancelIdleCallback && w.cancelIdleCallback(id);
-    } else {
-      const t = setTimeout(prefetch, 600);
-      return () => clearTimeout(t);
-    }
-  }, []);
 
   // Quick-add helpers
   const updateSapJson = (updater: (obj: any) => void) => {
@@ -577,6 +560,21 @@ export default function Landing() {
       navigate('/auth');
     }
   };
+
+  // Prefetch next route chunk to speed navigation
+  useEffect(() => {
+    if (isLoading) return;
+    const prefetch = async () => {
+      try {
+        if (isAuthenticated) {
+          await import("@/pages/Dashboard");
+        } else {
+          await import("@/pages/Auth");
+        }
+      } catch {}
+    };
+    prefetch();
+  }, [isLoading, isAuthenticated]);
 
   // Add: handlers for SAP panel
   const handleFormat = () => {
@@ -783,6 +781,15 @@ export default function Landing() {
               variant="outline"
               onClick={handleGetStarted}
               disabled={isLoading}
+              onMouseEnter={() => {
+                if (!isLoading) {
+                  if (isAuthenticated) {
+                    import('@/pages/Dashboard');
+                  } else {
+                    import('@/pages/Auth');
+                  }
+                }
+              }}
             >
               {isLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -838,6 +845,15 @@ export default function Landing() {
               onClick={handleGetStarted}
               disabled={isLoading}
               className="text-base px-8"
+              onMouseEnter={() => {
+                if (!isLoading) {
+                  if (isAuthenticated) {
+                    import('@/pages/Dashboard');
+                  } else {
+                    import('@/pages/Auth');
+                  }
+                }
+              }}
             >
               {isLoading ? (
                 <Loader2 className="h-5 w-5 animate-spin mr-2" />
