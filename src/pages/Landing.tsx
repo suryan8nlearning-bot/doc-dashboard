@@ -242,6 +242,18 @@ export default function Landing() {
     runValidation(editorValue);
   }, [editorValue]);
 
+  // Apply theme from user profile on this page
+  useEffect(() => {
+    if (!user?.theme) return;
+    const root = document.documentElement;
+    root.classList.remove('dark', 'glass-theme');
+    if (user.theme === 'glass') {
+      root.classList.add('glass-theme');
+    } else if (user.theme === 'dark') {
+      root.classList.add('dark');
+    }
+  }, [user?.theme]);
+
   // Quick-add helpers
   const updateSapJson = (updater: (obj: any) => void) => {
     try {
@@ -553,18 +565,6 @@ export default function Landing() {
       setIsCreating(false);
     }
   };
-
-  // Apply theme from user profile on this page
-  useEffect(() => {
-    if (!user?.theme) return;
-    const root = document.documentElement;
-    root.classList.remove('dark', 'glass-theme');
-    if (user.theme === 'glass') {
-      root.classList.add('glass-theme');
-    } else if (user.theme === 'dark') {
-      root.classList.add('dark');
-    }
-  }, [user?.theme]);
 
   return (
     <motion.div
