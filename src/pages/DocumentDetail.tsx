@@ -915,12 +915,12 @@ export default function DocumentDetail() {
                     {/* Editable raw JSON */}
                     <div className="space-y-2">
                       <Label className="text-xs">Editable SAP JSON</Label>
-<Textarea
+                      <Textarea
                         className="h-[40vh] min-h-[180px] font-mono text-xs resize-y overflow-auto"
                         value={sapEditorValue}
                         onChange={(e) => setSapEditorValue(e.target.value)}
-                        placeholder="{ \"output\": { ... } }"
-/>
+                        placeholder='{ "output": { ... } }'
+                      />
                     </div>
                   </div>
                 ) : null}
