@@ -572,7 +572,7 @@ export default function DocumentDetail() {
       .sort(([a], [b]) => a.localeCompare(b));
 
     return (
-      <Accordion type="multiple" className="space-y-3">
+      <Accordion type="multiple" defaultValue={['header']} className="space-y-3">
         <AccordionItem value="header">
           <AccordionTrigger className="text-sm font-semibold">
             Header ({headerPairs.length})
@@ -594,74 +594,60 @@ export default function DocumentDetail() {
             ) : (
               <div className="text-xs text-muted-foreground">No header fields.</div>
             )}
-          </AccordionContent>
-        </AccordionItem>
 
-        {Array.isArray(out?.to_Partner) && (
-          <AccordionItem value="partners">
-            <AccordionTrigger className="text-sm font-semibold">
-              Partners ({out.to_Partner.length})
-            </AccordionTrigger>
-            <AccordionContent>
-              <div className="space-y-2">
-                {out.to_Partner.map((p: any, idx: number) => (
-                  <div key={idx} className="rounded border p-2 bg-card/40">
-                    <div className="text-xs text-muted-foreground mb-2">Partner {idx + 1}</div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      {Object.entries(p || {}).map(([k, v]) => (
-                        <div key={k} className="rounded bg-card/50 p-2 border">
-                          <div className="text-xs text-muted-foreground mb-1">{k}</div>
-                          <Input
-                            value={String(v ?? '')}
-                            onChange={(e) => updatePartnerField(idx, k, e.target.value)}
-                            className="h-8"
-                          />
-                        </div>
-                      ))}
+            {Array.isArray(out?.to_Partner) && out.to_Partner.length > 0 && (
+              <div className="mt-5 space-y-2">
+                <div className="text-sm font-semibold">Partners ({out.to_Partner.length})</div>
+                <div className="space-y-2">
+                  {out.to_Partner.map((p: any, idx: number) => (
+                    <div key={idx} className="rounded border p-2 bg-card/40">
+                      <div className="text-xs text-muted-foreground mb-2">Partner {idx + 1}</div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {Object.entries(p || {}).map(([k, v]) => (
+                          <div key={k} className="rounded bg-card/50 p-2 border">
+                            <div className="text-xs text-muted-foreground mb-1">{k}</div>
+                            <Input
+                              value={String(v ?? '')}
+                              onChange={(e) => updatePartnerField(idx, k, e.target.value)}
+                              className="h-8"
+                            />
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </AccordionContent>
-          </AccordionItem>
-        )}
+            )}
 
-        {Array.isArray(out?.to_PricingElement) && (
-          <AccordionItem value="pricing">
-            <AccordionTrigger className="text-sm font-semibold">
-              Header Pricing ({out.to_PricingElement.length})
-            </AccordionTrigger>
-            <AccordionContent>
-              <div className="space-y-2">
-                {out.to_PricingElement.map((pe: any, idx: number) => (
-                  <div key={idx} className="rounded border p-2 bg-card/40">
-                    <div className="text-xs text-muted-foreground mb-2">Pricing {idx + 1}</div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      {Object.entries(pe || {}).map(([k, v]) => (
-                        <div key={k} className="rounded bg-card/50 p-2 border">
-                          <div className="text-xs text-muted-foreground mb-1">{k}</div>
-                          <Input
-                            value={String(v ?? '')}
-                            onChange={(e) => updatePricingField(idx, k, e.target.value)}
-                            className="h-8"
-                          />
-                        </div>
-                      ))}
+            {Array.isArray(out?.to_PricingElement) && out.to_PricingElement.length > 0 && (
+              <div className="mt-5 space-y-2">
+                <div className="text-sm font-semibold">Header Pricing ({out.to_PricingElement.length})</div>
+                <div className="space-y-2">
+                  {out.to_PricingElement.map((pe: any, idx: number) => (
+                    <div key={idx} className="rounded border p-2 bg-card/40">
+                      <div className="text-xs text-muted-foreground mb-2">Pricing {idx + 1}</div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {Object.entries(pe || {}).map(([k, v]) => (
+                          <div key={k} className="rounded bg-card/50 p-2 border">
+                            <div className="text-xs text-muted-foreground mb-1">{k}</div>
+                            <Input
+                              value={String(v ?? '')}
+                              onChange={(e) => updatePricingField(idx, k, e.target.value)}
+                              className="h-8"
+                            />
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </AccordionContent>
-          </AccordionItem>
-        )}
+            )}
 
-        {Array.isArray(out?.to_Item) && (
-          <AccordionItem value="items">
-            <AccordionTrigger className="text-sm font-semibold">
-              Items ({out.to_Item.length})
-            </AccordionTrigger>
-            <AccordionContent>
-              <div className="space-y-3">
+            {Array.isArray(out?.to_Item) && out.to_Item.length > 0 && (
+              <div className="mt-5 space-y-3">
+                <div className="text-sm font-semibold">Items ({out.to_Item.length})</div>
                 {out.to_Item.map((it: any, idx: number) => {
                   const partners = Array.isArray(it?.to_ItemPartner) ? it.to_ItemPartner : [];
                   const prices = Array.isArray(it?.to_ItemPricingElement) ? it.to_ItemPricingElement : [];
@@ -739,9 +725,9 @@ export default function DocumentDetail() {
                   );
                 })}
               </div>
-            </AccordionContent>
-          </AccordionItem>
-        )}
+            )}
+          </AccordionContent>
+        </AccordionItem>
       </Accordion>
     );
   };
