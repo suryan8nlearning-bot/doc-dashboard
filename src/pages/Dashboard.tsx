@@ -56,6 +56,8 @@ export default function Dashboard() {
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [selectedMailContent, setSelectedMailContent] = useState<string | null>(null);
   const [isMailDialogOpen, setIsMailDialogOpen] = useState(false);
+  const [isSAPDialogOpen, setIsSAPDialogOpen] = useState(false);
+  const [selectedSAP, setSelectedSAP] = useState<any | null>(null);
   const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set());
   const [isDarkMode, setIsDarkMode] = useState(false);
 
@@ -151,6 +153,191 @@ export default function Dashboard() {
       if (field.email) return [field.email];
     }
     return [];
+  };
+
+  /**
+   * Extracts SAP output object from a row. Accepts multiple field name variants and string/object inputs.
+   * Returns the "output" object if present, otherwise the parsed object itself.
+   */
+  const extractSapOutput = (row: any): any | undefined => {
+    if (!row) return undefined;
+    const candidates: Array<any> = [
+      row?.SAP_AI_OUTPUT,
+      row?.sap_ai_output,
+      row?.['SAP_AI_OUTPUT'],
+      row?.sap_payload,
+      row?.SAP,
+      row?.sap,
+    ];
+    for (const cand of candidates) {
+      if (!cand) continue;
+      try {
+        const obj = typeof cand === 'string' ? JSON.parse(cand) : cand;
+        const out = obj?.output ?? obj;
+        if (out && typeof out === 'object') return out;
+      } catch {
+        // ignore parse errors
+      }
+    }
+    return undefined;
+  };
+
+  // Renders a simple field row for key/value
+  const KV = ({ label, value }: { label: string; value: any }) => (
+    <div className="flex items-center justify-between rounded border p-2">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="text-sm font-medium max-w-[60%] truncate" title={String(value)}>
+        {String(value ?? '—')}
+      </div>
+    </div>
+  );
+
+  // Render grouped SAP payload
+  const renderSap = (out: any) => {
+    if (!out || typeof out !== 'object') {
+      return <div className="text-sm text-muted-foreground">No SAP data.</div>;
+    }
+    const headerIgnore = new Set(['to_Partner', 'to_PricingElement', 'to_Item']);
+    const headerPairs = Object.entries(out).filter(
+      ([k, v]) =>
+        !headerIgnore.has(k) &&
+        (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean')
+    );
+
+    return (
+      <div className="space-y-6">
+        <div>
+          <div className="font-semibold mb-2">Header</div>
+          {headerPairs.length ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {headerPairs.map(([k, v]) => (
+                <KV key={k} label={k} value={v} />
+              ))}
+            </div>
+          ) : (
+            <div className="text-xs text-muted-foreground">No header fields.</div>
+          )}
+        </div>
+
+        {Array.isArray(out?.to_Partner) && (
+          <div>
+            <div className="font-semibold mb-2">Partners</div>
+            <div className="space-y-2">
+              {out.to_Partner.map((p: any, idx: number) => (
+                <div key={idx} className="rounded border p-2">
+                  <div className="text-xs text-muted-foreground mb-1">Partner {idx + 1}</div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {Object.entries(p || {}).map(([k, v]) => (
+                      <div key={k} className="flex items-center justify-between rounded bg-card/50 p-2">
+                        <div className="text-xs text-muted-foreground">{k}</div>
+                        <div className="text-sm font-medium max-w-[60%] truncate" title={String(v)}>
+                          {String(v ?? '—')}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {Array.isArray(out?.to_PricingElement) && (
+          <div>
+            <div className="font-semibold mb-2">Header Pricing</div>
+            <div className="space-y-2">
+              {out.to_PricingElement.map((pe: any, idx: number) => (
+                <div key={idx} className="rounded border p-2">
+                  <div className="text-xs text-muted-foreground mb-1">Pricing {idx + 1}</div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {Object.entries(pe || {}).map(([k, v]) => (
+                      <div key={k} className="flex items-center justify-between rounded bg-card/50 p-2">
+                        <div className="text-xs text-muted-foreground">{k}</div>
+                        <div className="text-sm font-medium max-w-[60%] truncate" title={String(v)}>
+                          {String(v ?? '—')}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {Array.isArray(out?.to_Item) && (
+          <div>
+            <div className="font-semibold mb-2">Items</div>
+            <div className="space-y-3">
+              {out.to_Item.map((it: any, idx: number) => {
+                const partners = Array.isArray(it?.to_ItemPartner) ? it.to_ItemPartner : [];
+                const prices = Array.isArray(it?.to_ItemPricingElement) ? it.to_ItemPricingElement : [];
+                const itemHeaderPairs = Object.entries(it || {}).filter(
+                  ([k, v]) =>
+                    !['to_ItemPartner', 'to_ItemPricingElement'].includes(k) &&
+                    (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean')
+                );
+                return (
+                  <div key={idx} className="rounded border p-2 space-y-2">
+                    <div className="text-xs text-muted-foreground">Item {idx + 1}</div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {itemHeaderPairs.map(([k, v]) => (
+                        <div key={k} className="flex items-center justify-between rounded bg-card/50 p-2">
+                          <div className="text-xs text-muted-foreground">{k}</div>
+                          <div className="text-sm font-medium max-w-[60%] truncate" title={String(v)}>
+                            {String(v ?? '—')}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {partners.length > 0 && (
+                      <div className="space-y-1">
+                        <div className="text-xs font-medium">Item Partners</div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          {partners.map((p: any, pi: number) => (
+                            <div key={pi} className="rounded border p-2">
+                              <div className="grid grid-cols-1 gap-1">
+                                {Object.entries(p || {}).map(([k, v]) => (
+                                  <div key={k} className="flex items-center justify-between">
+                                    <span className="text-[11px] text-muted-foreground">{k}</span>
+                                    <span className="text-sm font-medium">{String(v ?? '—')}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {prices.length > 0 && (
+                      <div className="space-y-1">
+                        <div className="text-xs font-medium">Item Pricing</div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          {prices.map((pr: any, ri: number) => (
+                            <div key={ri} className="rounded border p-2">
+                              <div className="grid grid-cols-1 gap-1">
+                                {Object.entries(pr || {}).map(([k, v]) => (
+                                  <div key={k} className="flex items-center justify-between">
+                                    <span className="text-[11px] text-muted-foreground">{k}</span>
+                                    <span className="text-sm font-medium">{String(v ?? '—')}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    );
   };
 
   const fetchDocuments = async () => {
@@ -580,13 +767,28 @@ export default function Dashboard() {
                           '—'
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="space-x-2">
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => navigate(`/document/${doc.id}`)}
                         >
                           View Details
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            const out = extractSapOutput(doc.raw);
+                            if (!out) {
+                              toast.error('No SAP payload found for this row');
+                              return;
+                            }
+                            setSelectedSAP(out);
+                            setIsSAPDialogOpen(true);
+                          }}
+                        >
+                          SAP
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -609,6 +811,21 @@ export default function Dashboard() {
             className="prose prose-sm max-w-none"
             dangerouslySetInnerHTML={{ __html: selectedMailContent || '' }}
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* SAP Payload Dialog */}
+      <Dialog open={isSAPDialogOpen} onOpenChange={setIsSAPDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>SAP Payload</DialogTitle>
+            <DialogDescription>Sales Order Create Payload (grouped)</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6">
+            {selectedSAP ? renderSap(selectedSAP) : (
+              <div className="text-sm text-muted-foreground">No SAP data.</div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
