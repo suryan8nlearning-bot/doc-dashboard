@@ -3,7 +3,7 @@ import { VlyToolbar } from "../vly-toolbar-readonly.tsx";
 import { InstrumentationProvider } from "@/instrumentation.tsx";
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { ConvexReactClient } from "convex/react";
-import { StrictMode, useEffect, lazy, Suspense } from "react";
+import { StrictMode, useEffect, useState, lazy, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes, useLocation } from "react-router";
 import "./index.css";
@@ -41,16 +41,77 @@ function RouteSyncer() {
   return null;
 }
 
+function RouteProgressBar() {
+  const location = useLocation();
+  const [progress, setProgress] = useState(0);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    let incTimer: number | null = null;
+    let doneTimer: number | null = null;
+    let hideTimer: number | null = null;
+
+    // Start
+    setVisible(true);
+    setProgress(10);
+
+    // Increment gradually up to ~90%
+    incTimer = window.setInterval(() => {
+      setProgress((p) => {
+        const next = p + Math.random() * 10;
+        return next >= 90 ? 90 : next;
+      });
+    }, 200);
+
+    // Finish after a short delay (keeps UX smooth without adding deps)
+    doneTimer = window.setTimeout(() => {
+      setProgress(100);
+      hideTimer = window.setTimeout(() => {
+        setVisible(false);
+        setProgress(0);
+      }, 250);
+    }, 1200);
+
+    return () => {
+      if (incTimer) window.clearInterval(incTimer);
+      if (doneTimer) window.clearTimeout(doneTimer);
+      if (hideTimer) window.clearTimeout(hideTimer);
+    };
+  }, [location.pathname]);
+
+  if (!visible) return null;
+
+  return (
+    <div className="fixed top-0 left-0 right-0 z-50 h-0.5">
+      <div
+        className="h-full bg-gradient-to-r from-primary to-purple-600 transition-[width] duration-300"
+        style={{ width: `${progress}%` }}
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(progress)}
+        aria-label="Page loading progress"
+      />
+    </div>
+  );
+}
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <VlyToolbar />
     <InstrumentationProvider>
       <ConvexAuthProvider client={convex}>
         <BrowserRouter>
+          <RouteProgressBar />
           <RouteSyncer />
           <Suspense
             fallback={
-              <div className="min-h-screen grid place-items-center bg-background text-muted-foreground">
+              <div
+                className="min-h-screen grid place-items-center bg-background text-muted-foreground"
+                role="status"
+                aria-live="polite"
+                aria-busy="true"
+              >
                 Loading…
               </div>
             }
