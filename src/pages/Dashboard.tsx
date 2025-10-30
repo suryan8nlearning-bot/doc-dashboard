@@ -610,9 +610,9 @@ export default function Dashboard() {
             </motion.div>
           ) : (
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: 'easeOut' }}>
-              <div className="rounded-xl border border-white/10 bg-background/50 backdrop-blur-md shadow-xl overflow-hidden">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] supports-[backdrop-filter]:bg-white/10 backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] overflow-hidden ring-1 ring-white/5">
               <Table>
-                <TableHeader>
+                <TableHeader className="sticky top-0 z-10 bg-white/[0.06] supports-[backdrop-filter]:bg-white/10 backdrop-blur-xl border-b border-white/10 shadow-inner">
                   <TableRow>
                     <TableHead className="w-12">
                       <Checkbox
@@ -621,12 +621,12 @@ export default function Dashboard() {
                         aria-label="Select all documents"
                       />
                     </TableHead>
-                    <TableHead className="w-24">ID</TableHead>
+                    <TableHead className="w-16">ID</TableHead>
                     <TableHead className="min-w-[180px]">From</TableHead>
-                    <TableHead className="min-w-[180px]">CC</TableHead>
+                    <TableHead className="min-w-[220px]">CC</TableHead>
                     <TableHead className="min-w-[200px]">Subject</TableHead>
                     <TableHead className="min-w-[150px]">PDF Name</TableHead>
-                    <TableHead className="min-w-[200px]">Mail Content</TableHead>
+                    <TableHead className="min-w-[240px]">Mail Content</TableHead>
                     <TableHead className="w-32">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -649,7 +649,9 @@ export default function Dashboard() {
                           aria-label={`Select document ${doc.id}`}
                         />
                       </TableCell>
-                      <TableCell className="font-mono text-xs">{doc.id}</TableCell>
+                      <TableCell className="font-mono text-xs max-w-[90px] truncate" title={doc.id}>
+                        {doc.id}
+                      </TableCell>
                       <TableCell>
                         <div className="max-w-[180px] truncate" title={doc.from_email || '—'}>
                           {doc.from_email || '—'}
@@ -657,7 +659,7 @@ export default function Dashboard() {
                       </TableCell>
                       <TableCell>
                         {doc.cc_emails && doc.cc_emails.length > 0 ? (
-                          <div className="text-xs max-w-[180px]">
+                          <div className="text-xs max-w-[260px]">
                             <div className="truncate" title={doc.cc_emails.join(', ')}>
                               {doc.cc_emails.slice(0, 2).join(', ')}
                             </div>
@@ -684,12 +686,13 @@ export default function Dashboard() {
                       <TableCell>
                         {doc.mail_content ? (
                           <div className="flex items-center gap-2">
-                            <span className="text-xs text-muted-foreground max-w-[150px] truncate">
+                            <span className="text-xs text-muted-foreground max-w-[240px] truncate">
                               {truncateText(doc.mail_content, 30)}
                             </span>
                             <Button
-                              variant="ghost"
+                              variant="outline"
                               size="sm"
+                              className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur"
                               onClick={() => handleViewMailContent(doc.mail_content!)}
                             >
                               <Mail className="h-4 w-4" />
