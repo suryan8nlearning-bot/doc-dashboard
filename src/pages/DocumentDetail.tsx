@@ -56,6 +56,14 @@ export default function DocumentDetail() {
   // Add aside ref for scroll-to-top control
   const asideRef = useRef<HTMLDivElement | null>(null);
 
+  // Add: view state to switch between 'sap' full-screen and 'document' split view
+  const [view, setView] = useState<'sap' | 'document'>(() => (showSAP ? 'sap' : 'document'));
+
+  // Keep view in sync with the Show SAP toggle
+  useEffect(() => {
+    setView(showSAP ? 'sap' : 'document');
+  }, [showSAP]);
+
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       navigate('/auth');
@@ -1102,6 +1110,28 @@ export default function DocumentDetail() {
 
           {/* Buttons: make more graphic and pin to far-right */}
           <div className="flex items-center gap-3 order-3 ml-auto">
+            {/* Step controls */}
+            {showSAP && view === 'sap' && (
+              <Button
+                variant="secondary"
+                size="lg"
+                onClick={() => setView('document')}
+                className="px-6 rounded-full shadow-md hover:shadow-lg transition-transform hover:scale-[1.02]"
+              >
+                Next
+              </Button>
+            )}
+            {showSAP && view === 'document' && (
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => setView('sap')}
+                className="px-6 rounded-full shadow-md hover:shadow-lg transition-transform hover:scale-[1.02]"
+              >
+                Back
+              </Button>
+            )}
+
             <Button
               variant="default"
               size="lg"
@@ -1125,8 +1155,49 @@ export default function DocumentDetail() {
         </div>
       </header>
 
-      {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* SAP Full-screen (Step 1) */}
+      {showSAP && view === 'sap' && (
+        <div className="flex-1 flex flex-col overflow-hidden p-4">
+          <Card className="flex-1 flex flex-col bg-card/60">
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span>SAP Data</span>
+                <div className="flex items-center gap-3">
+                  <div className="text-xs text-muted-foreground">
+                    {sapOut ? 'Loaded' : 'No SAP data'}
+                  </div>
+                </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex-1 overflow-hidden">
+              <div className="text-xs text-muted-foreground mb-3">
+                Toggle SAP visibility from the user menu. Use "Next" to view the PDF and document data.
+              </div>
+              {showSAP ? (
+                <ScrollArea className="h-full pr-1 overflow-y-auto">
+                  {
+                    (() => {
+                      try {
+                        const parsed = JSON.parse(sapEditorValue || '{}');
+                        return renderSapEditable(parsed);
+                      } catch {
+                        return <div className="text-sm text-muted-foreground">Invalid JSON in editor. Fix to preview.</div>;
+                      }
+                    })()
+                  }
+                </ScrollArea>
+              ) : (
+                <div className="text-sm text-muted-foreground">
+                  SAP data hidden. Enable it from the user menu.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Main Content (Step 2) */}
+      <div className={showSAP && view === 'sap' ? 'hidden' : 'flex-1 flex overflow-hidden'}>
         {/* PDF Viewer */}
         <div className="relative h-full min-w-0 flex-1 overflow-hidden">
           {/* Overlay open-in-new tab button on PDF preview */}
