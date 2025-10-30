@@ -1008,7 +1008,7 @@ export default function Landing() {
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5, duration: 0.6 }}
-          className="max-w-5xl mx-auto mt-12 w-full"
+          className="hidden"
         >
           <Card className="bg-card/60 supports-[backdrop-filter]:bg-card/60 backdrop-blur shadow-lg">
             <CardHeader>

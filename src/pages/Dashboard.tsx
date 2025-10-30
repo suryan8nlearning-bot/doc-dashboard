@@ -33,6 +33,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { BulkActionsBar } from "@/components/dashboard/BulkActionsBar";
+import { MailDialog } from "@/components/dashboard/MailDialog";
 
 export default function Dashboard() {
   const { isLoading: authLoading, isAuthenticated, user, signOut } = useAuth();
@@ -63,6 +65,41 @@ export default function Dashboard() {
   const [selectedSAP, setSelectedSAP] = useState<any | null>(null);
   const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set());
   const [isDarkMode, setIsDarkMode] = useState(false);
+
+  // Add: extracted create handler for BulkActionsBar
+  const handleCreateSelected = async () => {
+    const selectedIds = Array.from(selectedDocuments);
+    const rawUrl = import.meta.env.VITE_WEBHOOK_URL as string | undefined;
+
+    if (!rawUrl) {
+      toast.error(
+        "Webhook URL not configured. Set VITE_WEBHOOK_URL in API keys (Integrations tab) and refresh."
+      );
+      return;
+    }
+
+    try {
+      const res = await sendWebhook({
+        url: rawUrl,
+        documentIds: selectedIds,
+        userEmail: user?.email ?? "anonymous",
+        source: "dashboard",
+      });
+
+      if (res?.ok) {
+        toast.success(`Successfully sent ${selectedIds.length} document(s)`);
+        setSelectedDocuments(new Set());
+      } else {
+        toast.error(`Failed to send: ${res?.error || "Unknown error"}`);
+      }
+    } catch (error) {
+      toast.error(
+        `Failed to send: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+    }
+  };
 
   // Add MotionTableRow for animating rows
   const MotionTableRow = motion(TableRow);
@@ -607,81 +644,16 @@ export default function Dashboard() {
             </div>
             <AnimatePresence>
               {selectedDocuments.size > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="flex items-center gap-4 p-4 rounded-xl border border-white/10 bg-background/50 backdrop-blur-md shadow-lg"
-              >
-                <span className="text-sm font-medium">
-                  {selectedDocuments.size} document{selectedDocuments.size !== 1 ? 's' : ''} selected
-                </span>
-                <Button
-                  variant="default"
-                  size="sm"
-                  className="bg-gradient-to-r from-primary to-fuchsia-600 text-white shadow-sm hover:opacity-90 transition"
-                  onClick={async () => {
-                    const selectedIds = Array.from(selectedDocuments);
-                    const rawUrl = import.meta.env.VITE_WEBHOOK_URL as string | undefined;
-
-                    if (!rawUrl) {
-                      toast.error(
-                        "Webhook URL not configured. Set VITE_WEBHOOK_URL in API keys (Integrations tab) and refresh."
-                      );
-                      return;
-                    }
-
-                    try {
-                      const res = await sendWebhook({
-                        url: rawUrl,
-                        documentIds: selectedIds,
-                        userEmail: user?.email ?? "anonymous",
-                        source: "dashboard",
-                      });
-
-                      if (res?.ok) {
-                        toast.success(`Successfully sent ${selectedIds.length} document(s)`);
-                        setSelectedDocuments(new Set());
-                      } else {
-                        toast.error(`Failed to send: ${res?.error || "Unknown error"}`);
-                      }
-                    } catch (error) {
-                      toast.error(
-                        `Failed to send: ${
-                          error instanceof Error ? error.message : "Unknown error"
-                        }`
-                      );
-                    }
-                  }}
-                >
-                  Create
-                </Button>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="bg-background/60 backdrop-blur border hover:bg-background/80 transition"
-                  onClick={() => navigate("/profile")}
-                >
-                  <User className="h-4 w-4 mr-2" />
-                  Profile
-                </Button>
-
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => {
+                <BulkActionsBar
+                  selectedCount={selectedDocuments.size}
+                  onCreate={handleCreateSelected}
+                  onProfile={() => navigate("/profile")}
+                  onDelete={() => {
                     toast.success(`${selectedDocuments.size} documents would be deleted`);
                     setSelectedDocuments(new Set());
                   }}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete Selected
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => setSelectedDocuments(new Set())}>
-                  Clear Selection
-                </Button>
-              </motion.div>
+                  onClear={() => setSelectedDocuments(new Set())}
+                />
               )}
             </AnimatePresence>
           </div>
@@ -821,18 +793,11 @@ export default function Dashboard() {
       </div>
 
       {/* Mail Content Dialog */}
-      <Dialog open={isMailDialogOpen} onOpenChange={setIsMailDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto bg-background/60 backdrop-blur-md border border-white/10">
-          <DialogHeader>
-            <DialogTitle>Email Content</DialogTitle>
-            <DialogDescription>Full email message content</DialogDescription>
-          </DialogHeader>
-          <div
-            className="prose prose-sm max-w-none"
-            dangerouslySetInnerHTML={{ __html: selectedMailContent || '' }}
-          />
-        </DialogContent>
-      </Dialog>
+      <MailDialog
+        open={isMailDialogOpen}
+        onOpenChange={setIsMailDialogOpen}
+        content={selectedMailContent || ""}
+      />
 
       {/* SAP Payload Dialog */}
       <Dialog open={isSAPDialogOpen} onOpenChange={setIsSAPDialogOpen}>
