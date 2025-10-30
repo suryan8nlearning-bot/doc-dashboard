@@ -602,7 +602,8 @@ export default function Dashboard() {
                 </Select>
               )}
             </div>
-            <AnimatePresence>{selectedDocuments.size > 0 && (
+            <AnimatePresence>
+              {selectedDocuments.size > 0 && (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -712,7 +713,8 @@ export default function Dashboard() {
                   Clear Selection
                 </Button>
               </motion.div>
-            )}
+              )}
+            </AnimatePresence>
           </div>
 
           {!hasSupabaseEnv ? (
@@ -731,16 +733,17 @@ export default function Dashboard() {
             </div>
           ) : filteredDocs.length === 0 ? (
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, ease: 'easeOut' }}>
-            <div className="text-center py-12 space-y-4">
+              <div className="text-center py-12 space-y-4">
               <FileText className="h-16 w-16 mx-auto text-muted-foreground opacity-20" />
               <div className="text-lg font-medium">No documents found</div>
-              <p className="text-sm text-muted-foreground">
-                {statusFilter !== 'ALL' ? 'Try changing the status filter' : 'Documents will appear here once added'}
-              </p>
-            </div>
+                <p className="text-sm text-muted-foreground">
+                  {statusFilter !== 'ALL' ? 'Try changing the status filter' : 'Documents will appear here once added'}
+                </p>
+              </div>
+            </motion.div>
           ) : (
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: 'easeOut' }}>
-            <div className="rounded-xl border border-white/10 bg-background/50 backdrop-blur-md shadow-xl overflow-hidden">
+              <div className="rounded-xl border border-white/10 bg-background/50 backdrop-blur-md shadow-xl overflow-hidden">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -842,7 +845,7 @@ export default function Dashboard() {
                   ))}
                 </TableBody>
               </Table>
-            </div>
+              </div>
             </motion.div>
           )}
         </div>
