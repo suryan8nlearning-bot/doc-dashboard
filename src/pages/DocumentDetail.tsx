@@ -868,11 +868,25 @@ export default function DocumentDetail() {
         toast.error('No SAP data to send');
         return;
       }
-      const webhookUrl = import.meta.env.VITE_WEBHOOK_URL as string | undefined;
-      if (!webhookUrl) {
+
+      const rawUrl = import.meta.env.VITE_WEBHOOK_URL as string | undefined;
+      if (!rawUrl) {
         toast.error('Webhook URL is not configured');
         return;
       }
+
+      let url: URL;
+      try {
+        url = new URL(rawUrl);
+      } catch {
+        toast.error('Invalid webhook URL');
+        return;
+      }
+      if (url.protocol !== 'https:') {
+        toast.error('Webhook URL must use HTTPS');
+        return;
+      }
+
       let parsed: any;
       try {
         parsed = JSON.parse(sapEditorValue);
@@ -881,15 +895,32 @@ export default function DocumentDetail() {
         return;
       }
 
+      if (!window.confirm(`Send SAP for document ${doc.id}?`)) {
+        return;
+      }
+
       setIsCreating(true);
-      const res = await fetch(webhookUrl, {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      const res = await fetch(url.toString(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: doc.id, sap: parsed }),
+        signal: controller.signal,
+        mode: 'cors',
+        cache: 'no-store',
+      }).catch((err) => {
+        if (err?.name === 'AbortError') throw new Error('Request timed out (15s)');
+        throw new Error('Network error or CORS blocked');
       });
-      if (!res.ok) {
-        throw new Error(`Status ${res.status}`);
+
+      clearTimeout(timeoutId);
+
+      if (!res || !res.ok) {
+        throw new Error(`Status ${res?.status ?? 'unknown'}`);
       }
+
       toast.success('Create request sent successfully');
     } catch (e) {
       toast.error(`Failed to send: ${e instanceof Error ? e.message : 'Unknown error'}`);
@@ -982,7 +1013,7 @@ export default function DocumentDetail() {
       {/* Header */}
       <header className="border-b bg-background sticky top-0 z-10">
         <div className="flex items-center justify-between px-8 py-4">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 order-1">
             <Button
               variant="ghost"
               size="sm"
@@ -1001,13 +1032,56 @@ export default function DocumentDetail() {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+
+          {/* Move Dropdown before buttons and control order */}
+          <div className="order-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="rounded-full h-9 w-9 bg-primary/10 hover:bg-primary/20"
+                  aria-label="User menu"
+                >
+                  <User className="h-4 w-4 text-primary" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuLabel className="font-normal">
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-xs text-muted-foreground">Signed in as</p>
+                    <p className="text-sm font-medium leading-none">{user?.email || 'User'}</p>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => navigate('/profile')} className="cursor-pointer">
+                  Profile
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate('/dashboard')} className="cursor-pointer">
+                  Dashboard
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={async () => {
+                    await signOut();
+                    navigate('/');
+                  }}
+                  className="cursor-pointer text-red-600"
+                >
+                  Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          {/* Buttons: make more graphic and pin to far-right */}
+          <div className="flex items-center gap-3 order-3 ml-auto">
             <Button
-              variant="outline"
+              variant="default"
               size="lg"
               onClick={handleSave}
               disabled={!sapEditorValue?.trim() || isSaving || !doc?.id}
-              className="px-5"
+              className="px-6 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg hover:shadow-xl transition-transform hover:scale-[1.02]"
             >
               {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Save
@@ -1016,49 +1090,12 @@ export default function DocumentDetail() {
               size="lg"
               onClick={handleCreate}
               disabled={!sapEditorValue?.trim() || isCreating || !doc?.id}
-              className="px-5"
+              className="px-6 rounded-full bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg hover:shadow-xl transition-transform hover:scale-[1.02]"
             >
               {isCreating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Create
             </Button>
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="rounded-full h-9 w-9 bg-primary/10 hover:bg-primary/20"
-                aria-label="User menu"
-              >
-                <User className="h-4 w-4 text-primary" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64">
-              <DropdownMenuLabel className="font-normal">
-                <div className="flex flex-col space-y-1">
-                  <p className="text-xs text-muted-foreground">Signed in as</p>
-                  <p className="text-sm font-medium leading-none">{user?.email || 'User'}</p>
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => navigate('/profile')} className="cursor-pointer">
-                Profile
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate('/dashboard')} className="cursor-pointer">
-                Dashboard
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={async () => {
-                  await signOut();
-                  navigate('/');
-                }}
-                className="cursor-pointer text-red-600"
-              >
-                Sign Out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
       </header>
 
