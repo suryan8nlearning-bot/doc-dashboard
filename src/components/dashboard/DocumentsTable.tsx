@@ -47,9 +47,9 @@ export function DocumentsTable({
   onViewDetails,
 }: DocumentsTableProps): ReactNode {
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
+    <Table className="text-sm md:text-[0.95rem]">
+      <TableHeader className="sticky top-0 z-10 bg-background/60 supports-[backdrop-filter]:bg-background/60 backdrop-blur-md">
+        <TableRow className="hover:bg-transparent">
           <TableHead className="w-12">
             <Checkbox
               checked={selectedIds.size === docs.length && docs.length > 0}
@@ -70,9 +70,7 @@ export function DocumentsTable({
         {docs.map((doc, idx) => (
           <MotionTableRow
             key={doc.id}
-            className={
-              (selectedIds.has(doc.id) ? "bg-white/10 " : "") + "hover:bg-white/5 transition-colors"
-            }
+            className={`${selectedIds.has(doc.id) ? "bg-white/10 ring-1 ring-white/10" : "ring-0"} h-14 odd:bg-white/0 even:bg-white/[0.03] hover:bg-white/10 transition-colors border-b border-white/5`}
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35, ease: "easeOut", delay: Math.min(idx * 0.03, 0.4) }}
@@ -121,8 +119,9 @@ export function DocumentsTable({
                     {truncateText(doc.mail_content, 30)}
                   </span>
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
+                    className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur"
                     onClick={() => onViewMailContent(doc.mail_content!)}
                   >
                     <Mail className="h-4 w-4" />
@@ -133,7 +132,12 @@ export function DocumentsTable({
               )}
             </TableCell>
             <TableCell className="space-x-2">
-              <Button variant="outline" size="sm" onClick={() => onViewDetails(doc.id)}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur text-foreground"
+                onClick={() => onViewDetails(doc.id)}
+              >
                 View Details
               </Button>
             </TableCell>
