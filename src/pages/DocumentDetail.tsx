@@ -1,7 +1,6 @@
 import { DocumentFields } from '@/components/DocumentFields';
 import { PDFViewer } from '@/components/PDFViewer';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -38,7 +37,14 @@ export default function DocumentDetail() {
   const [isLoading, setIsLoading] = useState(true);
 
   // SAP data viewer state
-  const [showSAP, setShowSAP] = useState<boolean>(true);
+  const [showSAP, setShowSAP] = useState<boolean>(() => {
+    try {
+      const v = localStorage.getItem('showSAP');
+      return v === null ? true : v === 'true';
+    } catch {
+      return true;
+    }
+  });
   const [sapOut, setSapOut] = useState<any | null>(null);
 
   // Add: editor + saving/creating states for SAP JSON
@@ -77,7 +83,7 @@ export default function DocumentDetail() {
         toast.error('Supabase is not configured.');
       }
     }
-  }, [isAuthenticated, documentId]);
+  }, [isAuthenticated, documentId, showSAP]);
 
   // removed editor sync effect
 
@@ -772,8 +778,8 @@ export default function DocumentDetail() {
       }
 
       // Extract SAP output for viewer
-      const out = extractSapOutput(data);
-      setSapOut(out ?? null);
+      const out = showSAP ? extractSapOutput(data) : undefined;
+      setSapOut(showSAP ? (out ?? null) : null);
 
       // Build robust storage path from possible fields
       const bucket = data?.['Bucket Name'] ?? data?.bucket_name ?? data?.bucket ?? '';
@@ -819,7 +825,7 @@ export default function DocumentDetail() {
 
       const status = data?.status ?? data?.Status ?? data?.state ?? data?.State;
       const created_at = data?.created_at ?? data?.createdAt ?? data?.timestamp ?? new Date().toISOString();
-      const document_data = coerceDocumentData(data);
+      const document_data = showSAP ? coerceDocumentData(data) : undefined;
       const title =
         document_data?.document?.pages?.[0]?.metadata?.document_title?.value ||
         // fallback to new format (if conversion failed for some reason)
@@ -996,6 +1002,15 @@ export default function DocumentDetail() {
     }
   };
 
+  // Persist showSAP to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('showSAP', String(showSAP));
+    } catch {
+      // ignore storage errors
+    }
+  }, [showSAP]);
+
   if (authLoading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -1060,6 +1075,17 @@ export default function DocumentDetail() {
                 <DropdownMenuItem onClick={() => navigate('/dashboard')} className="cursor-pointer">
                   Dashboard
                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={(e) => e.preventDefault()}
+                  className="cursor-default flex items-center justify-between"
+                >
+                  <span>Show SAP Data</span>
+                  <Switch
+                    checked={showSAP}
+                    onCheckedChange={(v) => setShowSAP(Boolean(v))}
+                    aria-label="Toggle SAP Data"
+                  />
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={async () => {
@@ -1118,7 +1144,11 @@ export default function DocumentDetail() {
               </a>
             </Button>
           </div>
-          <PDFViewer pdfUrl={doc.pdf_url} highlightBox={highlightBox} documentData={doc.document_data} />
+          <PDFViewer
+            pdfUrl={doc.pdf_url}
+            highlightBox={highlightBox}
+            documentData={showSAP ? doc.document_data : undefined}
+          />
         </div>
 
         {/* Document Fields */}
@@ -1136,17 +1166,8 @@ export default function DocumentDetail() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      id="toggleSap"
-                      checked={showSAP}
-                      onCheckedChange={(v) => setShowSAP(Boolean(v))}
-                    />
-                    <Label htmlFor="toggleSap" className="cursor-pointer">
-                      Show SAP Data
-                    </Label>
-                  </div>
+                <div className="text-xs text-muted-foreground">
+                  Toggle SAP visibility from the user menu.
                 </div>
 
                 {showSAP ? (
@@ -1167,21 +1188,31 @@ export default function DocumentDetail() {
 
                     {/* JSON editor removed; fields are now edited inline above */}
                   </div>
-                ) : null}
+                ) : (
+                  <div className="text-sm text-muted-foreground">
+                    SAP data hidden. Enable it from the user menu.
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
 
           <div className="flex-1 min-h-0">
-            {doc.document_data &&
-            doc.document_data?.document?.pages?.length > 0 ? (
-              <DocumentFields
-                documentData={doc.document_data}
-                onFieldHover={setHighlightBox}
-              />
+            {showSAP ? (
+              doc.document_data &&
+              doc.document_data?.document?.pages?.length > 0 ? (
+                <DocumentFields
+                  documentData={doc.document_data}
+                  onFieldHover={setHighlightBox}
+                />
+              ) : (
+                <div className="h-full p-6 text-sm text-muted-foreground">
+                  No structured data available for this document.
+                </div>
+              )
             ) : (
               <div className="h-full p-6 text-sm text-muted-foreground">
-                No structured data available for this document.
+                SAP data hidden. Enable "Show SAP Data" from the user menu.
               </div>
             )}
           </div>
