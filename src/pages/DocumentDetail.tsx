@@ -1258,16 +1258,6 @@ export default function DocumentDetail() {
                 Next Step
               </Button>
             )}
-            {showSAP && view === 'document' && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setView('sap')}
-                className="px-4 rounded-md"
-              >
-                Back
-              </Button>
-            )}
 
             <Button
               variant="default"
