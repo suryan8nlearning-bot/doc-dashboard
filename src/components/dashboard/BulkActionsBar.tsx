@@ -42,7 +42,13 @@ export function BulkActionsBar({
           try {
             const res = await sendWebhook({
               url: rawUrl,
-              body: { documentIds: selectedIds },
+              // Align with action signature: put data into `body`
+              body: {
+                documentIds: selectedIds,
+                userEmail,
+                source: "dashboard",
+                timestamp: new Date().toISOString(),
+              },
               userEmail,
               source: "dashboard",
             });
