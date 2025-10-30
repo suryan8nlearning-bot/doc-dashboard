@@ -52,17 +52,15 @@ export default function DocumentDetail() {
   const [sapObj, setSapObj] = useState<any>({}); // new: source of truth for inline form fields
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [isCreating, setIsCreating] = useState<boolean>(false);
+  const [currentItemIndex, setCurrentItemIndex] = useState<number>(0);
 
   // Add aside ref for scroll-to-top control
   const asideRef = useRef<HTMLDivElement | null>(null);
 
   // Add: view state to switch between 'sap' full-screen and 'document' split view
-  const [view, setView] = useState<'sap' | 'document'>(() => (showSAP ? 'sap' : 'document'));
+  const [view, setView] = useState<'sap' | 'document'>('document');
 
-  // Keep view in sync with the Show SAP toggle
-  useEffect(() => {
-    setView(showSAP ? 'sap' : 'document');
-  }, [showSAP]);
+  // Removed view sync with showSAP so PDF + data are visible by default and independent of the toggle.
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -1020,6 +1018,7 @@ export default function DocumentDetail() {
   }, [showSAP]);
 
   // Navigation across documents: get id from route and provide prev/next
+  const navigate = useNavigate();
   const params = useParams();
   const currentId = (params as any).id as string | undefined;
 
@@ -1061,6 +1060,68 @@ export default function DocumentDetail() {
     if (currentIndex >= 0 && currentIndex < idList.length - 1) {
       navigate(`/document/${idList[currentIndex + 1]}`);
     }
+  };
+
+  // Initialize first line highlight when document data becomes available
+  useEffect(() => {
+    try {
+      const items = Array.isArray(doc?.document_data?.document?.pages)
+        ? (doc?.document_data?.document?.pages?.[0]?.items ?? [])
+        : [];
+      if (Array.isArray(items) && items.length > 0) {
+        setCurrentItemIndex(0);
+        const bbox = items[0]?.bounding_box?.[0];
+        if (Array.isArray(bbox) && bbox.length >= 4) {
+          const [x1, y1, x2, y2, p] = bbox;
+          setHighlightBox({ x1, y1, x2, y2, page: Number.isFinite(p) ? p : 1 });
+        } else {
+          setHighlightBox(null);
+        }
+      } else {
+        setHighlightBox(null);
+      }
+    } catch {
+      // ignore errors
+    }
+  }, [doc?.document_data]);
+
+  // Line navigation: move between extracted items and highlight their bounding box
+  const goPrevLine = () => {
+    const items = Array.isArray(doc?.document_data?.document?.pages)
+      ? (doc?.document_data?.document?.pages?.[0]?.items ?? [])
+      : [];
+    if (!Array.isArray(items) || items.length === 0) return;
+
+    setCurrentItemIndex((prev) => {
+      const next = Math.max(0, prev - 1);
+      const bbox = items[next]?.bounding_box?.[0];
+      if (Array.isArray(bbox) && bbox.length >= 4) {
+        const [x1, y1, x2, y2, p] = bbox;
+        setHighlightBox({ x1, y1, x2, y2, page: Number.isFinite(p) ? p : 1 });
+      } else {
+        setHighlightBox(null);
+      }
+      return next;
+    });
+  };
+
+  const goNextLine = () => {
+    const items = Array.isArray(doc?.document_data?.document?.pages)
+      ? (doc?.document_data?.document?.pages?.[0]?.items ?? [])
+      : [];
+    if (!Array.isArray(items) || items.length === 0) return;
+
+    setCurrentItemIndex((prev) => {
+      const next = Math.min(items.length - 1, prev + 1);
+      const bbox = items[next]?.bounding_box?.[0];
+      if (Array.isArray(bbox) && bbox.length >= 4) {
+        const [x1, y1, x2, y2, p] = bbox;
+        setHighlightBox({ x1, y1, x2, y2, page: Number.isFinite(p) ? p : 1 });
+      } else {
+        setHighlightBox(null);
+      }
+      return next;
+    });
   };
 
   if (authLoading || isLoading) {
@@ -1154,6 +1215,24 @@ export default function DocumentDetail() {
 
           {/* Buttons: make more graphic and pin to far-right */}
           <div className="flex items-center gap-3 order-3 ml-auto">
+            {/* Line navigation controls */}
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={goPrevLine}
+              className="px-6 rounded-full shadow-md hover:shadow-lg transition-transform hover:scale-[1.02]"
+            >
+              Prev Line
+            </Button>
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={goNextLine}
+              className="px-6 rounded-full shadow-md hover:shadow-lg transition-transform hover:scale-[1.02]"
+            >
+              Next Line
+            </Button>
+
             {/* Step controls */}
             {showSAP && view === 'sap' && (
               <Button
