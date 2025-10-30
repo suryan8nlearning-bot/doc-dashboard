@@ -401,6 +401,12 @@ export default function Landing() {
         if (stored) applyTheme(stored);
       } catch {}
     }
+
+    // Remove the specified glass card panel on the homepage
+    const nodes = document.querySelectorAll(
+      'div.text-card-foreground.rounded-xl.border.py-6.backdrop-blur.shadow-lg'
+    );
+    nodes.forEach((el) => el.remove());
   }, [user?.theme]);
 
   // Prefetch next route chunk to speed navigation
@@ -782,16 +788,6 @@ export default function Landing() {
       setIsCreating(false);
     }
   };
-
-  // Remove the specified glass card panel on the homepage
-  // Targets: div.text-card-foreground.flex.flex-col.gap-6.rounded-xl.border.py-6.bg-card/60.supports-[backdrop-filter]:bg-card/60.backdrop-blur.shadow-lg
-  // Use a safer subset of classes to avoid escaping issues while being specific
-  useEffect(() => {
-    const nodes = document.querySelectorAll(
-      'div.text-card-foreground.rounded-xl.border.py-6.backdrop-blur.shadow-lg'
-    );
-    nodes.forEach((el) => el.remove());
-  }, []);
 
   return (
     <motion.div
