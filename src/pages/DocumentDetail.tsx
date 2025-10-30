@@ -1226,7 +1226,7 @@ export default function DocumentDetail() {
               variant="outline"
               size="sm"
               onClick={() => navigate('/dashboard')}
-              className="px-3 rounded-md"
+              className="px-4 rounded-md"
               aria-label="Back to Dashboard"
               title="Back to Dashboard"
             >
@@ -1250,7 +1250,7 @@ export default function DocumentDetail() {
             {/* Step controls */}
             {showSAP && view === 'sap' && (
               <Button
-                variant="secondary"
+                variant="outline"
                 size="sm"
                 onClick={() => setView('document')}
                 className="px-4 rounded-md"
@@ -1274,16 +1274,17 @@ export default function DocumentDetail() {
               size="sm"
               onClick={handleSave}
               disabled={!sapEditorValue?.trim() || isSaving || !doc?.id}
-              className="px-4 rounded-md bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg"
+              className="px-4 rounded-md"
             >
               {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Save
             </Button>
             <Button
+              variant="default"
               size="sm"
               onClick={handleCreate}
               disabled={!sapEditorValue?.trim() || isCreating || !doc?.id}
-              className="px-4 rounded-md bg-green-600 hover:bg-green-700 text-white shadow-md hover:shadow-lg"
+              className="px-4 rounded-md"
             >
               {isCreating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Create
@@ -1296,7 +1297,7 @@ export default function DocumentDetail() {
                 size="sm" 
                 onClick={goPrev} 
                 disabled={currentIndex <= 0}
-                className="px-3"
+                className="px-4"
               >
                 Previous
               </Button>
@@ -1305,7 +1306,7 @@ export default function DocumentDetail() {
                 size="sm"
                 onClick={goNext}
                 disabled={currentIndex < 0 || currentIndex >= idList.length - 1}
-                className="px-3"
+                className="px-4"
               >
                 Next
               </Button>
