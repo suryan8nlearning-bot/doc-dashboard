@@ -401,12 +401,6 @@ export default function Landing() {
         if (stored) applyTheme(stored);
       } catch {}
     }
-
-    // Remove the specified glass card panel on the homepage
-    const nodes = document.querySelectorAll(
-      'div.text-card-foreground.rounded-xl.border.py-6.backdrop-blur.shadow-lg'
-    );
-    nodes.forEach((el) => el.remove());
   }, [user?.theme]);
 
   // Prefetch next route chunk to speed navigation
@@ -800,8 +794,11 @@ export default function Landing() {
       <div aria-hidden className="pointer-events-none absolute -top-24 -right-24 h-80 w-80 rounded-full bg-primary/20 blur-3xl dark:bg-primary/30" />
       <div aria-hidden className="pointer-events-none absolute -bottom-24 -left-24 h-80 w-80 rounded-full bg-purple-500/20 blur-3xl dark:bg-purple-500/20" />
 
+      {/* Add a soft radial gradient overlay for depth (non-interactive) */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-transparent to-transparent" />
+
       {/* Header */}
-      <header className="border-b">
+      <header className="sticky top-0 z-40 border-b bg-background/60 supports-[backdrop-filter]:bg-background/60 backdrop-blur">
         <div className="max-w-7xl mx-auto px-8 py-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img src="/logo.svg" alt="Logo" className="h-8 w-8" loading="lazy" decoding="async" />
@@ -851,6 +848,7 @@ export default function Landing() {
               variant="outline"
               onClick={handleGetStarted}
               disabled={isLoading}
+              className="bg-white/5 hover:bg-white/10 border-white/20 supports-[backdrop-filter]:bg-white/5 backdrop-blur"
               onMouseEnter={() => {
                 if (!isLoading) {
                   if (isAuthenticated) {
@@ -902,7 +900,7 @@ export default function Landing() {
             loading="lazy"
             decoding="async"
           />
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-muted text-sm font-medium">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 ring-1 ring-white/10 supports-[backdrop-filter]:bg-white/5 backdrop-blur text-sm font-medium">
             <Zap className="h-4 w-4" />
             Intelligent Document Processing
           </div>
@@ -925,7 +923,7 @@ export default function Landing() {
               size="lg"
               onClick={handleGetStarted}
               disabled={isLoading}
-              className="text-base px-8 bg-gradient-to-r from-primary to-purple-600 text-white hover:from-primary/90 hover:to-purple-600/90 shadow-lg shadow-primary/20"
+              className="text-base px-8 rounded-full ring-1 ring-white/10 bg-gradient-to-r from-primary to-purple-600 text-white hover:from-primary/90 hover:to-purple-600/90 shadow-lg shadow-primary/20"
               onMouseEnter={() => {
                 if (!isLoading) {
                   if (isAuthenticated) {
@@ -958,11 +956,11 @@ export default function Landing() {
           <motion.div
             whileHover={{ y: -8, boxShadow: '0 20px 40px rgba(0,0,0,0.08)' }}
             transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-            className="text-center space-y-4 p-8 rounded-lg border bg-card/60 hover:bg-card shadow-sm hover:shadow-xl transition-all cursor-pointer"
+            className="group text-center space-y-4 p-8 rounded-xl border border-white/10 ring-1 ring-white/10 bg-white/5 supports-[backdrop-filter]:bg-white/5 backdrop-blur hover:bg-white/10 shadow-lg hover:shadow-2xl transition-all cursor-pointer"
           >
             <motion.div
               whileHover={{ scale: 1.1, rotate: 5 }}
-              className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-primary/10"
+              className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-white/10 ring-1 ring-white/10 shadow-md text-primary transition-transform group-hover:scale-110"
             >
               <FileText className="h-6 w-6 text-primary" />
             </motion.div>
@@ -976,11 +974,11 @@ export default function Landing() {
           <motion.div
             whileHover={{ y: -8, boxShadow: '0 20px 40px rgba(0,0,0,0.08)' }}
             transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-            className="text-center space-y-4 p-8 rounded-lg border bg-card/60 hover:bg-card shadow-sm hover:shadow-xl transition-all cursor-pointer"
+            className="group text-center space-y-4 p-8 rounded-xl border border-white/10 ring-1 ring-white/10 bg-white/5 supports-[backdrop-filter]:bg-white/5 backdrop-blur hover:bg-white/10 shadow-lg hover:shadow-2xl transition-all cursor-pointer"
           >
             <motion.div
               whileHover={{ scale: 1.1, rotate: -5 }}
-              className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-primary/10"
+              className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-white/10 ring-1 ring-white/10 shadow-md text-primary transition-transform group-hover:scale-110"
             >
               <Search className="h-6 w-6 text-primary" />
             </motion.div>
@@ -993,11 +991,11 @@ export default function Landing() {
           <motion.div
             whileHover={{ y: -8, boxShadow: '0 20px 40px rgba(0,0,0,0.08)' }}
             transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-            className="text-center space-y-4 p-8 rounded-lg border bg-card/60 hover:bg-card shadow-sm hover:shadow-xl transition-all cursor-pointer"
+            className="group text-center space-y-4 p-8 rounded-xl border border-white/10 ring-1 ring-white/10 bg-white/5 supports-[backdrop-filter]:bg-white/5 backdrop-blur hover:bg-white/10 shadow-lg hover:shadow-2xl transition-all cursor-pointer"
           >
             <motion.div
               whileHover={{ scale: 1.1, rotate: 5 }}
-              className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-primary/10"
+              className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-white/10 ring-1 ring-white/10 shadow-md text-primary transition-transform group-hover:scale-110"
             >
               <Zap className="h-6 w-6 text-primary" />
             </motion.div>
@@ -1014,7 +1012,7 @@ export default function Landing() {
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5, duration: 0.6 }}
-          className="max-w-5xl mx-auto mt-12 w-full"
+          className="hidden"
         >
           <Card className="bg-card/60 supports-[backdrop-filter]:bg-card/60 backdrop-blur shadow-lg">
             <CardHeader>
@@ -1183,7 +1181,7 @@ export default function Landing() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t py-8">
+      <footer className="border-t py-8 bg-background/60 supports-[backdrop-filter]:bg-background/60 backdrop-blur">
         <div className="max-w-7xl mx-auto px-8 text-center text-sm text-muted-foreground">
           Powered by{' '}
           <a
