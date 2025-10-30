@@ -65,9 +65,9 @@ interface DocumentFieldsProps {
 }
 
 export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsProps) {
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(['metadata', 'vendor', 'customer', 'items'])
-  );
+  // Collapse all sections by default
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+  const showDebug = false; // Hide debug lines by default for a cleaner UI
 
   const toggleSection = (section: string) => {
     setExpandedSections((prev) => {
@@ -109,20 +109,24 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
 
     return (
       <motion.div
-        className="py-3 px-4 cursor-pointer rounded-lg transition-all border bg-card/50 hover:bg-primary/5 hover:border-primary/30 hover:shadow-md"
+        className="py-2.5 px-3 cursor-pointer rounded-lg transition-all border bg-card/50 hover:bg-primary/5 hover:border-primary/30 hover:shadow-sm"
         // Include page number from the bounding box if available
         onMouseEnter={() =>
           bb && onFieldHover({ ...bb, page: bb.page ?? page.page_number })
         }
         onMouseLeave={() => onFieldHover(null)}
       >
-        <div className="text-xs font-medium text-muted-foreground mb-1.5">{label}</div>
+        <div className="text-xs font-medium text-muted-foreground mb-1">{label}</div>
         <div className="text-sm font-medium text-foreground truncate">{value || '—'}</div>
-        <div className="mt-1 text-[10px] text-muted-foreground font-mono">{dbg}</div>
+        {showDebug && (
+          <div className="mt-1 text-[10px] text-muted-foreground font-mono">{dbg}</div>
+        )}
         {/* New: show raw bounding_box for debugging */}
-        <div className="mt-0.5 text-[10px] text-muted-foreground font-mono break-all">
-          bbox: {rawLabel} {boxesCount > 1 ? `(total ${boxesCount})` : ''}
-        </div>
+        {showDebug && (
+          <div className="mt-0.5 text-[10px] text-muted-foreground font-mono break-all">
+            bbox: {rawLabel} {boxesCount > 1 ? `(total ${boxesCount})` : ''}
+          </div>
+        )}
       </motion.div>
     );
   };
@@ -132,7 +136,7 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
     return (
       <button
         onClick={() => toggleSection(id)}
-        className="flex items-center justify-between w-full py-3 px-4 hover:bg-muted/50 transition-colors rounded-lg group"
+        className="flex items-center justify-between w-full py-2.5 px-3 hover:bg-muted/50 transition-colors rounded-lg group"
       >
         <h3 className="font-semibold text-sm text-foreground group-hover:text-primary transition-colors">{title}</h3>
         {isExpanded ? (
@@ -146,16 +150,16 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
 
   return (
     <ScrollArea className="h-full">
-      <div className="p-6 space-y-4">
+      <div className="p-4 space-y-3">
         {/* Metadata Section */}
-        <div className="space-y-2 bg-card rounded-lg border p-2">
+        <div className="space-y-1.5 bg-card rounded-lg border p-2">
           <SectionHeader title="Document Metadata" id="metadata" />
           {expandedSections.has('metadata') && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 pt-2"
+              className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-1 pt-1"
             >
               <FieldItem
                 label="Document Title"
@@ -177,14 +181,14 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
         </div>
 
         {/* Vendor Information */}
-        <div className="space-y-2 bg-card rounded-lg border p-2">
+        <div className="space-y-1.5 bg-card rounded-lg border p-2">
           <SectionHeader title="Vendor Information" id="vendor" />
           {expandedSections.has('vendor') && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 pt-2"
+              className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-1 pt-1"
             >
               <FieldItem
                 label="Vendor Name"
@@ -211,14 +215,14 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
         </div>
 
         {/* Customer Information */}
-        <div className="space-y-2 bg-card rounded-lg border p-2">
+        <div className="space-y-1.5 bg-card rounded-lg border p-2">
           <SectionHeader title="Customer Information" id="customer" />
           {expandedSections.has('customer') && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 pt-2"
+              className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-1 pt-1"
             >
               <FieldItem
                 label="Customer Name"
@@ -250,27 +254,27 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
         </div>
 
         {/* Items */}
-        <div className="space-y-2 bg-card rounded-lg border p-2">
+        <div className="space-y-1.5 bg-card rounded-lg border p-2">
           <SectionHeader title="Items" id="items" />
           {expandedSections.has('items') && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 pt-2"
+              className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 pt-1"
             >
               {page.items.map((item, index) => (
                 <motion.div
                   key={index}
-                  className="p-4 rounded-lg border border-border hover:border-primary/30 cursor-pointer transition-all hover:shadow-md bg-card/50"
+                  className="p-3 rounded-lg border border-border hover:border-primary/30 cursor-pointer transition-all hover:shadow-sm bg-card/50"
                   onMouseEnter={() => {
                     const ibb = normalizeBoxAny(item.bounding_box?.[0]);
                     if (ibb) onFieldHover({ ...ibb, page: ibb.page ?? page.page_number });
                   }}
                   onMouseLeave={() => onFieldHover(null)}
                 >
-                  <div className="text-xs font-semibold text-primary mb-3">Item {index + 1}</div>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <div className="text-xs font-semibold text-primary mb-2">Item {index + 1}</div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                     <div>
                       <div className="text-xs text-muted-foreground mb-1">Description</div>
                       <div className="text-sm font-medium truncate">{item.description || '—'}</div>
@@ -292,18 +296,22 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
                     const ibb = normalizeBoxAny(item.bounding_box?.[0]);
                     return (
                       <>
-                        <div className="mt-2 text-[10px] text-muted-foreground font-mono">
-                          {ibb
-                            ? `x:${Math.round(ibb.x)} y:${Math.round(ibb.y)} w:${Math.round(ibb.width)} h:${Math.round(ibb.height)} p:${ibb.page ?? page.page_number}`
-                            : 'x:— y:— w:— h:— p:—'}
-                        </div>
+                        {showDebug && (
+                          <div className="mt-2 text-[10px] text-muted-foreground font-mono">
+                            {ibb
+                              ? `x:${Math.round(ibb.x)} y:${Math.round(ibb.y)} w:${Math.round(ibb.width)} h:${Math.round(ibb.height)} p:${ibb.page ?? page.page_number}`
+                              : 'x:— y:— w:— h:— p:—'}
+                          </div>
+                        )}
                         {/* New: raw bbox debug for items */}
-                        <div className="mt-0.5 text-[10px] text-muted-foreground font-mono break-all">
-                          bbox: {Array.isArray(item.bounding_box) && item.bounding_box.length > 0 ? (() => {
-                            try { return JSON.stringify(item.bounding_box[0]); } catch { return '[unserializable]'; }
-                          })() : '[]'}
-                          {Array.isArray(item.bounding_box) && item.bounding_box.length > 1 ? ` (total ${item.bounding_box.length})` : ''}
-                        </div>
+                        {showDebug && (
+                          <div className="mt-0.5 text-[10px] text-muted-foreground font-mono break-all">
+                            bbox: {Array.isArray(item.bounding_box) && item.bounding_box.length > 0 ? (() => {
+                              try { return JSON.stringify(item.bounding_box[0]); } catch { return '[unserializable]'; }
+                            })() : '[]'}
+                            {Array.isArray(item.bounding_box) && item.bounding_box.length > 1 ? ` (total ${item.bounding_box.length})` : ''}
+                          </div>
+                        )}
                       </>
                     );
                   })()}
@@ -315,17 +323,17 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
 
         {/* Other Information */}
         {page.other_information.length > 0 && (
-          <div className="space-y-2 bg-card rounded-lg border p-2">
+          <div className="space-y-1.5 bg-card rounded-lg border p-2">
             <SectionHeader title="Other Information" id="other" />
             {expandedSections.has('other') && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 pt-2"
+                className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-1 pt-1"
               >
                 {page.other_information.map((info, index) => (
-                  <div key={index} className="space-y-2">
+                  <div key={index} className="space-y-1.5">
                     {info.additional_notes && (
                       <FieldItem
                         label="Additional Notes"

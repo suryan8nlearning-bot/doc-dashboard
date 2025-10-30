@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { ZoomIn, ZoomOut, RotateCcw, Loader2, ArrowUp } from 'lucide-react';
+import { ZoomIn, ZoomOut, RotateCcw, Loader2, ArrowUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useRef, useState, useMemo } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 // Add worker via Vite to ensure version matches installed package
@@ -101,6 +101,7 @@ function normalizeBoxAny(input: any): (BoundingBox & { page?: number }) | null {
 }
 
 const [currentPage, setCurrentPage] = useState(1);
+const [totalPages, setTotalPages] = useState(1); // Add: track total pages
 
 const getBaseDims = () => {
   const base = baseViewportRef.current;
@@ -441,6 +442,7 @@ const toPxBox = (box: WideBox): WideBox => {
         const pdf = await loadingTask.promise;
         if (cancelled) return;
         pdfDocRef.current = pdf;
+        setTotalPages(pdf.numPages); // Add: set total pages
 
         const page = await pdf.getPage(1);
         if (cancelled) return;
@@ -475,6 +477,24 @@ const toPxBox = (box: WideBox): WideBox => {
       } catch {}
     };
   }, [pdfArrayBuffer]);
+
+  // Add: page navigation helpers
+  const goToPage = async (pageNum: number) => {
+    if (!pdfDocRef.current) return;
+    const clamped = Math.max(1, Math.min(pageNum, totalPages));
+    try {
+      const page = await pdfDocRef.current.getPage(clamped);
+      pageRef.current = page;
+      const base = page.getViewport({ scale: 1 });
+      baseViewportRef.current = { width: base.width, height: base.height };
+      setCurrentPage(clamped);
+      await renderPage(zoom);
+    } catch (e) {
+      console.warn('PDFViewer: failed to navigate to page', clamped, e);
+    }
+  };
+  const handlePrevPage = () => void goToPage(currentPage - 1);
+  const handleNextPage = () => void goToPage(currentPage + 1);
 
   // Re-render quickly on zoom using cached PDF page; cancels any in-flight render
   useEffect(() => {
@@ -571,10 +591,19 @@ const toPxBox = (box: WideBox): WideBox => {
         setInvertY((v) => !v);
         console.log('PDFViewer: invertY set to', !invertY);
       }
+      // Add: arrow key navigation
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        handlePrevPage();
+      }
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        handleNextPage();
+      }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [invertY]);
+  }, [invertY, currentPage, totalPages, zoom]); // extend deps for nav
 
   // Keep hover-centering and zooming for a hovered single box (clamped) + switch page if needed
   useEffect(() => {
@@ -693,6 +722,34 @@ const toPxBox = (box: WideBox): WideBox => {
           title="Reset zoom (0)"
         >
           <RotateCcw className="h-4 w-4" />
+        </Button>
+
+        {/* Add: Page navigation controls */}
+        <div className="mx-2 h-5 w-px bg-border" />
+        <Button
+          variant="outline"
+          size="icon"
+          className="rounded-full h-8 w-8"
+          onClick={handlePrevPage}
+          disabled={currentPage <= 1}
+          aria-label="Previous page"
+          title="Previous page (←)"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <span className="px-2 text-xs font-medium tabular-nums">
+          Pg {currentPage} / {totalPages}
+        </span>
+        <Button
+          variant="outline"
+          size="icon"
+          className="rounded-full h-8 w-8"
+          onClick={handleNextPage}
+          disabled={currentPage >= totalPages}
+          aria-label="Next page"
+          title="Next page (→)"
+        >
+          <ChevronRight className="h-4 w-4" />
         </Button>
 
         {/* Debug + Invert Y toggles */}
