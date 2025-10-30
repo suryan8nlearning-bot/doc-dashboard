@@ -1210,24 +1210,6 @@ export default function DocumentDetail() {
 
           {/* Buttons and User Menu on the right */}
           <div className="flex items-center gap-3 ml-auto">
-            {/* Compact navigation controls */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={goPrevLine}
-              className="px-3 rounded-md"
-            >
-              Prev
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={goNextLine}
-              className="px-3 rounded-md"
-            >
-              Next
-            </Button>
-
             {/* Step controls */}
             {showSAP && view === 'sap' && (
               <Button
@@ -1255,7 +1237,7 @@ export default function DocumentDetail() {
               size="sm"
               onClick={handleSave}
               disabled={!sapEditorValue?.trim() || isSaving || !doc?.id}
-              className="px-4 rounded-md bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md hover:shadow-lg"
+              className="px-4 rounded-md bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg"
             >
               {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Save
@@ -1264,7 +1246,7 @@ export default function DocumentDetail() {
               size="sm"
               onClick={handleCreate}
               disabled={!sapEditorValue?.trim() || isCreating || !doc?.id}
-              className="px-4 rounded-md bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md hover:shadow-lg"
+              className="px-4 rounded-md bg-green-600 hover:bg-green-700 text-white shadow-md hover:shadow-lg"
             >
               {isCreating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Create
