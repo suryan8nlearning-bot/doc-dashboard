@@ -3,8 +3,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase, hasSupabaseEnv, publicUrlForPath } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, Loader2, LogOut, Mail, Trash2, User, Moon, Sun, CheckCircle2, Clock, Plus, RefreshCw } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { FileText, Loader2, LogOut, Mail, Trash2, User, Moon, Sun, CheckCircle2, Clock, RefreshCw } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -69,6 +69,15 @@ export default function Dashboard() {
   const [selectedSAP, setSelectedSAP] = useState<any | null>(null);
   const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set());
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const tableRef = useRef<HTMLDivElement | null>(null);
+  const openTable = () => {
+    if (window.location.pathname !== '/dashboard') {
+      navigate('/dashboard');
+      setTimeout(() => tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+    } else {
+      tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
 
   // Add MotionTableRow for animating rows
   const MotionTableRow = motion(TableRow);
@@ -741,9 +750,9 @@ export default function Dashboard() {
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Refresh
                 </Button>
-                <Button onClick={handleNewUpload} className="shadow-sm">
-                  <Plus className="h-4 w-4 mr-2" />
-                  New Upload
+                <Button onClick={openTable} className="shadow-sm">
+                  <FileText className="h-4 w-4 mr-2" />
+                  View Documents
                 </Button>
               </div>
             </div>
@@ -868,9 +877,9 @@ export default function Dashboard() {
                       <CardTitle className="text-sm text-muted-foreground">Quick Actions</CardTitle>
                     </CardHeader>
                     <CardContent className="flex flex-wrap gap-3">
-                      <Button onClick={handleNewUpload} className="shadow-sm">
-                        <Plus className="h-4 w-4 mr-2" />
-                        New Upload
+                      <Button onClick={openTable} className="shadow-sm">
+                        <FileText className="h-4 w-4 mr-2" />
+                        View Documents
                       </Button>
                       <Button
                         onClick={handleRefresh}
@@ -926,16 +935,18 @@ export default function Dashboard() {
               </div>
             </motion.div>
           ) : (
-            <DocumentsTable
-              docs={filteredDocs}
-              selectedIds={selectedDocuments}
-              onToggleSelectAll={handleSelectAll}
-              onToggleSelect={handleSelectDocument}
-              onViewMailContent={(content) => handleViewMailContent(content)}
-              onViewDetails={(id) => navigate(`/document/${id}`)}
-              onEdit={handleEditDocument}
-              onDelete={handleDeleteDocument}
-            />
+            <div ref={tableRef}>
+              <DocumentsTable
+                docs={filteredDocs}
+                selectedIds={selectedDocuments}
+                onToggleSelectAll={handleSelectAll}
+                onToggleSelect={handleSelectDocument}
+                onViewMailContent={(content) => handleViewMailContent(content)}
+                onViewDetails={(id) => navigate(`/document/${id}`)}
+                onEdit={handleEditDocument}
+                onDelete={handleDeleteDocument}
+              />
+            </div>
           )}
         </div>
       </div>
