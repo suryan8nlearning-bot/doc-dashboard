@@ -579,7 +579,7 @@ export default function DocumentDetail() {
 
   const renderSapEditable = (out: any) => {
     if (!out || typeof out !== 'object') {
-      return <div className="text-sm text-muted-foreground">No SAP data.</div>;
+      return <div className="text-base text-muted-foreground">No SAP data.</div>;
     }
     const headerIgnore = new Set(['to_Partner', 'to_PricingElement', 'to_Item']);
     const headerPairs = Object.entries(out)
@@ -593,87 +593,100 @@ export default function DocumentDetail() {
     return (
       <Accordion type="multiple" defaultValue={['header']} className="space-y-3">
         <AccordionItem value="header">
-          <AccordionTrigger className="text-sm font-semibold">
+          <AccordionTrigger className="text-base font-semibold">
             Header ({headerPairs.length})
           </AccordionTrigger>
           <AccordionContent>
             {headerPairs.length ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 {headerPairs.map(([k, v]) => (
-                  <div key={k} className="rounded bg-card/50 p-2 border">
-                    <div className="text-xs text-muted-foreground mb-1">{k}</div>
+                  <div key={k} className="rounded bg-card/50 p-3 border">
+                    <div className="text-sm text-muted-foreground mb-1.5">{k}</div>
                     <Input
                       value={String(v ?? '')}
                       onChange={(e) => updateHeaderField(k, e.target.value)}
-                      className="h-8"
-                      // Prevent PDF zoom shortcuts while typing
+                      className="h-9 text-base"
                       onKeyDown={onEditingKeyDown}
                     />
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="text-xs text-muted-foreground">No header fields.</div>
+              <div className="text-sm text-muted-foreground">No header fields.</div>
             )}
 
             {Array.isArray(out?.to_Partner) && out.to_Partner.length > 0 && (
-              <div className="mt-5 space-y-2">
-                <div className="text-sm font-semibold">Partners ({out.to_Partner.length})</div>
-                <div className="space-y-2">
-                  {out.to_Partner.map((p: any, idx: number) => (
-                    <div key={idx} className="rounded border p-2 bg-card/40">
-                      <div className="text-xs text-muted-foreground mb-2">Partner {idx + 1}</div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        {Object.entries(p || {}).map(([k, v]) => (
-                          <div key={k} className="rounded bg-card/50 p-2 border">
-                            <div className="text-xs text-muted-foreground mb-1">{k}</div>
-                            <Input
-                              value={String(v ?? '')}
-                              onChange={(e) => updatePartnerField(idx, k, e.target.value)}
-                              className="h-8"
-                              // Prevent PDF zoom shortcuts while typing
-                              onKeyDown={onEditingKeyDown}
-                            />
+              <Accordion type="multiple" className="mt-5">
+                <AccordionItem value="partners">
+                  <AccordionTrigger className="text-base font-semibold">
+                    Partners ({out.to_Partner.length})
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-2">
+                      {out.to_Partner.map((p: any, idx: number) => (
+                        <div key={idx} className="rounded border p-3 bg-card/40">
+                          <div className="text-sm text-muted-foreground mb-2">Partner {idx + 1}</div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {Object.entries(p || {}).map(([k, v]) => (
+                              <div key={k} className="rounded bg-card/50 p-3 border">
+                                <div className="text-sm text-muted-foreground mb-1.5">{k}</div>
+                                <Input
+                                  value={String(v ?? '')}
+                                  onChange={(e) => updatePartnerField(idx, k, e.target.value)}
+                                  className="h-9 text-base"
+                                  onKeyDown={onEditingKeyDown}
+                                />
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
             )}
 
             {Array.isArray(out?.to_PricingElement) && out.to_PricingElement.length > 0 && (
-              <div className="mt-5 space-y-2">
-                <div className="text-sm font-semibold">Header Pricing ({out.to_PricingElement.length})</div>
-                <div className="space-y-2">
-                  {out.to_PricingElement.map((pe: any, idx: number) => (
-                    <div key={idx} className="rounded border p-2 bg-card/40">
-                      <div className="text-xs text-muted-foreground mb-2">Pricing {idx + 1}</div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        {Object.entries(pe || {}).map(([k, v]) => (
-                          <div key={k} className="rounded bg-card/50 p-2 border">
-                            <div className="text-xs text-muted-foreground mb-1">{k}</div>
-                            <Input
-                              value={String(v ?? '')}
-                              onChange={(e) => updatePricingField(idx, k, e.target.value)}
-                              className="h-8"
-                              // Prevent PDF zoom shortcuts while typing
-                              onKeyDown={onEditingKeyDown}
-                            />
+              <Accordion type="multiple" className="mt-5">
+                <AccordionItem value="pricing">
+                  <AccordionTrigger className="text-base font-semibold">
+                    Header Pricing ({out.to_PricingElement.length})
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-2">
+                      {out.to_PricingElement.map((pe: any, idx: number) => (
+                        <div key={idx} className="rounded border p-3 bg-card/40">
+                          <div className="text-sm text-muted-foreground mb-2">Pricing {idx + 1}</div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {Object.entries(pe || {}).map(([k, v]) => (
+                              <div key={k} className="rounded bg-card/50 p-3 border">
+                                <div className="text-sm text-muted-foreground mb-1.5">{k}</div>
+                                <Input
+                                  value={String(v ?? '')}
+                                  onChange={(e) => updatePricingField(idx, k, e.target.value)}
+                                  className="h-9 text-base"
+                                  onKeyDown={onEditingKeyDown}
+                                />
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
             )}
 
             {Array.isArray(out?.to_Item) && out.to_Item.length > 0 && (
-              <div className="mt-5 space-y-3">
-                <div className="text-sm font-semibold">Items ({out.to_Item.length})</div>
-                {out.to_Item.map((it: any, idx: number) => {
+              <Accordion type="multiple" className="mt-5">
+                <AccordionItem value="items">
+                  <AccordionTrigger className="text-base font-semibold">
+                    Items ({out.to_Item.length})
+                  </AccordionTrigger>
+                  <AccordionContent className="space-y-3">
+                    {out.to_Item.map((it: any, idx: number) => {
                   const partners = Array.isArray(it?.to_ItemPartner) ? it.to_ItemPartner : [];
                   const prices = Array.isArray(it?.to_ItemPricingElement) ? it.to_ItemPricingElement : [];
                   const itemHeaderPairs = Object.entries(it || {})
@@ -684,78 +697,95 @@ export default function DocumentDetail() {
                     )
                     .sort(([a], [b]) => a.localeCompare(b));
                   return (
-                    <div key={idx} className="rounded border p-2 space-y-3 bg-card/40">
-                      <div className="text-xs text-muted-foreground">Item {idx + 1}</div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        {itemHeaderPairs.map(([k, v]) => (
-                          <div key={k} className="rounded bg-card/50 p-2 border">
-                            <div className="text-xs text-muted-foreground mb-1">{k}</div>
-                            <Input
-                              value={String(v ?? '')}
-                              onChange={(e) => updateItemField(idx, k, e.target.value)}
-                              className="h-8"
-                              // Prevent PDF zoom shortcuts while typing
-                              onKeyDown={onEditingKeyDown}
-                            />
-                          </div>
-                        ))}
-                      </div>
-
-                      {partners.length > 0 && (
-                        <div className="space-y-2">
-                          <div className="text-xs font-medium">Item Partners ({partners.length})</div>
+                    <Accordion key={idx} type="multiple" className="rounded border bg-card/40">
+                      <AccordionItem value={`item-${idx}`}>
+                        <AccordionTrigger className="px-3 text-sm font-medium">
+                          Item {idx + 1}
+                        </AccordionTrigger>
+                        <AccordionContent className="px-3 pb-3 space-y-3">
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                            {partners.map((p: any, pi: number) => (
-                              <div key={pi} className="rounded border p-2 bg-card/30">
-                                <div className="grid grid-cols-1 gap-2">
-                                  {Object.entries(p || {}).map(([k, v]) => (
-                                    <div key={k} className="rounded bg-card/50 p-2 border">
-                                      <div className="text-xs text-muted-foreground mb-1">{k}</div>
-                                      <Input
-                                        value={String(v ?? '')}
-                                        onChange={(e) => updateItemPartnerField(idx, pi, k, e.target.value)}
-                                        className="h-8"
-                                        // Prevent PDF zoom shortcuts while typing
-                                        onKeyDown={onEditingKeyDown}
-                                      />
-                                    </div>
-                                  ))}
-                                </div>
+                            {itemHeaderPairs.map(([k, v]) => (
+                              <div key={k} className="rounded bg-card/50 p-3 border">
+                                <div className="text-sm text-muted-foreground mb-1.5">{k}</div>
+                                <Input
+                                  value={String(v ?? '')}
+                                  onChange={(e) => updateItemField(idx, k, e.target.value)}
+                                  className="h-9 text-base"
+                                  onKeyDown={onEditingKeyDown}
+                                />
                               </div>
                             ))}
                           </div>
-                        </div>
+
+                      {partners.length > 0 && (
+                        <Accordion type="multiple">
+                          <AccordionItem value="item-partners">
+                            <AccordionTrigger className="text-sm font-medium">
+                              Item Partners ({partners.length})
+                            </AccordionTrigger>
+                            <AccordionContent>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                {partners.map((p: any, pi: number) => (
+                                  <div key={pi} className="rounded border p-3 bg-card/30">
+                                    <div className="grid grid-cols-1 gap-2">
+                                      {Object.entries(p || {}).map(([k, v]) => (
+                                        <div key={k} className="rounded bg-card/50 p-3 border">
+                                          <div className="text-sm text-muted-foreground mb-1.5">{k}</div>
+                                          <Input
+                                            value={String(v ?? '')}
+                                            onChange={(e) => updateItemPartnerField(idx, pi, k, e.target.value)}
+                                            className="h-9 text-base"
+                                            onKeyDown={onEditingKeyDown}
+                                          />
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </AccordionContent>
+                          </AccordionItem>
+                        </Accordion>
                       )}
 
                       {prices.length > 0 && (
-                        <div className="space-y-2">
-                          <div className="text-xs font-medium">Item Pricing ({prices.length})</div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                            {prices.map((pr: any, ri: number) => (
-                              <div key={ri} className="rounded border p-2 bg-card/30">
-                                <div className="grid grid-cols-1 gap-2">
-                                  {Object.entries(pr || {}).map(([k, v]) => (
-                                    <div key={k} className="rounded bg-card/50 p-2 border">
-                                      <div className="text-xs text-muted-foreground mb-1">{k}</div>
-                                      <Input
-                                        value={String(v ?? '')}
-                                        onChange={(e) => updateItemPricingField(idx, ri, k, e.target.value)}
-                                        className="h-8"
-                                        // Prevent PDF zoom shortcuts while typing
-                                        onKeyDown={onEditingKeyDown}
-                                      />
+                        <Accordion type="multiple">
+                          <AccordionItem value="item-pricing">
+                            <AccordionTrigger className="text-sm font-medium">
+                              Item Pricing ({prices.length})
+                            </AccordionTrigger>
+                            <AccordionContent>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                {prices.map((pr: any, ri: number) => (
+                                  <div key={ri} className="rounded border p-3 bg-card/30">
+                                    <div className="grid grid-cols-1 gap-2">
+                                      {Object.entries(pr || {}).map(([k, v]) => (
+                                        <div key={k} className="rounded bg-card/50 p-3 border">
+                                          <div className="text-sm text-muted-foreground mb-1.5">{k}</div>
+                                          <Input
+                                            value={String(v ?? '')}
+                                            onChange={(e) => updateItemPricingField(idx, ri, k, e.target.value)}
+                                            className="h-9 text-base"
+                                            onKeyDown={onEditingKeyDown}
+                                          />
+                                        </div>
+                                      ))}
                                     </div>
-                                  ))}
-                                </div>
+                                  </div>
+                                ))}
                               </div>
-                            ))}
-                          </div>
-                        </div>
+                            </AccordionContent>
+                          </AccordionItem>
+                        </Accordion>
                       )}
-                    </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    </Accordion>
                   );
                 })}
-              </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
             )}
           </AccordionContent>
         </AccordionItem>
@@ -1158,7 +1188,7 @@ export default function DocumentDetail() {
       {/* Header */}
       <header className="border-b bg-background sticky top-0 z-10">
         <div className="flex items-center justify-between px-8 py-4">
-          <div className="flex items-center gap-4 order-1">
+          <div className="flex items-center gap-4">
             <Button
               variant="ghost"
               size="sm"
@@ -1178,8 +1208,69 @@ export default function DocumentDetail() {
             </div>
           </div>
 
-          {/* Move Dropdown before buttons and control order */}
-          <div className="order-2">
+          {/* Buttons and User Menu on the right */}
+          <div className="flex items-center gap-3 ml-auto">
+            {/* Compact navigation controls */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={goPrevLine}
+              className="px-3 rounded-md"
+            >
+              Prev
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={goNextLine}
+              className="px-3 rounded-md"
+            >
+              Next
+            </Button>
+
+            {/* Step controls */}
+            {showSAP && view === 'sap' && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setView('document')}
+                className="px-4 rounded-md"
+              >
+                Next Step
+              </Button>
+            )}
+            {showSAP && view === 'document' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setView('sap')}
+                className="px-4 rounded-md"
+              >
+                Back
+              </Button>
+            )}
+
+            <Button
+              variant="default"
+              size="sm"
+              onClick={handleSave}
+              disabled={!sapEditorValue?.trim() || isSaving || !doc?.id}
+              className="px-4 rounded-md bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md hover:shadow-lg"
+            >
+              {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Save
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleCreate}
+              disabled={!sapEditorValue?.trim() || isCreating || !doc?.id}
+              className="px-4 rounded-md bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md hover:shadow-lg"
+            >
+              {isCreating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Create
+            </Button>
+
+            {/* User Menu - moved to far right */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -1228,69 +1319,6 @@ export default function DocumentDetail() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          </div>
-
-          {/* Buttons: make more graphic and pin to far-right */}
-          <div className="flex items-center gap-3 order-3 ml-auto">
-            {/* Line navigation controls */}
-            <Button
-              variant="outline"
-              size="lg"
-              onClick={goPrevLine}
-              className="px-6 rounded-full shadow-md hover:shadow-lg transition-transform hover:scale-[1.02]"
-            >
-              Prev Line
-            </Button>
-            <Button
-              variant="outline"
-              size="lg"
-              onClick={goNextLine}
-              className="px-6 rounded-full shadow-md hover:shadow-lg transition-transform hover:scale-[1.02]"
-            >
-              Next Line
-            </Button>
-
-            {/* Step controls */}
-            {showSAP && view === 'sap' && (
-              <Button
-                variant="secondary"
-                size="lg"
-                onClick={() => setView('document')}
-                className="px-6 rounded-full shadow-md hover:shadow-lg transition-transform hover:scale-[1.02]"
-              >
-                Next
-              </Button>
-            )}
-            {showSAP && view === 'document' && (
-              <Button
-                variant="outline"
-                size="lg"
-                onClick={() => setView('sap')}
-                className="px-6 rounded-full shadow-md hover:shadow-lg transition-transform hover:scale-[1.02]"
-              >
-                Back
-              </Button>
-            )}
-
-            <Button
-              variant="default"
-              size="lg"
-              onClick={handleSave}
-              disabled={!sapEditorValue?.trim() || isSaving || !doc?.id}
-              className="px-6 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg hover:shadow-xl transition-transform hover:scale-[1.02]"
-            >
-              {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Save
-            </Button>
-            <Button
-              size="lg"
-              onClick={handleCreate}
-              disabled={!sapEditorValue?.trim() || isCreating || !doc?.id}
-              className="px-6 rounded-full bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg hover:shadow-xl transition-transform hover:scale-[1.02]"
-            >
-              {isCreating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Create
-            </Button>
           </div>
         </div>
       </header>

@@ -531,11 +531,13 @@ const toPxBox = (box: WideBox): WideBox => {
   }, [focusBox, pdfArrayBuffer, canvasSize.width, canvasSize.height]);
 
   const handleZoomIn = () => {
-    updateZoom(zoom + 0.5);
+    const newZoom = clampZoom(zoom + 0.25);
+    updateZoom(newZoom);
   };
   
   const handleZoomOut = () => {
-    updateZoom(zoom - 0.5);
+    const newZoom = clampZoom(zoom - 0.25);
+    updateZoom(newZoom);
   };
   
   const handleResetZoom = () => {
