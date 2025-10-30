@@ -6,12 +6,16 @@ import { v } from "convex/values";
 export const sendWebhook = action({
   args: {
     url: v.string(),
-    documentIds: v.array(v.string()),
-    userEmail: v.string(),
-    source: v.string(),
+    // Allow forwarding arbitrary JSON payloads to the webhook
+    body: v.any(),
+    // Optional metadata for logging/tracking if needed
+    userEmail: v.optional(v.string()),
+    source: v.optional(v.string()),
+    // Optional per-call timeout override (defaults to 15s)
+    timeoutMs: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const { url, documentIds, userEmail, source } = args;
+    const { url, body, timeoutMs } = args;
 
     // Validate URL and enforce HTTPS
     let parsed: URL;
@@ -24,21 +28,14 @@ export const sendWebhook = action({
       return { ok: false, status: 0, error: "Webhook URL must use HTTPS" };
     }
 
-    const payload = {
-      documentIds,
-      user: userEmail,
-      source,
-      timestamp: new Date().toISOString(),
-    };
-
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs ?? 15000);
 
     try {
       const res = await fetch(parsed.toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(body ?? {}),
         signal: controller.signal,
       });
       clearTimeout(timeout);

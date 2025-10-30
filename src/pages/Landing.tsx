@@ -24,6 +24,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { useAction } from "convex/react";
+import { api } from "@/convex/_generated/api";
 
 export default function Landing() {
   const { isLoading, isAuthenticated, user, signOut } = useAuth();
@@ -714,7 +716,10 @@ export default function Landing() {
     }
   };
 
-  // Replace: handleCreate with a hardened version that validates URL, confirms, and times out requests
+  // Add: action hook to call backend webhook proxy
+  const sendWebhook = useAction(api.webhooks.sendWebhook);
+
+  // Replace: handleCreate to use Convex action (avoids CORS) and keep same validation/UX
   const handleCreate = async () => {
     if (!docId) {
       toast.error('Enter a document id');
@@ -768,23 +773,20 @@ export default function Landing() {
 
     setIsCreating(true);
     try {
-      const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => controller.abort(), 15000);
-
-      const res = await fetch(parsed.toString(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: docId, payload }),
-        signal: controller.signal,
+      const res = await sendWebhook({
+        url: parsed.toString(),
+        body: { id: docId, payload },
+        // You can optionally pass metadata for tracking
+        // userEmail: user?.email ?? undefined,
+        // source: "Landing",
       });
 
-      window.clearTimeout(timeoutId);
-
-      if (!res.ok) throw new Error(`Webhook responded ${res.status}`);
+      if (!res?.ok) {
+        throw new Error(res?.error || `Webhook responded ${res?.status}`);
+      }
       toast.success('Webhook called successfully');
     } catch (e: any) {
-      const msg = e?.name === 'AbortError' ? 'Request timed out' : (e?.message || e);
-      toast.error(`Webhook failed: ${msg}`);
+      toast.error(`Webhook failed: ${e?.message || e}`);
     } finally {
       setIsCreating(false);
     }
