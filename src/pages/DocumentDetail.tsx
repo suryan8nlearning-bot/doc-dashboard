@@ -1018,7 +1018,7 @@ export default function DocumentDetail() {
   }, [showSAP]);
 
   // Navigation across documents: get id from route and provide prev/next
-  const navigate = useNavigate();
+  // using existing navigate from above
   const params = useParams();
   const currentId = (params as any).id as string | undefined;
 
@@ -1073,7 +1073,7 @@ export default function DocumentDetail() {
         const bbox = items[0]?.bounding_box?.[0];
         if (Array.isArray(bbox) && bbox.length >= 4) {
           const [x1, y1, x2, y2, p] = bbox;
-          setHighlightBox({ x1, y1, x2, y2, page: Number.isFinite(p) ? p : 1 });
+          setHighlightBox({ x: x1, y: y1, width: x2 - x1, height: y2 - y1, page: Number.isFinite(p) ? p : 1 });
         } else {
           setHighlightBox(null);
         }
@@ -1097,7 +1097,7 @@ export default function DocumentDetail() {
       const bbox = items[next]?.bounding_box?.[0];
       if (Array.isArray(bbox) && bbox.length >= 4) {
         const [x1, y1, x2, y2, p] = bbox;
-        setHighlightBox({ x1, y1, x2, y2, page: Number.isFinite(p) ? p : 1 });
+        setHighlightBox({ x: x1, y: y1, width: x2 - x1, height: y2 - y1, page: Number.isFinite(p) ? p : 1 });
       } else {
         setHighlightBox(null);
       }
@@ -1116,7 +1116,7 @@ export default function DocumentDetail() {
       const bbox = items[next]?.bounding_box?.[0];
       if (Array.isArray(bbox) && bbox.length >= 4) {
         const [x1, y1, x2, y2, p] = bbox;
-        setHighlightBox({ x1, y1, x2, y2, page: Number.isFinite(p) ? p : 1 });
+        setHighlightBox({ x: x1, y: y1, width: x2 - x1, height: y2 - y1, page: Number.isFinite(p) ? p : 1 });
       } else {
         setHighlightBox(null);
       }

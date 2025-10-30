@@ -42,7 +42,7 @@ export function BulkActionsBar({
           try {
             const res = await sendWebhook({
               url: rawUrl,
-              documentIds: selectedIds,
+              body: { documentIds: selectedIds },
               userEmail,
               source: "dashboard",
             });

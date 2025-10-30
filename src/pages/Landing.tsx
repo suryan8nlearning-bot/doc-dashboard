@@ -537,6 +537,10 @@ export default function Landing() {
     else toast.error("SAP payload is invalid");
   };
 
+  // Add: action hook to call backend webhook proxy
+  // moved above to keep hook order stable
+  const sendWebhook = useAction(api.webhooks.sendWebhook);
+
   // Show a full-screen animated loader while auth initializes
   if (isLoading) {
     return (
@@ -716,9 +720,6 @@ export default function Landing() {
     }
   };
 
-  // Add: action hook to call backend webhook proxy
-  const sendWebhook = useAction(api.webhooks.sendWebhook);
-
   // Replace: handleCreate to use Convex action (avoids CORS) and keep same validation/UX
   const handleCreate = async () => {
     if (!docId) {
@@ -769,7 +770,10 @@ export default function Landing() {
 
     // Confirm before sending externally
     const proceed = window.confirm('Send the SAP payload to the configured webhook now?');
-    if (!proceed) return;
+    if (!proceed) {
+      toast.message('Cancelled');
+      return;
+    }
 
     setIsCreating(true);
     try {
