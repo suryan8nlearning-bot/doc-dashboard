@@ -527,7 +527,7 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen flex flex-col bg-background scroll-smooth">
       {/* Header */}
-      <header className="border-b bg-background sticky top-0 z-10">
+      <header className="sticky top-0 z-10 border-b bg-background/50 backdrop-blur-md">
         <div className="flex items-center justify-between px-8 py-4">
           <div className="flex items-center gap-3">
             <img
@@ -588,7 +588,7 @@ export default function Dashboard() {
               <h2 className="text-2xl font-bold tracking-tight">Documents</h2>
               {uniqueStatuses.length > 0 && (
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-48">
+                  <SelectTrigger className="w-56 bg-background/50 backdrop-blur border-white/10">
                     <SelectValue placeholder="Filter by Status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -606,7 +606,7 @@ export default function Dashboard() {
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="flex items-center gap-4 p-4 bg-muted rounded-lg"
+                className="flex items-center gap-4 p-4 rounded-xl border border-white/10 bg-background/50 backdrop-blur-md shadow-lg"
               >
                 <span className="text-sm font-medium">
                   {selectedDocuments.size} document{selectedDocuments.size !== 1 ? 's' : ''} selected
@@ -735,7 +735,7 @@ export default function Dashboard() {
               </p>
             </div>
           ) : (
-            <div className="border rounded-lg overflow-hidden">
+            <div className="rounded-xl border border-white/10 bg-background/50 backdrop-blur-md shadow-xl overflow-hidden">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -757,9 +757,12 @@ export default function Dashboard() {
                 </TableHeader>
                 <TableBody>
                   {filteredDocs.map((doc, idx) => (
-                    <MotionTableRow 
+                    <MotionTableRow
                       key={doc.id}
-                      className={selectedDocuments.has(doc.id) ? 'bg-muted/50' : ''}
+                      className={
+                        (selectedDocuments.has(doc.id) ? 'bg-white/10 ' : '') +
+                        'hover:bg-white/5 transition-colors'
+                      }
                       initial={{ opacity: 0, y: 16 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.35, ease: 'easeOut', delay: Math.min(idx * 0.03, 0.4) }}
@@ -841,7 +844,7 @@ export default function Dashboard() {
 
       {/* Mail Content Dialog */}
       <Dialog open={isMailDialogOpen} onOpenChange={setIsMailDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto bg-background/60 backdrop-blur-md border border-white/10">
           <DialogHeader>
             <DialogTitle>Email Content</DialogTitle>
             <DialogDescription>Full email message content</DialogDescription>
@@ -855,7 +858,7 @@ export default function Dashboard() {
 
       {/* SAP Payload Dialog */}
       <Dialog open={isSAPDialogOpen} onOpenChange={setIsSAPDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto bg-background/60 backdrop-blur-md border border-white/10">
           <DialogHeader>
             <DialogTitle>SAP Payload</DialogTitle>
             <DialogDescription>Sales Order Create Payload (grouped)</DialogDescription>
