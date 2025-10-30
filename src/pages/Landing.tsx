@@ -44,6 +44,9 @@ export default function Landing() {
   const [validationErrors, setValidationErrors] = useState<ErrorObject[] | null>(null);
   const [isValid, setIsValid] = useState<boolean | null>(null);
 
+  // Add: action hook to call backend webhook proxy
+  const sendWebhook = useAction(api.webhooks.sendWebhook);
+
   // Add online/offline detection for error banner
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
   useEffect(() => {
@@ -715,9 +718,6 @@ export default function Landing() {
       setIsSaving(false);
     }
   };
-
-  // Add: action hook to call backend webhook proxy
-  const sendWebhook = useAction(api.webhooks.sendWebhook);
 
   // Replace: handleCreate to use Convex action (avoids CORS) and keep same validation/UX
   const handleCreate = async () => {
