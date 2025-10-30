@@ -1352,20 +1352,6 @@ export default function DocumentDetail() {
         </div>
       </header>
 
-      {/* Navigation Controls */}
-      <div className="flex items-center justify-end gap-2 mb-4">
-        <Button variant="outline" size="sm" onClick={goPrev} disabled={currentIndex <= 0}>
-          Previous
-        </Button>
-        <Button
-          size="sm"
-          onClick={goNext}
-          disabled={currentIndex < 0 || currentIndex >= idList.length - 1}
-        >
-          Next
-        </Button>
-      </div>
-
       {/* SAP Full-screen (Step 1) */}
       {showSAP && view === 'sap' && (
         <div className="flex-1 flex flex-col overflow-hidden p-4">
