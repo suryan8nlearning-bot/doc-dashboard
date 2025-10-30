@@ -1107,17 +1107,19 @@ export default function Landing() {
                   {isRowLoading ? (
                     <Skeleton className="h-9 w-full rounded-md" />
                   ) : (
-                    <div className="relative">
-                      <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="webhookUrl"
-                        placeholder="https://example.com/webhook"
-                        value={webhookUrl}
-                        onChange={(e) => setWebhookUrl(e.target.value)}
-                        className="pl-9"
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground">HTTPS required. Leave empty to use VITE_WEBHOOK_URL.</p>
+                    <>
+                      <div className="relative">
+                        <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="webhookUrl"
+                          placeholder="https://example.com/webhook"
+                          value={webhookUrl}
+                          onChange={(e) => setWebhookUrl(e.target.value)}
+                          className="pl-9"
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">HTTPS required. Leave empty to use VITE_WEBHOOK_URL.</p>
+                    </>
                   )}
                 </div>
               </div>

@@ -1020,7 +1020,6 @@ export default function DocumentDetail() {
   }, [showSAP]);
 
   // Navigation across documents: get id from route and provide prev/next
-  const navigate = useNavigate();
   const params = useParams();
   const currentId = (params as any).id as string | undefined;
 
