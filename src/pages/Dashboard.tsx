@@ -142,26 +142,139 @@ export default function Dashboard() {
   };
 
   const parseCCEmails = (field: any): string[] => {
-    if (!field) return [];
+    // Enhanced: handle JSON strings, objects, arrays, and various shapes
+    const extractEmail = (item: any): string => {
+      if (!item) return "";
+      if (typeof item === "string") return item;
+      if (typeof item === "object") {
+        return item.value || item.address || item.email || "";
+      }
+      return "";
+    };
+
+    // If it's already an array, map it
     if (Array.isArray(field)) {
-      return field.map((item: any) => {
-        if (typeof item === 'string') return item;
-        if (item?.value) return item.value;
-        if (item?.address) return item.address;
-        if (item?.email) return item.email;
-        return '';
-      }).filter(Boolean);
+      return field.map(extractEmail).filter(Boolean);
     }
-    if (typeof field === 'string') {
-      return field.split(',').map(s => s.trim()).filter(Boolean);
+
+    // If it's a string, try JSON parse first; otherwise comma split
+    if (typeof field === "string") {
+      const trimmed = field.trim();
+      if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          if (Array.isArray(parsed)) return parsed.map(extractEmail).filter(Boolean);
+          if (parsed && typeof parsed === "object") {
+            const arrCandidates =
+              parsed.cc ||
+              parsed.CC ||
+              parsed.cc_emails ||
+              parsed.recipients ||
+              parsed.Recipients ||
+              parsed.addresses ||
+              parsed.to ||
+              parsed.To ||
+              parsed.list;
+            if (Array.isArray(arrCandidates)) return arrCandidates.map(extractEmail).filter(Boolean);
+            const single =
+              parsed.value || parsed.address || parsed.email;
+            if (single) return [String(single)].filter(Boolean);
+          }
+        } catch {
+          // fall through to comma split
+        }
+      }
+      return trimmed.split(",").map((s) => s.trim()).filter(Boolean);
     }
-    // Handle object with nested properties
-    if (typeof field === 'object' && field !== null) {
-      if (field.value) return [field.value];
-      if (field.address) return [field.address];
-      if (field.email) return [field.email];
+
+    // If it's an object, extract common arrays/fields
+    if (field && typeof field === "object") {
+      const arrCandidates =
+        field.cc ||
+        field.CC ||
+        field.cc_emails ||
+        field.recipients ||
+        field.Recipients ||
+        field.addresses ||
+        field.to ||
+        field.To ||
+        field.list;
+      if (Array.isArray(arrCandidates)) return arrCandidates.map(extractEmail).filter(Boolean);
+
+      const single =
+        field.value || field.address || field.email;
+      if (single) return [String(single)].filter(Boolean);
     }
+
     return [];
+  };
+
+  // Extract mail content from multiple possible fields and shapes
+  const getMailContent = (row: any): string => {
+    const keys: Array<string> = [
+      "mail_content",
+      "Mail Content",
+      "mail content",
+      "mailContent",
+      "html",
+      "HTML",
+      "body",
+      "Body",
+      "content",
+      "Content",
+      "message",
+      "Message",
+      "text",
+      "Text",
+      "email_body",
+      "Email Body",
+      "emailBody",
+    ];
+
+    const readFromObject = (obj: any): string | undefined => {
+      if (!obj || typeof obj !== "object") return undefined;
+      // direct keys
+      for (const k of ["html", "HTML", "body", "Body", "text", "Text", "content", "Content", "message", "Message"]) {
+        const v = obj[k];
+        if (typeof v === "string" && v.trim().length) return v;
+      }
+      // nested under data
+      if (obj.data && typeof obj.data === "object") {
+        for (const k of ["html", "HTML", "body", "Body", "text", "Text", "content", "Content", "message", "Message"]) {
+          const v = obj.data[k];
+          if (typeof v === "string" && v.trim().length) return v;
+        }
+      }
+      return undefined;
+    };
+
+    // scan candidate keys on the row
+    for (const k of keys) {
+      const candidate = row?.[k];
+      if (candidate == null) continue;
+
+      if (typeof candidate === "string") {
+        const s = candidate.trim();
+        // Try JSON if it looks like JSON
+        if ((s.startsWith("{") && s.endsWith("}")) || (s.startsWith("[") && s.endsWith("]"))) {
+          try {
+            const parsed = JSON.parse(s);
+            const fromParsed = readFromObject(parsed);
+            if (fromParsed) return fromParsed;
+          } catch {
+            // not json, fall through
+          }
+        }
+        if (s.length) return s;
+      }
+
+      if (typeof candidate === "object") {
+        const fromObj = readFromObject(candidate);
+        if (fromObj) return fromObj;
+      }
+    }
+
+    return "";
   };
 
   /**
@@ -423,26 +536,8 @@ export default function Dashboard() {
         
         const bucket_name = row?.['Bucket Name'] ?? row?.bucket_name ?? '';
         
-        // Enhanced mail content parsing with more field variations
-        const mail_content = 
-          row?.mail_content ?? 
-          row?.['Mail Content'] ?? 
-          row?.['mail content'] ?? 
-          row?.mailContent ?? 
-          row?.html ?? 
-          row?.HTML ?? 
-          row?.body ?? 
-          row?.Body ?? 
-          row?.content ?? 
-          row?.Content ?? 
-          row?.message ?? 
-          row?.Message ?? 
-          row?.text ?? 
-          row?.Text ??
-          row?.email_body ??
-          row?.['Email Body'] ??
-          row?.emailBody ??
-          '';
+        // Enhanced mail content parsing with JSON/object support
+        const mail_content = getMailContent(row);
 
         return {
           id,
