@@ -31,10 +31,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useAction } from "convex/react";
+import { api } from "@/convex/_generated/api";
 
 export default function Dashboard() {
   const { isLoading: authLoading, isAuthenticated, user, signOut } = useAuth();
   const navigate = useNavigate();
+  const sendWebhook = useAction(api.webhooks.sendWebhook);
 
   type DashboardDoc = {
     id: string;
@@ -618,81 +621,31 @@ export default function Dashboard() {
                   size="sm"
                   className="bg-gradient-to-r from-primary to-fuchsia-600 text-white shadow-sm hover:opacity-90 transition"
                   onClick={async () => {
-                    try {
-                      const selectedIds = Array.from(selectedDocuments);
-                      const rawUrl = import.meta.env.VITE_WEBHOOK_URL as string | undefined;
+                    const selectedIds = Array.from(selectedDocuments);
+                    const rawUrl = import.meta.env.VITE_WEBHOOK_URL as string | undefined;
 
-                      if (!rawUrl) {
-                        toast.error(
-                          "Webhook URL not configured. Set VITE_WEBHOOK_URL in API keys (Integrations tab) and refresh."
-                        );
-                        return;
-                      }
-
-                      let url: URL;
-                      try {
-                        url = new URL(rawUrl);
-                      } catch {
-                        toast.error("Invalid VITE_WEBHOOK_URL. Please provide a valid HTTPS URL.");
-                        return;
-                      }
-
-                      if (url.protocol !== "https:") {
-                        toast.error("Webhook URL must use HTTPS.");
-                        return;
-                      }
-
-                      const confirmSend = window.confirm(
-                        `Send ${selectedIds.length} document(s) to the webhook?`
+                    if (!rawUrl) {
+                      toast.error(
+                        "Webhook URL not configured. Set VITE_WEBHOOK_URL in API keys (Integrations tab) and refresh."
                       );
-                      if (!confirmSend) return;
+                      return;
+                    }
 
-                      toast.info("Sending documents to webhook...");
-
-                      const controller = new AbortController();
-                      const timeout = setTimeout(() => controller.abort(), 15000);
-
-                      const response = await fetch(url.toString(), {
-                        method: "POST",
-                        headers: {
-                          "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify({
-                          documentIds: selectedIds,
-                          user: user?.email ?? "anonymous",
-                          source: "dashboard",
-                          timestamp: new Date().toISOString(),
-                        }),
-                        signal: controller.signal,
-                        mode: "cors",
-                        credentials: "omit",
-                      }).catch((err) => {
-                        clearTimeout(timeout);
-                        if (err?.name === "AbortError") {
-                          throw new Error("Request timed out (15s)");
-                        }
-                        // More specific CORS/network error
-                        if (err?.message?.includes("Failed to fetch")) {
-                          throw new Error(
-                            "Network error: Unable to reach webhook. Check if the URL is correct and the server allows CORS requests from this domain."
-                          );
-                        }
-                        throw err;
+                    try {
+                      const res = await sendWebhook({
+                        url: rawUrl,
+                        documentIds: selectedIds,
+                        userEmail: user?.email ?? "anonymous",
+                        source: "dashboard",
                       });
 
-                      clearTimeout(timeout);
-
-                      if (!response || !response.ok) {
-                        const statusText = response?.statusText || "Unknown";
-                        throw new Error(
-                          `Webhook returned ${response?.status || "error"}: ${statusText}`
-                        );
+                      if (res?.ok) {
+                        toast.success(`Successfully sent ${selectedIds.length} document(s)`);
+                        setSelectedDocuments(new Set());
+                      } else {
+                        toast.error(`Failed to send: ${res?.error || "Unknown error"}`);
                       }
-
-                      toast.success(`Successfully sent ${selectedIds.length} document(s) to webhook`);
-                      setSelectedDocuments(new Set());
                     } catch (error) {
-                      console.error("Webhook error:", error);
                       toast.error(
                         `Failed to send: ${
                           error instanceof Error ? error.message : "Unknown error"
