@@ -427,11 +427,28 @@ export default function Landing() {
       } catch {}
     }
 
-    // Remove the specified glass card panel on the homepage
-    const nodes = document.querySelectorAll(
-      'div.text-card-foreground.rounded-xl.border.py-6.backdrop-blur.shadow-lg'
-    );
-    nodes.forEach((el) => el.remove());
+    // Remove the specified glass card panel on the homepage (both known variants)
+    const selectors = [
+      // Original card variant we removed earlier
+      'div.text-card-foreground.rounded-xl.border.py-6.backdrop-blur.shadow-lg',
+      // Attached variant provided (needs escaping for / and :)
+      'div.text-card-foreground.flex.flex-col.gap-6.rounded-xl.py-6.bg-card\\/60.supports-\\[backdrop-filter\\]\\:bg-card\\/60.backdrop-blur.shadow-xl.border.border-white\\/10',
+    ];
+    for (const sel of selectors) {
+      try {
+        document.querySelectorAll(sel).forEach((el) => el.remove());
+      } catch {
+        // ignore selector parse issues
+      }
+    }
+    // Broad fallback (kept narrow to avoid accidental removals)
+    try {
+      document
+        .querySelectorAll('div.text-card-foreground.rounded-xl.py-6.backdrop-blur')
+        .forEach((el) => el.remove());
+    } catch {
+      // ignore
+    }
   }, [user?.theme]);
 
   // Prefetch next route chunk to speed navigation
