@@ -1224,7 +1224,8 @@ export default function DocumentDetail() {
 
         {/* Document Fields */}
         <aside ref={asideRef} className="relative w-[420px] lg:w-[560px] border-l bg-background overflow-y-auto flex-shrink-0 flex flex-col scroll-smooth">
-          <div className="p-4 border-b">
+          {/* Hide the top SAP Data glass card in the aside */}
+          <div className="p-4 border-b hidden" aria-hidden="true">
             <Card className="bg-card/60">
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
