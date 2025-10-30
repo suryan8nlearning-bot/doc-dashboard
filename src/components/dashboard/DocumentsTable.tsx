@@ -47,31 +47,34 @@ export function DocumentsTable({
   onViewDetails,
 }: DocumentsTableProps): ReactNode {
   return (
-    <div className="rounded-xl border border-white/10 bg-white/5 supports-[backdrop-filter]:bg-white/5 backdrop-blur-xl shadow-2xl overflow-hidden">
-      <Table className="text-sm md:text-[0.95rem]">
-        <TableHeader className="sticky top-0 z-10 bg-white/10 supports-[backdrop-filter]:bg-white/10 backdrop-blur-md border-b border-white/10">
-          <TableRow className="hover:bg-transparent">
-            <TableHead className="w-12 text-foreground font-semibold">
-                <Checkbox
+    <Table className="text-sm md:text-[0.95rem]">
+      <TableHeader className="sticky top-0 z-10 bg-background/60 supports-[backdrop-filter]:bg-background/60 backdrop-blur-md border-b border-white/10">
+        <TableRow className="hover:bg-transparent">
+          <TableHead className="w-12">
+            <Checkbox
               checked={selectedIds.size === docs.length && docs.length > 0}
               onCheckedChange={onToggleSelectAll}
               aria-label="Select all documents"
             />
           </TableHead>
-          <TableHead className="w-24">ID</TableHead>
-          <TableHead className="min-w-[180px]">From</TableHead>
-          <TableHead className="min-w-[180px]">CC</TableHead>
-          <TableHead className="min-w-[200px]">Subject</TableHead>
-          <TableHead className="min-w-[150px]">PDF Name</TableHead>
-          <TableHead className="min-w-[200px]">Mail Content</TableHead>
-          <TableHead className="w-32">Actions</TableHead>
+          <TableHead className="w-24 text-foreground/90 font-semibold">ID</TableHead>
+          <TableHead className="min-w-[180px] text-foreground/90 font-semibold">From</TableHead>
+          <TableHead className="min-w-[180px] text-foreground/90 font-semibold">CC</TableHead>
+          <TableHead className="min-w-[200px] text-foreground/90 font-semibold">Subject</TableHead>
+          <TableHead className="min-w-[150px] text-foreground/90 font-semibold">PDF Name</TableHead>
+          <TableHead className="min-w-[200px] text-foreground/90 font-semibold">Mail Content</TableHead>
+          <TableHead className="w-32 text-foreground/90 font-semibold">Actions</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {docs.map((doc, idx) => (
           <MotionTableRow
             key={doc.id}
-            className={`${selectedIds.has(doc.id) ? "bg-primary/10 ring-1 ring-primary/20 backdrop-blur" : "ring-0"} h-14 odd:bg-white/0 even:bg-white/[0.02] hover:bg-white/[0.08] transition-all duration-200 border-b border-white/5`}
+            className={`${
+              selectedIds.has(doc.id)
+                ? "bg-white/[0.06] ring-1 ring-white/10"
+                : "bg-white/[0.02] hover:bg-white/[0.06]"
+            } h-14 odd:bg-white/[0.01] even:bg-white/[0.03] transition-colors border-b border-white/5 supports-[backdrop-filter]:backdrop-blur-sm`}
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35, ease: "easeOut", delay: Math.min(idx * 0.03, 0.4) }}
@@ -120,9 +123,9 @@ export function DocumentsTable({
                     {truncateText(doc.mail_content, 30)}
                   </span>
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
-                    className="bg-white/5 hover:bg-white/15 border border-white/10 backdrop-blur transition-all"
+                    className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur"
                     onClick={() => onViewMailContent(doc.mail_content!)}
                   >
                     <Mail className="h-4 w-4" />
@@ -133,19 +136,18 @@ export function DocumentsTable({
               )}
             </TableCell>
             <TableCell className="space-x-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="bg-white/5 hover:bg-white/15 border-white/10 backdrop-blur text-foreground transition-all"
-                  onClick={() => onViewDetails(doc.id)}
-                >
-                  View Details
-                </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur text-foreground"
+                onClick={() => onViewDetails(doc.id)}
+              >
+                View Details
+              </Button>
             </TableCell>
           </MotionTableRow>
         ))}
       </TableBody>
     </Table>
-    </div>
   );
 }
