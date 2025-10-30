@@ -1051,7 +1051,7 @@ export default function Landing() {
                     onValueChange={(v) => {
                       if (v) setShowSap(v === 'sap');
                     }}
-                    className="hidden md:flex mr-1"
+                    className="flex mr-1"
                   >
                     <ToggleGroupItem value="sap" aria-label="SAP view" className="h-8 text-xs">
                       SAP
