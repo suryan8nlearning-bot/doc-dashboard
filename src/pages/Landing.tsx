@@ -45,7 +45,7 @@ export default function Landing() {
   const [isValid, setIsValid] = useState<boolean | null>(null);
 
   // Add Convex action hook BEFORE any early return to keep hook order stable
-  const sendWebhook = useAction(api.webhooks.sendWebhook);
+  const sapAction = useAction(api.webhooks.sendSapPayload);
 
   // Add online/offline detection for error banner
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
@@ -91,42 +91,43 @@ export default function Landing() {
           } catch {}
         }
 
-        // Prefer SAP JSON saved from the app first; if absent, fall back to SAP JSON field(s)
+        // Prefer SAP JSON saved from the app first; only if absent, fall back to "SAP JSON" field(s).
         const appSapCandidates: any[] = [
           data?.SAP_JSON_FROM_APP,
-          data?.SAP_JSON_from_APP, // Added mixed-case column name to support your schema
+          data?.SAP_JSON_from_APP, // mixed-case variant
           data?.sap_json_from_app,
-          data?.['SAP JSON from app'],
+          data?.["SAP JSON from app"],
           data?.sap_json_app,
           data?.sap_app_json,
         ];
-        let appSap: any = undefined;
-        for (const c of appSapCandidates) {
-          if (c !== undefined && c !== null && String(c).trim() !== '') {
-            appSap = c;
-            break;
+        const sapJsonFieldCandidates: any[] = [
+          data?.SAP_JSON,
+          data?.["SAP JSON"],
+          data?.sap_json,
+          data?.sapJson,
+        ];
+        const firstNonEmpty = (arr: any[]) =>
+          arr.find((c) => c !== undefined && c !== null && String(c).trim() !== "");
+
+        const preferredSap = firstNonEmpty(appSapCandidates) ?? firstNonEmpty(sapJsonFieldCandidates);
+
+        // If you previously selected a different source, replace that logic with `preferredSap`
+        // Example: set the editor and derived states from preferredSap only.
+        if (preferredSap !== undefined && preferredSap !== null && String(preferredSap).trim() !== "") {
+          try {
+            const parsed = typeof preferredSap === "string" ? JSON.parse(preferredSap) : preferredSap;
+            const pretty = JSON.stringify(parsed, null, 2);
+            setSapJson(pretty);
+            setEditorValue(pretty);
+          } catch {
+            // If not valid JSON, still show raw string
+            const str = String(preferredSap);
+            setSapJson(str);
+            setEditorValue(str);
           }
         }
 
-        // Fallback: load from "SAP JSON" field(s) if present
-        let fallbackSap: any = undefined;
-        if (appSap == null || String(appSap).trim() === '') {
-          const sapJsonFieldCandidates: any[] = [
-            data?.SAP_JSON,
-            data?.['SAP JSON'],
-            data?.sap_json,
-            data?.sapJson,
-          ];
-          for (const c of sapJsonFieldCandidates) {
-            if (c !== undefined && c !== null && String(c).trim() !== '') {
-              fallbackSap = c;
-              break;
-            }
-          }
-        }
-
-        // Last resort: SAP_AI_OUTPUT
-        const sapSource = appSap ?? fallbackSap ?? data?.SAP_AI_OUTPUT;
+        const sapSource = preferredSap ?? data?.SAP_AI_OUTPUT;
 
         const sap =
           sapSource
@@ -792,9 +793,10 @@ export default function Landing() {
 
     setIsCreating(true);
     try {
-      const result = await sendWebhook({
+      const result = await sapAction({
         url: parsed.toString(),
-        body: { docId: docId.trim(), payload },
+        docId,
+        payload,
         userEmail: user?.email || "",
         source: "landing",
       });
