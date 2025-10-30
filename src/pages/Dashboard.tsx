@@ -614,36 +614,88 @@ export default function Dashboard() {
                 <Button
                   variant="default"
                   size="sm"
+                  className="bg-gradient-to-r from-primary to-fuchsia-600 text-white shadow-sm hover:opacity-90 transition"
                   onClick={async () => {
                     try {
                       const selectedIds = Array.from(selectedDocuments);
-                      const webhookUrl = import.meta.env.VITE_WEBHOOK_URL || 'https://your-webhook-url.com/endpoint';
-                      
-                      const response = await fetch(webhookUrl, {
-                        method: 'POST',
+                      const rawUrl = import.meta.env.VITE_WEBHOOK_URL as string | undefined;
+
+                      if (!rawUrl) {
+                        toast.error(
+                          "Webhook URL not configured. Set VITE_WEBHOOK_URL in API keys (Integrations tab) and refresh."
+                        );
+                        return;
+                      }
+
+                      let url: URL;
+                      try {
+                        url = new URL(rawUrl);
+                      } catch {
+                        toast.error("Invalid VITE_WEBHOOK_URL. Please provide a valid HTTPS URL.");
+                        return;
+                      }
+
+                      if (url.protocol !== "https:") {
+                        toast.error("Webhook URL must use HTTPS.");
+                        return;
+                      }
+
+                      const confirmSend = window.confirm(
+                        `Send ${selectedIds.length} document(s) to the webhook?`
+                      );
+                      if (!confirmSend) return;
+
+                      const controller = new AbortController();
+                      const timeout = setTimeout(() => controller.abort(), 15000);
+
+                      const response = await fetch(url.toString(), {
+                        method: "POST",
                         headers: {
-                          'Content-Type': 'application/json',
+                          "Content-Type": "application/json",
                         },
                         body: JSON.stringify({
                           documentIds: selectedIds,
+                          user: user?.email ?? "anonymous",
+                          source: "dashboard",
                           timestamp: new Date().toISOString(),
                         }),
+                        signal: controller.signal,
                       });
 
-                      if (response.ok) {
-                        toast.success(`Successfully sent ${selectedIds.length} document(s) to webhook`);
-                        setSelectedDocuments(new Set());
-                      } else {
+                      clearTimeout(timeout);
+
+                      if (!response.ok) {
                         throw new Error(`Webhook returned status ${response.status}`);
                       }
+
+                      toast.success(`Successfully sent ${selectedIds.length} document(s) to webhook`);
+                      setSelectedDocuments(new Set());
                     } catch (error) {
-                      console.error('Webhook error:', error);
-                      toast.error(`Failed to send to webhook: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                      if ((error as Error).name === "AbortError") {
+                        toast.error("Webhook request timed out (15s).");
+                      } else {
+                        toast.error(
+                          `Failed to send to webhook: ${
+                            error instanceof Error ? error.message : "Unknown error"
+                          }`
+                        );
+                      }
                     }
                   }}
                 >
                   Create
                 </Button>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="bg-background/60 backdrop-blur border hover:bg-background/80 transition"
+                  onClick={() => navigate("/profile")}
+                >
+                  <User className="h-4 w-4 mr-2" />
+                  Profile
+                </Button>
+
                 <Button
                   variant="destructive"
                   size="sm"
@@ -655,11 +707,7 @@ export default function Dashboard() {
                   <Trash2 className="h-4 w-4 mr-2" />
                   Delete Selected
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSelectedDocuments(new Set())}
-                >
+                <Button variant="outline" size="sm" onClick={() => setSelectedDocuments(new Set())}>
                   Clear Selection
                 </Button>
               </motion.div>
