@@ -47,7 +47,12 @@ export function DocumentsTable({
   onViewDetails,
 }: DocumentsTableProps): ReactNode {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.04] supports-[backdrop-filter]:bg-white/10 backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] overflow-hidden ring-1 ring-white/5">
+    <motion.div
+      initial={{ opacity: 0, y: 12, filter: "blur(2px)" }}
+      animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
+      className="rounded-2xl border border-white/10 bg-white/[0.04] supports-[backdrop-filter]:bg-white/10 backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] overflow-hidden ring-1 ring-white/5"
+    >
       <Table className="text-sm md:text-[0.95rem]">
         <TableHeader className="sticky top-0 z-10 bg-white/[0.06] supports-[backdrop-filter]:bg-white/10 backdrop-blur-xl border-b border-white/10 shadow-inner">
           <TableRow className="hover:bg-transparent">
@@ -79,6 +84,9 @@ export function DocumentsTable({
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35, ease: "easeOut", delay: Math.min(idx * 0.03, 0.4) }}
+              whileHover={{ y: -2 }}
+              whileTap={{ scale: 0.995 }}
+              layout
             >
               <TableCell>
                 <Checkbox
@@ -150,6 +158,6 @@ export function DocumentsTable({
           ))}
         </TableBody>
       </Table>
-    </div>
+    </motion.div>
   );
 }

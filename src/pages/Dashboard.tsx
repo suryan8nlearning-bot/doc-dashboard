@@ -641,6 +641,9 @@ export default function Dashboard() {
                       initial={{ opacity: 0, y: 16 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.35, ease: 'easeOut', delay: Math.min(idx * 0.03, 0.4) }}
+                      whileHover={{ y: -2 }}
+                      whileTap={{ scale: 0.995 }}
+                      layout
                     >
                       <TableCell>
                         <Checkbox
