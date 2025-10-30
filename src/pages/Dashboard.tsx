@@ -582,6 +582,41 @@ export default function Dashboard() {
     setIsMailDialogOpen(true);
   };
 
+  // Edit and Delete handlers for inline actions
+  const handleEditDocument = (docId: string) => {
+    navigate(`/document/${docId}`);
+  };
+
+  const handleDeleteDocument = async (docId: string) => {
+    const confirmed = window.confirm("Delete this document? This cannot be undone.");
+    if (!confirmed) return;
+
+    let deletedFromSupabase = false;
+    try {
+      if (hasSupabaseEnv) {
+        // Try common ID columns
+        for (const col of ["id", "uuid", "_id"]) {
+          const { error } = await supabase.from("N8N Logs").delete().eq(col, docId);
+          if (!error) {
+            deletedFromSupabase = true;
+            break;
+          }
+        }
+      }
+      // Optimistically update UI
+      setDocuments((prev) => prev.filter((d) => d.id !== docId));
+      setSelectedDocuments((prev) => {
+        const next = new Set(prev);
+        next.delete(docId);
+        return next;
+      });
+      toast.success(deletedFromSupabase ? "Document deleted." : "Removed from view.");
+    } catch (e) {
+      console.error("Delete failed:", e);
+      toast.error("Failed to delete document.");
+    }
+  };
+
   const handleSelectDocument = (docId: string) => {
     setSelectedDocuments((prev) => {
       const next = new Set(prev);
@@ -886,117 +921,16 @@ export default function Dashboard() {
               </div>
             </motion.div>
           ) : (
-            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: 'easeOut' }}>
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] supports-[backdrop-filter]:bg-white/10 backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] overflow-hidden ring-1 ring-white/5">
-              <Table>
-                <TableHeader className="sticky top-0 z-10 bg-white/[0.06] supports-[backdrop-filter]:bg-white/10 backdrop-blur-xl border-b border-white/10 shadow-inner">
-                  <TableRow>
-                    <TableHead className="w-12">
-                      <Checkbox
-                        checked={selectedDocuments.size === filteredDocs.length && filteredDocs.length > 0}
-                        onCheckedChange={handleSelectAll}
-                        aria-label="Select all documents"
-                      />
-                    </TableHead>
-                    <TableHead className="w-16">ID</TableHead>
-                    <TableHead className="min-w-[180px]">From</TableHead>
-                    <TableHead className="min-w-[220px]">CC</TableHead>
-                    <TableHead className="min-w-[200px]">Subject</TableHead>
-                    <TableHead className="min-w-[150px]">PDF Name</TableHead>
-                    <TableHead className="min-w-[240px]">Mail Content</TableHead>
-                    <TableHead className="w-32">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredDocs.map((doc, idx) => (
-                    <MotionTableRow
-                      key={doc.id}
-                      className={
-                        (selectedDocuments.has(doc.id) ? 'bg-white/10 ' : '') +
-                        'hover:bg-white/5 transition-colors'
-                      }
-                      initial={{ opacity: 0, y: 16 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.35, ease: 'easeOut', delay: Math.min(idx * 0.03, 0.4) }}
-                      whileHover={{ y: -2 }}
-                      whileTap={{ scale: 0.995 }}
-                      layout
-                    >
-                      <TableCell>
-                        <Checkbox
-                          checked={selectedDocuments.has(doc.id)}
-                          onCheckedChange={() => handleSelectDocument(doc.id)}
-                          aria-label={`Select document ${doc.id}`}
-                        />
-                      </TableCell>
-                      <TableCell className="font-mono text-xs max-w-[90px] truncate" title={doc.id}>
-                        {doc.id}
-                      </TableCell>
-                      <TableCell>
-                        <div className="max-w-[180px] truncate" title={doc.from_email || '—'}>
-                          {doc.from_email || '—'}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {doc.cc_emails && doc.cc_emails.length > 0 ? (
-                          <div className="text-xs max-w-[260px]">
-                            <div className="truncate" title={doc.cc_emails.join(', ')}>
-                              {doc.cc_emails.slice(0, 2).join(', ')}
-                            </div>
-                            {doc.cc_emails.length > 2 && (
-                              <span className="text-muted-foreground">
-                                +{doc.cc_emails.length - 2} more
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          '—'
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="max-w-[200px] truncate" title={doc.subject || '—'}>
-                          {doc.subject || '—'}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="max-w-[150px] truncate" title={doc.bucket_name || '—'}>
-                          {doc.bucket_name || '—'}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {doc.mail_content ? (
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-muted-foreground max-w-[240px] truncate">
-                              {truncateText(doc.mail_content, 30)}
-                            </span>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur"
-                              onClick={() => handleViewMailContent(doc.mail_content!)}
-                            >
-                              <Mail className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ) : (
-                          '—'
-                        )}
-                      </TableCell>
-                      <TableCell className="space-x-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => navigate(`/document/${doc.id}`)}
-                        >
-                          View Details
-                        </Button>
-                      </TableCell>
-                    </MotionTableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              </div>
-            </motion.div>
+            <DocumentsTable
+              docs={filteredDocs}
+              selectedIds={selectedDocuments}
+              onToggleSelectAll={handleSelectAll}
+              onToggleSelect={handleSelectDocument}
+              onViewMailContent={(content) => handleViewMailContent(content)}
+              onViewDetails={(id) => navigate(`/document/${id}`)}
+              onEdit={handleEditDocument}
+              onDelete={handleDeleteDocument}
+            />
           )}
         </div>
       </div>
