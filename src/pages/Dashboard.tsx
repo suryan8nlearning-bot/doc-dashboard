@@ -647,6 +647,8 @@ export default function Dashboard() {
                       );
                       if (!confirmSend) return;
 
+                      toast.info("Sending documents to webhook...");
+
                       const controller = new AbortController();
                       const timeout = setTimeout(() => controller.abort(), 15000);
 
@@ -662,26 +664,40 @@ export default function Dashboard() {
                           timestamp: new Date().toISOString(),
                         }),
                         signal: controller.signal,
+                        mode: "cors",
+                        credentials: "omit",
+                      }).catch((err) => {
+                        clearTimeout(timeout);
+                        if (err?.name === "AbortError") {
+                          throw new Error("Request timed out (15s)");
+                        }
+                        // More specific CORS/network error
+                        if (err?.message?.includes("Failed to fetch")) {
+                          throw new Error(
+                            "Network error: Unable to reach webhook. Check if the URL is correct and the server allows CORS requests from this domain."
+                          );
+                        }
+                        throw err;
                       });
 
                       clearTimeout(timeout);
 
-                      if (!response.ok) {
-                        throw new Error(`Webhook returned status ${response.status}`);
+                      if (!response || !response.ok) {
+                        const statusText = response?.statusText || "Unknown";
+                        throw new Error(
+                          `Webhook returned ${response?.status || "error"}: ${statusText}`
+                        );
                       }
 
                       toast.success(`Successfully sent ${selectedIds.length} document(s) to webhook`);
                       setSelectedDocuments(new Set());
                     } catch (error) {
-                      if ((error as Error).name === "AbortError") {
-                        toast.error("Webhook request timed out (15s).");
-                      } else {
-                        toast.error(
-                          `Failed to send to webhook: ${
-                            error instanceof Error ? error.message : "Unknown error"
-                          }`
-                        );
-                      }
+                      console.error("Webhook error:", error);
+                      toast.error(
+                        `Failed to send: ${
+                          error instanceof Error ? error.message : "Unknown error"
+                        }`
+                      );
                     }
                   }}
                 >
