@@ -1285,6 +1285,28 @@ export default function DocumentDetail() {
               Create
             </Button>
 
+            {/* Document Navigation */}
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={goPrev} 
+                disabled={currentIndex <= 0}
+                className="px-3"
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={goNext}
+                disabled={currentIndex < 0 || currentIndex >= idList.length - 1}
+                className="px-3"
+              >
+                Next
+              </Button>
+            </div>
+
             {/* User Menu - moved to far right */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
