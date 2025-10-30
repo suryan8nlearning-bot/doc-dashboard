@@ -1019,6 +1019,51 @@ export default function DocumentDetail() {
     }
   }, [showSAP]);
 
+  // Navigation across documents: get id from route and provide prev/next
+  const navigate = useNavigate();
+  const params = useParams();
+  const currentId = (params as any).id as string | undefined;
+
+  const [idList, setIdList] = useState<Array<string>>([]);
+  const [currentIndex, setCurrentIndex] = useState<number>(-1);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        if (!hasSupabaseEnv) return;
+        const { data, error } = await supabase
+          .from("N8N Logs")
+          .select("id")
+          .order("id", { ascending: true })
+          .limit(1000);
+
+        if (error || !data) return;
+        const list: Array<string> = data.map((r: any) => String(r.id));
+        if (cancelled) return;
+        setIdList(list);
+        const idx = list.findIndex((x) => x === String(currentId || ""));
+        setCurrentIndex(idx);
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentId, hasSupabaseEnv]);
+
+  const goPrev = () => {
+    if (currentIndex > 0) {
+      navigate(`/document/${idList[currentIndex - 1]}`);
+    }
+  };
+  const goNext = () => {
+    if (currentIndex >= 0 && currentIndex < idList.length - 1) {
+      navigate(`/document/${idList[currentIndex + 1]}`);
+    }
+  };
+
   if (authLoading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -1155,6 +1200,20 @@ export default function DocumentDetail() {
         </div>
       </header>
 
+      {/* Navigation Controls */}
+      <div className="flex items-center justify-end gap-2 mb-4">
+        <Button variant="outline" size="sm" onClick={goPrev} disabled={currentIndex <= 0}>
+          Previous
+        </Button>
+        <Button
+          size="sm"
+          onClick={goNext}
+          disabled={currentIndex < 0 || currentIndex >= idList.length - 1}
+        >
+          Next
+        </Button>
+      </div>
+
       {/* SAP Full-screen (Step 1) */}
       {showSAP && view === 'sap' && (
         <div className="flex-1 flex flex-col overflow-hidden p-4">
@@ -1188,7 +1247,7 @@ export default function DocumentDetail() {
                 </ScrollArea>
               ) : (
                 <div className="text-sm text-muted-foreground">
-                  SAP data hidden. Enable it from the user menu.
+                  SAP data . Enable it from the user menu.
                 </div>
               )}
             </CardContent>
@@ -1224,8 +1283,7 @@ export default function DocumentDetail() {
 
         {/* Document Fields */}
         <aside ref={asideRef} className="relative w-[420px] lg:w-[560px] border-l bg-background overflow-y-auto flex-shrink-0 flex flex-col scroll-smooth">
-          {/* Hide the top SAP Data glass card in the aside */}
-          <div className="p-4 border-b hidden" aria-hidden="true">
+          <div className="p-4 border-b">
             <Card className="bg-card/60">
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">

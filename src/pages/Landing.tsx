@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
 import { motion } from 'framer-motion';
-import { ArrowRight, FileText, Loader2, Search, Zap, User } from 'lucide-react';
+import { ArrowRight, FileText, Loader2, Search, Zap, User, Hash, Link as LinkIcon } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { useEffect, useState, useMemo, useDeferredValue } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -23,6 +23,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 export default function Landing() {
   const { isLoading, isAuthenticated, user, signOut } = useAuth();
@@ -401,6 +402,12 @@ export default function Landing() {
         if (stored) applyTheme(stored);
       } catch {}
     }
+
+    // Remove the specified glass card panel on the homepage
+    const nodes = document.querySelectorAll(
+      'div.text-card-foreground.rounded-xl.border.py-6.backdrop-blur.shadow-lg'
+    );
+    nodes.forEach((el) => el.remove());
   }, [user?.theme]);
 
   // Prefetch next route chunk to speed navigation
@@ -590,7 +597,7 @@ export default function Landing() {
         </main>
 
         {/* Footer skeleton */}
-        <footer className="border-t py-8">
+        <footer className="border-t py-8 bg-background/60 supports-[backdrop-filter]:bg-background/60 backdrop-blur">
           <div className="max-w-7xl mx-auto px-8 text-center">
             <Skeleton className="h-4 w-40 mx-auto" />
           </div>
@@ -790,15 +797,15 @@ export default function Landing() {
       transition={{ duration: 0.5 }}
       className="min-h-screen flex flex-col bg-gradient-to-b from-background to-background/60 relative overflow-hidden"
     >
+      {/* Soft radial overlay for depth */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-transparent to-transparent" />
+
       {/* Decorative background blobs for visual interest */}
       <div aria-hidden className="pointer-events-none absolute -top-24 -right-24 h-80 w-80 rounded-full bg-primary/20 blur-3xl dark:bg-primary/30" />
       <div aria-hidden className="pointer-events-none absolute -bottom-24 -left-24 h-80 w-80 rounded-full bg-purple-500/20 blur-3xl dark:bg-purple-500/20" />
 
-      {/* Add a soft radial gradient overlay for depth (non-interactive) */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-transparent to-transparent" />
-
       {/* Header */}
-      <header className="sticky top-0 z-40 border-b bg-background/60 supports-[backdrop-filter]:bg-background/60 backdrop-blur">
+      <header className="sticky top-0 z-50 border-b bg-background/60 supports-[backdrop-filter]:bg-background/60 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-8 py-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img src="/logo.svg" alt="Logo" className="h-8 w-8" loading="lazy" decoding="async" />
@@ -974,11 +981,11 @@ export default function Landing() {
           <motion.div
             whileHover={{ y: -8, boxShadow: '0 20px 40px rgba(0,0,0,0.08)' }}
             transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-            className="group text-center space-y-4 p-8 rounded-xl border border-white/10 ring-1 ring-white/10 bg-white/5 supports-[backdrop-filter]:bg-white/5 backdrop-blur hover:bg-white/10 shadow-lg hover:shadow-2xl transition-all cursor-pointer"
+            className="text-center space-y-4 p-8 rounded-lg border bg-card/60 hover:bg-card shadow-sm hover:shadow-xl transition-all cursor-pointer"
           >
             <motion.div
               whileHover={{ scale: 1.1, rotate: -5 }}
-              className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-white/10 ring-1 ring-white/10 shadow-md text-primary transition-transform group-hover:scale-110"
+              className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-primary/10"
             >
               <Search className="h-6 w-6 text-primary" />
             </motion.div>
@@ -991,11 +998,11 @@ export default function Landing() {
           <motion.div
             whileHover={{ y: -8, boxShadow: '0 20px 40px rgba(0,0,0,0.08)' }}
             transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-            className="group text-center space-y-4 p-8 rounded-xl border border-white/10 ring-1 ring-white/10 bg-white/5 supports-[backdrop-filter]:bg-white/5 backdrop-blur hover:bg-white/10 shadow-lg hover:shadow-2xl transition-all cursor-pointer"
+            className="text-center space-y-4 p-8 rounded-lg border bg-card/60 hover:bg-card shadow-sm hover:shadow-xl transition-all cursor-pointer"
           >
             <motion.div
               whileHover={{ scale: 1.1, rotate: 5 }}
-              className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-white/10 ring-1 ring-white/10 shadow-md text-primary transition-transform group-hover:scale-110"
+              className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-primary/10"
             >
               <Zap className="h-6 w-6 text-primary" />
             </motion.div>
@@ -1012,15 +1019,30 @@ export default function Landing() {
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5, duration: 0.6 }}
-          className="hidden"
+          className="max-w-5xl mx-auto mt-12 w-full"
         >
-          <Card className="bg-card/60 supports-[backdrop-filter]:bg-card/60 backdrop-blur shadow-lg">
+          <Card className="bg-card/60 supports-[backdrop-filter]:bg-card/60 backdrop-blur shadow-xl border border-white/10">
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
                 <span>SAP Webhook</span>
                 <div className="flex items-center gap-2">
+                  <ToggleGroup
+                    type="single"
+                    value={showSap ? 'sap' : 'raw'}
+                    onValueChange={(v) => {
+                      if (v) setShowSap(v === 'sap');
+                    }}
+                    className="hidden md:flex mr-1"
+                  >
+                    <ToggleGroupItem value="sap" aria-label="SAP view" className="h-8 text-xs">
+                      SAP
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="raw" aria-label="Raw view" className="h-8 text-xs">
+                      Raw
+                    </ToggleGroupItem>
+                  </ToggleGroup>
                   {/* Validation status */}
-                  <span className={`text-xs px-2 py-0.5 rounded ${
+                  <span className={`text-xs px-2 py-0.5 rounded ring-1 ring-white/10 font-medium ${
                     isValid === null ? 'bg-muted text-muted-foreground' : isValid ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
                   }`}>
                     {isValid === null ? '—' : isValid ? 'Valid' : `${validationErrors?.length || 0} errors`}
@@ -1068,12 +1090,16 @@ export default function Landing() {
                   {isRowLoading ? (
                     <Skeleton className="h-9 w-full rounded-md" />
                   ) : (
-                    <Input
-                      id="docId"
-                      placeholder="Enter document id (or use ?id= in URL)"
-                      value={docId}
-                      onChange={(e) => setDocId(e.target.value)}
-                    />
+                    <div className="relative">
+                      <Hash className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="docId"
+                        placeholder="Enter document id (or use ?id= in URL)"
+                        value={docId}
+                        onChange={(e) => setDocId(e.target.value)}
+                        className="pl-9"
+                      />
+                    </div>
                   )}
                 </div>
                 <div className="space-y-2">
@@ -1081,18 +1107,23 @@ export default function Landing() {
                   {isRowLoading ? (
                     <Skeleton className="h-9 w-full rounded-md" />
                   ) : (
-                    <Input
-                      id="webhookUrl"
-                      placeholder="https://example.com/webhook"
-                      value={webhookUrl}
-                      onChange={(e) => setWebhookUrl(e.target.value)}
-                    />
+                    <div className="relative">
+                      <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="webhookUrl"
+                        placeholder="https://example.com/webhook"
+                        value={webhookUrl}
+                        onChange={(e) => setWebhookUrl(e.target.value)}
+                        className="pl-9"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">HTTPS required. Leave empty to use VITE_WEBHOOK_URL.</p>
                   )}
                 </div>
               </div>
 
               <div className="flex items-center justify-between gap-4 pt-2">
-                <div className="text-sm font-medium">Editing SAP Payload</div>
+                <div className="text-sm font-medium">{showSap ? 'Editing SAP Payload' : 'Viewing Raw JSON'}</div>
                 <div className="text-xs text-muted-foreground">Schema-validated</div>
               </div>
 
@@ -1134,7 +1165,7 @@ export default function Landing() {
                 <Label htmlFor="editor">{showSap ? 'SAP Payload (editable)' : 'Current JSON (read-only if from DB)'}</Label>
                 <Textarea
                   id="editor"
-                  className="h-[55vh] min-h-[220px] font-mono text-xs resize-y overflow-auto"
+                  className="h-[55vh] min-h-[220px] font-mono text-sm resize-y overflow-auto rounded-lg ring-1 ring-white/10 bg-background/60"
                   value={editorValue}
                   onChange={(e) => {
                     setEditorValue(e.target.value);
@@ -1181,7 +1212,7 @@ export default function Landing() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t py-8 bg-background/60 supports-[backdrop-filter]:bg-background/60 backdrop-blur">
+      <footer className="border-t py-8">
         <div className="max-w-7xl mx-auto px-8 text-center text-sm text-muted-foreground">
           Powered by{' '}
           <a
