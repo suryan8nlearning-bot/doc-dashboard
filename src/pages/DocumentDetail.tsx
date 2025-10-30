@@ -16,11 +16,14 @@ import { ArrowLeft, FileText, Loader2, ExternalLink, ArrowUp } from 'lucide-reac
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
+import { useAction } from "convex/react";
+import { api } from "@/convex/_generated/api";
 
 export default function DocumentDetail() {
   const { isLoading: authLoading, isAuthenticated, user, signOut } = useAuth();
   const navigate = useNavigate();
   const { documentId } = useParams<{ documentId: string }>();
+  const sendWebhook = useAction(api.webhooks.sendWebhook);
 
   type DocumentData = {
     id: string;
@@ -930,9 +933,7 @@ export default function DocumentDetail() {
     }
   };
 
-  // removed SAP editor handlers
-
-  // Create button: POST id + current SAP JSON to webhook from env
+  // Create button: POST id + current SAP JSON to webhook from env via Convex action
   const handleCreate = async () => {
     try {
       if (!doc?.id) {
@@ -975,25 +976,13 @@ export default function DocumentDetail() {
       }
 
       setIsCreating(true);
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
-
-      const res = await fetch(url.toString(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: doc.id, sap: parsed }),
-        signal: controller.signal,
-        mode: 'cors',
-        cache: 'no-store',
-      }).catch((err) => {
-        if (err?.name === 'AbortError') throw new Error('Request timed out (15s)');
-        throw new Error('Network error or CORS blocked');
+      const res = await sendWebhook({
+        url: url.toString(),
+        body: { docId: doc.id, payload: parsed },
       });
 
-      clearTimeout(timeoutId);
-
-      if (!res || !res.ok) {
-        throw new Error(`Status ${res?.status ?? 'unknown'}`);
+      if (!res?.ok) {
+        throw new Error(res?.error || `HTTP ${res?.status ?? 'unknown'}`);
       }
 
       toast.success('Create request sent successfully');
