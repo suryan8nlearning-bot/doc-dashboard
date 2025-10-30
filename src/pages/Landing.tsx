@@ -44,6 +44,9 @@ export default function Landing() {
   const [validationErrors, setValidationErrors] = useState<ErrorObject[] | null>(null);
   const [isValid, setIsValid] = useState<boolean | null>(null);
 
+  // Add Convex action hook BEFORE any early return to keep hook order stable
+  const sendWebhook = useAction(api.webhooks.sendWebhook);
+
   // Add online/offline detection for error banner
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
   useEffect(() => {
@@ -88,7 +91,7 @@ export default function Landing() {
           } catch {}
         }
 
-        // Prefer SAP JSON saved from the app first, then fall back to SAP_AI_OUTPUT
+        // Prefer SAP JSON saved from the app first; if absent, fall back to SAP JSON field(s)
         const appSapCandidates: any[] = [
           data?.SAP_JSON_FROM_APP,
           data?.SAP_JSON_from_APP, // Added mixed-case column name to support your schema
@@ -104,7 +107,26 @@ export default function Landing() {
             break;
           }
         }
-        const sapSource = appSap ?? data?.SAP_AI_OUTPUT;
+
+        // Fallback: load from "SAP JSON" field(s) if present
+        let fallbackSap: any = undefined;
+        if (appSap == null || String(appSap).trim() === '') {
+          const sapJsonFieldCandidates: any[] = [
+            data?.SAP_JSON,
+            data?.['SAP JSON'],
+            data?.sap_json,
+            data?.sapJson,
+          ];
+          for (const c of sapJsonFieldCandidates) {
+            if (c !== undefined && c !== null && String(c).trim() !== '') {
+              fallbackSap = c;
+              break;
+            }
+          }
+        }
+
+        // Last resort: SAP_AI_OUTPUT
+        const sapSource = appSap ?? fallbackSap ?? data?.SAP_AI_OUTPUT;
 
         const sap =
           sapSource
@@ -537,10 +559,6 @@ export default function Landing() {
     else toast.error("SAP payload is invalid");
   };
 
-  // Add: action hook to call backend webhook proxy
-  // moved above to keep hook order stable
-  const sendWebhook = useAction(api.webhooks.sendWebhook);
-
   // Show a full-screen animated loader while auth initializes
   if (isLoading) {
     return (
@@ -720,7 +738,7 @@ export default function Landing() {
     }
   };
 
-  // Replace: handleCreate to use Convex action (avoids CORS) and keep same validation/UX
+  // Replace: handleCreate to call Convex action instead of direct fetch
   const handleCreate = async () => {
     if (!docId) {
       toast.error('Enter a document id');
@@ -770,23 +788,18 @@ export default function Landing() {
 
     // Confirm before sending externally
     const proceed = window.confirm('Send the SAP payload to the configured webhook now?');
-    if (!proceed) {
-      toast.message('Cancelled');
-      return;
-    }
+    if (!proceed) return;
 
     setIsCreating(true);
     try {
-      const res = await sendWebhook({
+      const result = await sendWebhook({
         url: parsed.toString(),
-        body: { id: docId, payload },
-        // You can optionally pass metadata for tracking
-        // userEmail: user?.email ?? undefined,
-        // source: "Landing",
+        body: { docId: docId.trim(), payload },
+        userEmail: user?.email || "",
+        source: "landing",
       });
-
-      if (!res?.ok) {
-        throw new Error(res?.error || `Webhook responded ${res?.status}`);
+      if (!result?.ok) {
+        throw new Error(result?.error || `HTTP ${result?.status ?? 0}`);
       }
       toast.success('Webhook called successfully');
     } catch (e: any) {
@@ -1068,7 +1081,7 @@ export default function Landing() {
                   <Button
                     size="sm"
                     onClick={handleCreate}
-                    disabled={!docId || isCreating}
+                    disabled={isCreating}
                   >
                     {isCreating ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
                     Create
