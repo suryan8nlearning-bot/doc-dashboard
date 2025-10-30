@@ -558,6 +558,13 @@ export default function DocumentDetail() {
     });
   };
 
+  // Add a local keydown handler to prevent PDF shortcuts while typing
+  const onEditingKeyDown = (e: any) => {
+    if (e.key === '0') {
+      e.stopPropagation();
+    }
+  };
+
   const renderSapEditable = (out: any) => {
     if (!out || typeof out !== 'object') {
       return <div className="text-sm text-muted-foreground">No SAP data.</div>;
@@ -587,6 +594,8 @@ export default function DocumentDetail() {
                       value={String(v ?? '')}
                       onChange={(e) => updateHeaderField(k, e.target.value)}
                       className="h-8"
+                      // Prevent PDF zoom shortcuts while typing
+                      onKeyDown={onEditingKeyDown}
                     />
                   </div>
                 ))}
@@ -610,6 +619,8 @@ export default function DocumentDetail() {
                               value={String(v ?? '')}
                               onChange={(e) => updatePartnerField(idx, k, e.target.value)}
                               className="h-8"
+                              // Prevent PDF zoom shortcuts while typing
+                              onKeyDown={onEditingKeyDown}
                             />
                           </div>
                         ))}
@@ -635,6 +646,8 @@ export default function DocumentDetail() {
                               value={String(v ?? '')}
                               onChange={(e) => updatePricingField(idx, k, e.target.value)}
                               className="h-8"
+                              // Prevent PDF zoom shortcuts while typing
+                              onKeyDown={onEditingKeyDown}
                             />
                           </div>
                         ))}
@@ -669,6 +682,8 @@ export default function DocumentDetail() {
                               value={String(v ?? '')}
                               onChange={(e) => updateItemField(idx, k, e.target.value)}
                               className="h-8"
+                              // Prevent PDF zoom shortcuts while typing
+                              onKeyDown={onEditingKeyDown}
                             />
                           </div>
                         ))}
@@ -688,6 +703,8 @@ export default function DocumentDetail() {
                                         value={String(v ?? '')}
                                         onChange={(e) => updateItemPartnerField(idx, pi, k, e.target.value)}
                                         className="h-8"
+                                        // Prevent PDF zoom shortcuts while typing
+                                        onKeyDown={onEditingKeyDown}
                                       />
                                     </div>
                                   ))}
@@ -712,6 +729,8 @@ export default function DocumentDetail() {
                                         value={String(v ?? '')}
                                         onChange={(e) => updateItemPricingField(idx, ri, k, e.target.value)}
                                         className="h-8"
+                                        // Prevent PDF zoom shortcuts while typing
+                                        onKeyDown={onEditingKeyDown}
                                       />
                                     </div>
                                   ))}
@@ -982,33 +1001,26 @@ export default function DocumentDetail() {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <Button
               variant="outline"
-              size="sm"
+              size="lg"
               onClick={handleSave}
               disabled={!sapEditorValue?.trim() || isSaving || !doc?.id}
+              className="px-5"
             >
-              {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+              {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Save
             </Button>
             <Button
-              size="sm"
+              size="lg"
               onClick={handleCreate}
               disabled={!sapEditorValue?.trim() || isCreating || !doc?.id}
+              className="px-5"
             >
-              {isCreating ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+              {isCreating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Create
             </Button>
-            <a 
-              href={doc.pdf_url} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-xs text-primary hover:underline flex items-center gap-1"
-            >
-              <ExternalLink className="h-3 w-3" />
-              Open PDF in new tab
-            </a>
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -1054,6 +1066,21 @@ export default function DocumentDetail() {
       <div className="flex-1 flex overflow-hidden">
         {/* PDF Viewer */}
         <div className="relative h-full min-w-0 flex-1 overflow-hidden">
+          {/* Overlay open-in-new tab button on PDF preview */}
+          <div className="absolute top-3 right-3 z-10">
+            <Button variant="secondary" size="sm" className="shadow-md" asChild>
+              <a
+                href={doc.pdf_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Open PDF in new tab"
+                aria-label="Open PDF in new tab"
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Open PDF
+              </a>
+            </Button>
+          </div>
           <PDFViewer pdfUrl={doc.pdf_url} highlightBox={highlightBox} documentData={doc.document_data} />
         </div>
 
