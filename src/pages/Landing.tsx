@@ -449,6 +449,82 @@ export default function Landing() {
     } catch {
       // ignore
     }
+
+    // Additional robust removal: handle elements rendered later (e.g., inside scrollable areas)
+    const matchesTarget = (el: Element) => {
+      if (!(el instanceof HTMLElement)) return false;
+      const cls = el.className || '';
+      // Must include these core classes
+      const mustHaveAll: string[] = [
+        'text-card-foreground',
+        'flex',
+        'flex-col',
+        'gap-6',
+        'rounded-xl',
+        'py-6',
+        'backdrop-blur',
+        'shadow-xl',
+        'border',
+      ];
+      for (const c of mustHaveAll) {
+        if (!el.classList.contains(c)) return false;
+      }
+      // Also ensure these Tailwind tokens (with special chars) are present as substrings
+      const mustIncludeSubstr: string[] = ['bg-card/60', 'supports-[backdrop-filter]:bg-card/60', 'border-white/10'];
+      for (const s of mustIncludeSubstr) {
+        if (!cls.includes(s)) return false;
+      }
+      return true;
+    };
+
+    const purge = () => {
+      try {
+        // Check direct divs first
+        const candidates = document.querySelectorAll('div.text-card-foreground');
+        candidates.forEach((el) => {
+          if (matchesTarget(el)) {
+            el.remove();
+          }
+        });
+      } catch {
+        // ignore
+      }
+    };
+
+    // Run once now
+    purge();
+
+    // Observe future DOM changes to remove late-rendered nodes
+    const observer = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        if (m.type === 'childList' && (m.addedNodes?.length || 0) > 0) {
+          // Check added nodes and their descendants
+          m.addedNodes.forEach((n) => {
+            if (!(n instanceof HTMLElement)) return;
+            if (matchesTarget(n)) {
+              n.remove();
+              return;
+            }
+            n.querySelectorAll?.('div.text-card-foreground')?.forEach((el) => {
+              if (matchesTarget(el)) el.remove();
+            });
+          });
+        }
+      }
+    });
+    try {
+      observer.observe(document.body, { childList: true, subtree: true });
+    } catch {
+      // ignore
+    }
+
+    return () => {
+      try {
+        observer.disconnect();
+      } catch {
+        // ignore
+      }
+    };
   }, [user?.theme]);
 
   // Prefetch next route chunk to speed navigation
