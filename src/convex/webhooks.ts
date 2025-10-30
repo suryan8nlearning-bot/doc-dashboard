@@ -17,7 +17,7 @@ export const sendWebhook = action({
   handler: async (ctx, args) => {
     const { url, body, timeoutMs } = args;
 
-    // Validate URL and enforce HTTPS
+    // Validate URL and enforce HTTPS, but allow http for localhost
     let parsed: URL;
     try {
       parsed = new URL(url);
@@ -25,7 +25,12 @@ export const sendWebhook = action({
       return { ok: false, status: 0, error: "Invalid webhook URL" };
     }
     if (parsed.protocol !== "https:") {
-      return { ok: false, status: 0, error: "Webhook URL must use HTTPS" };
+      const isLocalhost =
+        parsed.protocol === "http:" &&
+        (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1");
+      if (!isLocalhost) {
+        return { ok: false, status: 0, error: "Webhook URL must use HTTPS (or http on localhost)" };
+      }
     }
 
     const controller = new AbortController();

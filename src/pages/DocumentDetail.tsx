@@ -958,17 +958,28 @@ export default function DocumentDetail() {
         toast.error('Invalid webhook URL');
         return;
       }
+      // Allow HTTPS always; allow HTTP only for localhost
       if (url.protocol !== 'https:') {
-        toast.error('Webhook URL must use HTTPS');
-        return;
+        const isLocalhost =
+          url.protocol === 'http:' &&
+          (url.hostname === 'localhost' || url.hostname === '127.0.0.1');
+        if (!isLocalhost) {
+          toast.error('Webhook URL must use HTTPS (or http on localhost)');
+          return;
+        }
       }
 
       let parsed: any;
       try {
         parsed = JSON.parse(sapEditorValue);
       } catch {
-        toast.error('Edited SAP JSON is invalid');
-        return;
+        // Fallback to in-memory object if editor JSON is invalid
+        if (sapObj && typeof sapObj === 'object') {
+          parsed = sapObj;
+        } else {
+          toast.error('Edited SAP JSON is invalid');
+          return;
+        }
       }
 
       if (!window.confirm(`Send SAP for document ${doc.id}?`)) {
@@ -979,6 +990,8 @@ export default function DocumentDetail() {
       const res = await sendWebhook({
         url: url.toString(),
         body: { docId: doc.id, payload: parsed },
+        // give slower endpoints more time
+        timeoutMs: 30000,
       });
 
       if (!res?.ok) {
