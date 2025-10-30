@@ -1,38 +1,64 @@
 import { Button } from "@/components/ui/button";
-import { motion } from "framer-motion";
 import { Trash2, User } from "lucide-react";
+import { toast } from "sonner";
+import { useAction } from "convex/react";
+import { api } from "@/convex/_generated/api";
 
-type Props = {
-  selectedCount: number;
-  onCreate: () => void | Promise<void>;
+type BulkActionsBarProps = {
+  selectedIds: string[];
+  userEmail?: string;
   onProfile: () => void;
-  onDelete: () => void;
-  onClear: () => void;
+  onClearSelection: () => void;
 };
 
 export function BulkActionsBar({
-  selectedCount,
-  onCreate,
+  selectedIds,
+  userEmail = "anonymous",
   onProfile,
-  onDelete,
-  onClear,
-}: Props) {
+  onClearSelection,
+}: BulkActionsBarProps) {
+  const sendWebhook = useAction(api.webhooks.sendWebhook);
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: -10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
-      className="flex items-center gap-4 p-4 rounded-xl border border-white/10 bg-background/50 backdrop-blur-md shadow-lg"
-    >
+    <div className="flex items-center gap-4 p-4 rounded-xl border border-white/10 bg-background/50 backdrop-blur-md shadow-lg">
       <span className="text-sm font-medium">
-        {selectedCount} document{selectedCount !== 1 ? "s" : ""} selected
+        {selectedIds.length} document{selectedIds.length !== 1 ? "s" : ""} selected
       </span>
 
       <Button
         variant="default"
         size="sm"
         className="bg-gradient-to-r from-primary to-fuchsia-600 text-white shadow-sm hover:opacity-90 transition"
-        onClick={onCreate}
+        onClick={async () => {
+          const rawUrl = import.meta.env.VITE_WEBHOOK_URL as string | undefined;
+
+          if (!rawUrl) {
+            toast.error(
+              "Webhook URL not configured. Set VITE_WEBHOOK_URL in API keys (Integrations tab) and refresh."
+            );
+            return;
+          }
+
+          try {
+            const res = await sendWebhook({
+              url: rawUrl,
+              documentIds: selectedIds,
+              userEmail,
+              source: "dashboard",
+            });
+
+            if (res?.ok) {
+              toast.success(`Successfully sent ${selectedIds.length} document(s)`);
+              onClearSelection();
+            } else {
+              toast.error(`Failed to send: ${res?.error || "Unknown error"}`);
+            }
+          } catch (error) {
+            toast.error(
+              `Failed to send: ${error instanceof Error ? error.message : "Unknown error"}`
+            );
+          }
+        }}
       >
         Create
       </Button>
@@ -47,14 +73,21 @@ export function BulkActionsBar({
         Profile
       </Button>
 
-      <Button variant="destructive" size="sm" onClick={onDelete}>
+      <Button
+        variant="destructive"
+        size="sm"
+        onClick={() => {
+          toast.success(`${selectedIds.length} documents would be deleted`);
+          onClearSelection();
+        }}
+      >
         <Trash2 className="h-4 w-4 mr-2" />
         Delete Selected
       </Button>
 
-      <Button variant="outline" size="sm" onClick={onClear}>
+      <Button variant="outline" size="sm" onClick={onClearSelection}>
         Clear Selection
       </Button>
-    </motion.div>
+    </div>
   );
 }

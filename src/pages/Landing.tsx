@@ -783,6 +783,16 @@ export default function Landing() {
     }
   };
 
+  // Remove the specified glass card panel on the homepage
+  // Targets: div.text-card-foreground.flex.flex-col.gap-6.rounded-xl.border.py-6.bg-card/60.supports-[backdrop-filter]:bg-card/60.backdrop-blur.shadow-lg
+  // Use a safer subset of classes to avoid escaping issues while being specific
+  useEffect(() => {
+    const nodes = document.querySelectorAll(
+      'div.text-card-foreground.rounded-xl.border.py-6.backdrop-blur.shadow-lg'
+    );
+    nodes.forEach((el) => el.remove());
+  }, []);
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -1008,7 +1018,7 @@ export default function Landing() {
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5, duration: 0.6 }}
-          className="hidden"
+          className="max-w-5xl mx-auto mt-12 w-full"
         >
           <Card className="bg-card/60 supports-[backdrop-filter]:bg-card/60 backdrop-blur shadow-lg">
             <CardHeader>
