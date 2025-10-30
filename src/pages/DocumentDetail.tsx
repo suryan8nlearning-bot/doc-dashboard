@@ -1222,6 +1222,18 @@ export default function DocumentDetail() {
       <header className="border-b bg-background sticky top-0 z-10">
         <div className="flex items-center justify-between px-8 py-4">
           <div className="flex items-center gap-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/dashboard')}
+              className="px-3 rounded-md"
+              aria-label="Back to Dashboard"
+              title="Back to Dashboard"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Dashboard
+            </Button>
+
             <div className="flex items-center gap-3">
               <FileText className="h-5 w-5 text-muted-foreground" />
               <div>
