@@ -44,9 +44,6 @@ export default function Landing() {
   const [validationErrors, setValidationErrors] = useState<ErrorObject[] | null>(null);
   const [isValid, setIsValid] = useState<boolean | null>(null);
 
-  // Add Convex action hook BEFORE any early return to keep hook order stable
-  const sapAction = useAction(api.webhooks.sendSapPayload);
-
   // Add online/offline detection for error banner
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
   useEffect(() => {
@@ -91,43 +88,23 @@ export default function Landing() {
           } catch {}
         }
 
-        // Prefer SAP JSON saved from the app first; only if absent, fall back to "SAP JSON" field(s).
+        // Prefer SAP JSON saved from the app first, then fall back to SAP_AI_OUTPUT
         const appSapCandidates: any[] = [
           data?.SAP_JSON_FROM_APP,
-          data?.SAP_JSON_from_APP, // mixed-case variant
+          data?.SAP_JSON_from_APP, // Added mixed-case column name to support your schema
           data?.sap_json_from_app,
-          data?.["SAP JSON from app"],
+          data?.['SAP JSON from app'],
           data?.sap_json_app,
           data?.sap_app_json,
         ];
-        const sapJsonFieldCandidates: any[] = [
-          data?.SAP_JSON,
-          data?.["SAP JSON"],
-          data?.sap_json,
-          data?.sapJson,
-        ];
-        const firstNonEmpty = (arr: any[]) =>
-          arr.find((c) => c !== undefined && c !== null && String(c).trim() !== "");
-
-        const preferredSap = firstNonEmpty(appSapCandidates) ?? firstNonEmpty(sapJsonFieldCandidates);
-
-        // If you previously selected a different source, replace that logic with `preferredSap`
-        // Example: set the editor and derived states from preferredSap only.
-        if (preferredSap !== undefined && preferredSap !== null && String(preferredSap).trim() !== "") {
-          try {
-            const parsed = typeof preferredSap === "string" ? JSON.parse(preferredSap) : preferredSap;
-            const pretty = JSON.stringify(parsed, null, 2);
-            setSapJson(pretty);
-            setEditorValue(pretty);
-          } catch {
-            // If not valid JSON, still show raw string
-            const str = String(preferredSap);
-            setSapJson(str);
-            setEditorValue(str);
+        let appSap: any = undefined;
+        for (const c of appSapCandidates) {
+          if (c !== undefined && c !== null && String(c).trim() !== '') {
+            appSap = c;
+            break;
           }
         }
-
-        const sapSource = preferredSap ?? data?.SAP_AI_OUTPUT;
+        const sapSource = appSap ?? data?.SAP_AI_OUTPUT;
 
         const sap =
           sapSource
@@ -739,7 +716,10 @@ export default function Landing() {
     }
   };
 
-  // Replace: handleCreate to call Convex action instead of direct fetch
+  // Add: action hook to call backend webhook proxy
+  const sendWebhook = useAction(api.webhooks.sendWebhook);
+
+  // Replace: handleCreate to use Convex action (avoids CORS) and keep same validation/UX
   const handleCreate = async () => {
     if (!docId) {
       toast.error('Enter a document id');
@@ -793,15 +773,16 @@ export default function Landing() {
 
     setIsCreating(true);
     try {
-      const result = await sapAction({
+      const res = await sendWebhook({
         url: parsed.toString(),
-        docId,
-        payload,
-        userEmail: user?.email || "",
-        source: "landing",
+        body: { id: docId, payload },
+        // You can optionally pass metadata for tracking
+        // userEmail: user?.email ?? undefined,
+        // source: "Landing",
       });
-      if (!result?.ok) {
-        throw new Error(result?.error || `HTTP ${result?.status ?? 0}`);
+
+      if (!res?.ok) {
+        throw new Error(res?.error || `Webhook responded ${res?.status}`);
       }
       toast.success('Webhook called successfully');
     } catch (e: any) {
@@ -1083,7 +1064,7 @@ export default function Landing() {
                   <Button
                     size="sm"
                     onClick={handleCreate}
-                    disabled={isCreating}
+                    disabled={!docId || isCreating}
                   >
                     {isCreating ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
                     Create
