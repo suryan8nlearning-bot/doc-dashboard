@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase, hasSupabaseEnv, publicUrlForPath } from '@/lib/supabase';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, Loader2, LogOut, Mail, Trash2, User, Moon, Sun } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
@@ -527,7 +527,7 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen flex flex-col bg-background scroll-smooth">
       {/* Header */}
-      <header className="sticky top-0 z-10 border-b bg-background/50 backdrop-blur-md">
+      <motion.header initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, ease: 'easeOut' }} className="sticky top-0 z-10 border-b bg-background/50 backdrop-blur-md">
         <div className="flex items-center justify-between px-8 py-4">
           <div className="flex items-center gap-3">
             <img
@@ -578,7 +578,7 @@ export default function Dashboard() {
             </DropdownMenu>
           </div>
         </div>
-      </header>
+      </motion.header>
 
       {/* Main Content */}
       <div className="flex-1 p-8 overflow-auto scroll-smooth">
@@ -602,10 +602,11 @@ export default function Dashboard() {
                 </Select>
               )}
             </div>
-            {selectedDocuments.size > 0 && (
+            <AnimatePresence>{selectedDocuments.size > 0 && (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
                 className="flex items-center gap-4 p-4 rounded-xl border border-white/10 bg-background/50 backdrop-blur-md shadow-lg"
               >
                 <span className="text-sm font-medium">
@@ -715,6 +716,7 @@ export default function Dashboard() {
           </div>
 
           {!hasSupabaseEnv ? (
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, ease: 'easeOut' }}>
             <div className="text-center py-12 space-y-4">
               <FileText className="h-16 w-16 mx-auto text-muted-foreground opacity-20" />
               <div className="text-lg font-medium">Supabase is not configured</div>
@@ -722,11 +724,13 @@ export default function Dashboard() {
                 Add SUPABASE_URL and SUPABASE_ANON_KEY in the Integrations tab, then refresh.
               </p>
             </div>
+            </motion.div>
           ) : isLoadingDocs ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : filteredDocs.length === 0 ? (
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, ease: 'easeOut' }}>
             <div className="text-center py-12 space-y-4">
               <FileText className="h-16 w-16 mx-auto text-muted-foreground opacity-20" />
               <div className="text-lg font-medium">No documents found</div>
@@ -735,6 +739,7 @@ export default function Dashboard() {
               </p>
             </div>
           ) : (
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: 'easeOut' }}>
             <div className="rounded-xl border border-white/10 bg-background/50 backdrop-blur-md shadow-xl overflow-hidden">
               <Table>
                 <TableHeader>
@@ -838,6 +843,7 @@ export default function Dashboard() {
                 </TableBody>
               </Table>
             </div>
+            </motion.div>
           )}
         </div>
       </div>
