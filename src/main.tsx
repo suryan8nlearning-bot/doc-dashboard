@@ -3,7 +3,7 @@ import { VlyToolbar } from "../vly-toolbar-readonly.tsx";
 import { InstrumentationProvider } from "@/instrumentation.tsx";
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { ConvexReactClient } from "convex/react";
-import { StrictMode, useEffect, useState, lazy, Suspense } from "react";
+import { StrictMode, useEffect, useState, lazy, Suspense, createContext, useContext, ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes, useLocation } from "react-router";
 import "./index.css";
@@ -29,6 +29,33 @@ const Profile = lazy(() => import("@/pages/Profile.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL as string);
+
+// Add pending context for coordinating route loading UI
+const PendingContext = createContext<{ pending: boolean; setPending: (p: boolean) => void } | null>(null);
+
+function PendingProvider({ children }: { children: ReactNode }) {
+  const [pending, setPending] = useState(false);
+  return <PendingContext.Provider value={{ pending, setPending }}>{children}</PendingContext.Provider>;
+}
+
+function RouteFallback() {
+  const ctx = useContext(PendingContext);
+  useEffect(() => {
+    ctx?.setPending(true);
+    return () => ctx?.setPending(false);
+  }, [ctx]);
+
+  return (
+    <div
+      className="min-h-screen grid place-items-center bg-background text-muted-foreground"
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+    >
+      Loading…
+    </div>
+  );
+}
 
 function RouteSyncer() {
   const location = useLocation();
@@ -56,42 +83,39 @@ function RouteSyncer() {
 }
 
 function RouteProgressBar() {
-  const location = useLocation();
+  const pendingCtx = useContext(PendingContext);
+  const pending = pendingCtx?.pending ?? false;
   const [progress, setProgress] = useState(0);
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     let incTimer: number | null = null;
-    let doneTimer: number | null = null;
     let hideTimer: number | null = null;
 
-    // Start
-    setVisible(true);
-    setProgress(10);
-
-    // Increment gradually up to ~90%
-    incTimer = window.setInterval(() => {
-      setProgress((p) => {
-        const next = p + Math.random() * 10;
-        return next >= 90 ? 90 : next;
-      });
-    }, 200);
-
-    // Finish after a short delay (keeps UX smooth without adding deps)
-    doneTimer = window.setTimeout(() => {
-      setProgress(100);
-      hideTimer = window.setTimeout(() => {
-        setVisible(false);
-        setProgress(0);
-      }, 250);
-    }, 1200);
+    if (pending) {
+      setVisible(true);
+      setProgress(10);
+      incTimer = window.setInterval(() => {
+        setProgress((p) => {
+          const next = p + Math.random() * 10;
+          return next >= 90 ? 90 : next;
+        });
+      }, 200);
+    } else {
+      if (visible) {
+        setProgress(100);
+        hideTimer = window.setTimeout(() => {
+          setVisible(false);
+          setProgress(0);
+        }, 250);
+      }
+    }
 
     return () => {
       if (incTimer) window.clearInterval(incTimer);
-      if (doneTimer) window.clearTimeout(doneTimer);
       if (hideTimer) window.clearTimeout(hideTimer);
     };
-  }, [location.pathname]);
+  }, [pending, visible]);
 
   if (!visible) return null;
 
@@ -115,32 +139,23 @@ createRoot(document.getElementById("root")!).render(
     {isVlyHost ? <VlyToolbar /> : null}
     <InstrumentationProvider>
       <ConvexAuthProvider client={convex}>
-        <BrowserRouter>
-          <RouteProgressBar />
-          <RouteSyncer />
-          <Suspense
-            fallback={
-              <div
-                className="min-h-screen grid place-items-center bg-background text-muted-foreground"
-                role="status"
-                aria-live="polite"
-                aria-busy="true"
-              >
-                Loading…
-              </div>
-            }
-          >
-            <Routes>
-              <Route path="/" element={<Landing />} />
-              <Route path="/auth" element={<AuthPage redirectAfterAuth="/dashboard" />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/document/:documentId" element={<DocumentDetail />} />
-              <Route path="/profile" element={<Profile />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </Suspense>
-        </BrowserRouter>
-        <Toaster />
+        <PendingProvider>
+          <BrowserRouter>
+            <RouteProgressBar />
+            <RouteSyncer />
+            <Suspense fallback={<RouteFallback />}>
+              <Routes>
+                <Route path="/" element={<Landing />} />
+                <Route path="/auth" element={<AuthPage redirectAfterAuth="/dashboard" />} />
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/document/:documentId" element={<DocumentDetail />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </Suspense>
+          </BrowserRouter>
+          <Toaster />
+        </PendingProvider>
       </ConvexAuthProvider>
     </InstrumentationProvider>
   </StrictMode>,
