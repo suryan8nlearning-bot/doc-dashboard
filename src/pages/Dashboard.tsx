@@ -3,7 +3,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase, hasSupabaseEnv, publicUrlForPath } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, Loader2, LogOut, Mail, Trash2, User, Moon, Sun } from 'lucide-react';
+import { FileText, Loader2, LogOut, Mail, Trash2, User, Moon, Sun, CheckCircle2, Clock, Plus, RefreshCw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
@@ -36,6 +36,9 @@ import { api } from "@/convex/_generated/api";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { BulkActionsBar } from "@/components/dashboard/BulkActionsBar";
 import { DocumentsTable } from "@/components/dashboard/DocumentsTable";
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function Dashboard() {
   const { isLoading: authLoading, isAuthenticated, user, signOut } = useAuth();
@@ -605,6 +608,31 @@ export default function Dashboard() {
     return stripped.length > maxLength ? stripped.substring(0, maxLength) + '...' : stripped;
   };
 
+  // Add derived metrics and handlers for header/actions
+  const totalDocs = documents.length;
+  const processedDocs = documents.filter((d) => {
+    const s = (d.status ?? '').toLowerCase();
+    return s.includes('process') || s.includes('success') || s.includes('done') || s.includes('complete');
+  }).length;
+  const inProgressDocs = documents.filter((d) => {
+    const s = (d.status ?? '').toLowerCase();
+    return s.includes('pending') || s.includes('queue') || s.includes('progress');
+  }).length;
+  const last24hDocs = documents.filter((d) => {
+    const created = new Date(d.created_at);
+    return Date.now() - created.getTime() < 24 * 60 * 60 * 1000;
+  }).length;
+  const processedPct = totalDocs ? Math.round((processedDocs / totalDocs) * 100) : 0;
+
+  const handleNewUpload = () => {
+    // Keep simple and non-destructive; guide user
+    toast.info('New upload flow is managed via your existing ingestion. Use the Landing/SAP tools or your pipeline.');
+  };
+  const handleRefresh = () => {
+    fetchDocuments();
+    toast.success('Refreshing documents...');
+  };
+
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -642,32 +670,186 @@ export default function Dashboard() {
       {/* Main Content */}
       <div className="flex-1 p-8 overflow-auto scroll-smooth">
         <div className="max-w-full mx-auto">
-          <div className="mb-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold tracking-tight">Documents</h2>
-              {uniqueStatuses.length > 0 && (
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-56 bg-background/50 backdrop-blur border-white/10">
-                    <SelectValue placeholder="Filter by Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ALL">All Statuses</SelectItem>
-                    {uniqueStatuses.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {s}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
+          {/* New concise header + controls */}
+          <div className="mb-6 space-y-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-2xl font-bold tracking-tight">Doc Dashboard</h2>
+                <p className="text-sm text-muted-foreground">Overview of your documents and activity</p>
+              </div>
+              <div className="flex items-center gap-3">
+                {uniqueStatuses.length > 0 && (
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-48 sm:w-56 bg-background/50 backdrop-blur border-white/10">
+                      <SelectValue placeholder="Filter by Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All Statuses</SelectItem>
+                      {uniqueStatuses.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {s}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                <Button
+                  onClick={handleRefresh}
+                  variant="outline"
+                  className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh
+                </Button>
+                <Button onClick={handleNewUpload} className="shadow-sm">
+                  <Plus className="h-4 w-4 mr-2" />
+                  New Upload
+                </Button>
+              </div>
             </div>
+
+            {/* Widgets grid */}
+            {isLoadingDocs ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                <Card className="rounded-2xl shadow-sm">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm text-muted-foreground">Total Documents</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Skeleton className="h-8 w-24 mb-3" />
+                    <Skeleton className="h-2 w-full rounded-full" />
+                  </CardContent>
+                </Card>
+                <Card className="rounded-2xl shadow-sm">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm text-muted-foreground">Processed</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Skeleton className="h-8 w-24 mb-3" />
+                    <Skeleton className="h-2 w-full rounded-full" />
+                  </CardContent>
+                </Card>
+                <Card className="rounded-2xl shadow-sm">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm text-muted-foreground">New (24h)</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Skeleton className="h-8 w-24 mb-3" />
+                    <Skeleton className="h-2 w-full rounded-full" />
+                  </CardContent>
+                </Card>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                {/* Total Documents */}
+                <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.995 }} className="h-full">
+                  <Card className="rounded-2xl shadow-sm">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm text-muted-foreground">Total Documents</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="p-2 rounded-lg bg-primary/10">
+                          <FileText className="h-5 w-5 text-primary" />
+                        </div>
+                        <div className="text-3xl font-semibold">{totalDocs}</div>
+                      </div>
+                      <div className="text-xs text-muted-foreground mb-1">{processedPct}% processed</div>
+                      <Progress value={processedPct} />
+                    </CardContent>
+                  </Card>
+                </motion.div>
+
+                {/* Processed */}
+                <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.995 }} className="h-full">
+                  <Card className="rounded-2xl shadow-sm">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm text-muted-foreground">Processed</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="p-2 rounded-lg bg-emerald-500/10">
+                          <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                        </div>
+                        <div className="text-3xl font-semibold">{processedDocs}</div>
+                      </div>
+                      <div className="text-xs text-muted-foreground mb-1">In progress: {inProgressDocs}</div>
+                      <Progress value={Math.min(100, (inProgressDocs / (totalDocs || 1)) * 100)} />
+                    </CardContent>
+                  </Card>
+                </motion.div>
+
+                {/* New in last 24h */}
+                <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.995 }} className="h-full">
+                  <Card className="rounded-2xl shadow-sm">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm text-muted-foreground">New (24h)</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="p-2 rounded-lg bg-amber-500/10">
+                          <Clock className="h-5 w-5 text-amber-500" />
+                        </div>
+                        <div className="text-3xl font-semibold">{last24hDocs}</div>
+                      </div>
+                      <div className="text-xs text-muted-foreground mb-1">Activity trend</div>
+                      <Progress value={Math.min(100, (last24hDocs / Math.max(1, totalDocs)) * 100)} />
+                    </CardContent>
+                  </Card>
+                </motion.div>
+
+                {/* Recent Documents */}
+                <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.995 }} className="h-full md:col-span-2 xl:col-span-1">
+                  <Card className="rounded-2xl shadow-sm">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm text-muted-foreground">Recent Documents</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {documents.slice(0, 5).map((d) => (
+                        <div key={d.id} className="flex items-center justify-between">
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium truncate">{d.subject || d.title || d.bucket_name || d.id}</div>
+                            <div className="text-xs text-muted-foreground truncate">{d.from_email || '—'}</div>
+                          </div>
+                          <div className="ml-3 text-xs px-2 py-1 rounded-full bg-white/5 border border-white/10">
+                            {(d.status || '—')}
+                          </div>
+                        </div>
+                      ))}
+                      {documents.length === 0 && <div className="text-sm text-muted-foreground">No documents yet.</div>}
+                    </CardContent>
+                  </Card>
+                </motion.div>
+
+                {/* Quick Actions */}
+                <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.995 }} className="h-full">
+                  <Card className="rounded-2xl shadow-sm">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm text-muted-foreground">Quick Actions</CardTitle>
+                    </CardHeader>
+                    <CardContent className="flex flex-wrap gap-3">
+                      <Button onClick={handleNewUpload} className="shadow-sm">
+                        <Plus className="h-4 w-4 mr-2" />
+                        New Upload
+                      </Button>
+                      <Button
+                        onClick={handleRefresh}
+                        variant="outline"
+                        className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur"
+                      >
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Refresh
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              </div>
+            )}
+
+            {/* Selection bar remains */}
             <AnimatePresence>
               {selectedDocuments.size > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                >
+                <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
                   <BulkActionsBar
                     selectedIds={Array.from(selectedDocuments)}
                     userEmail={user?.email || 'anonymous'}
