@@ -691,7 +691,12 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen flex flex-col bg-background scroll-smooth">
       {/* Header */}
-      <motion.header initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, ease: 'easeOut' }} className="sticky top-0 z-10 border-b bg-background/50 backdrop-blur-md">
+      <motion.header
+        initial={{ opacity: 0, y: -12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, ease: 'easeOut' }}
+        className="sticky top-0 z-10 h-16 shadow-sm bg-background/80 backdrop-blur-sm"
+      >
         <DashboardHeader
           userEmail={user?.email || 'User'}
           isDarkMode={isDarkMode}
