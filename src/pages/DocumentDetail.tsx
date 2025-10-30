@@ -597,6 +597,11 @@ export default function DocumentDetail() {
             Header ({headerPairs.length})
           </AccordionTrigger>
           <AccordionContent>
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+            >
             {headerPairs.length ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 {headerPairs.map(([k, v]) => (
@@ -622,7 +627,12 @@ export default function DocumentDetail() {
                     Partners ({out.to_Partner.length})
                   </AccordionTrigger>
                   <AccordionContent>
-                    <div className="space-y-2">
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3, ease: "easeOut" }}
+                      className="space-y-2"
+                    >
                       {out.to_Partner.map((p: any, idx: number) => (
                         <div key={idx} className="rounded border p-3 bg-card/40">
                           <div className="text-sm text-muted-foreground mb-2">Partner {idx + 1}</div>
@@ -641,7 +651,7 @@ export default function DocumentDetail() {
                           </div>
                         </div>
                       ))}
-                    </div>
+                    </motion.div>
                   </AccordionContent>
                 </AccordionItem>
               </Accordion>
@@ -654,7 +664,12 @@ export default function DocumentDetail() {
                     Header Pricing ({out.to_PricingElement.length})
                   </AccordionTrigger>
                   <AccordionContent>
-                    <div className="space-y-2">
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3, ease: "easeOut" }}
+                      className="space-y-2"
+                    >
                       {out.to_PricingElement.map((pe: any, idx: number) => (
                         <div key={idx} className="rounded border p-3 bg-card/40">
                           <div className="text-sm text-muted-foreground mb-2">Pricing {idx + 1}</div>
@@ -673,7 +688,7 @@ export default function DocumentDetail() {
                           </div>
                         </div>
                       ))}
-                    </div>
+                    </motion.div>
                   </AccordionContent>
                 </AccordionItem>
               </Accordion>
@@ -685,8 +700,14 @@ export default function DocumentDetail() {
                   <AccordionTrigger className="text-base font-semibold">
                     Items ({out.to_Item.length})
                   </AccordionTrigger>
-                  <AccordionContent className="space-y-3">
-                    {out.to_Item.map((it: any, idx: number) => {
+                  <AccordionContent>
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3, ease: "easeOut" }}
+                      className="space-y-3"
+                    >
+                      {out.to_Item.map((it: any, idx: number) => {
                   const partners = Array.isArray(it?.to_ItemPartner) ? it.to_ItemPartner : [];
                   const prices = Array.isArray(it?.to_ItemPricingElement) ? it.to_ItemPricingElement : [];
                   const itemHeaderPairs = Object.entries(it || {})
@@ -724,7 +745,12 @@ export default function DocumentDetail() {
                               Item Partners ({partners.length})
                             </AccordionTrigger>
                             <AccordionContent>
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              <motion.div
+                                initial={{ opacity: 0, scale: 0.98 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ duration: 0.25 }}
+                                className="grid grid-cols-1 md:grid-cols-2 gap-2"
+                              >
                                 {partners.map((p: any, pi: number) => (
                                   <div key={pi} className="rounded border p-3 bg-card/30">
                                     <div className="grid grid-cols-1 gap-2">
@@ -742,7 +768,7 @@ export default function DocumentDetail() {
                                     </div>
                                   </div>
                                 ))}
-                              </div>
+                              </motion.div>
                             </AccordionContent>
                           </AccordionItem>
                         </Accordion>
@@ -755,7 +781,12 @@ export default function DocumentDetail() {
                               Item Pricing ({prices.length})
                             </AccordionTrigger>
                             <AccordionContent>
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              <motion.div
+                                initial={{ opacity: 0, scale: 0.98 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ duration: 0.25 }}
+                                className="grid grid-cols-1 md:grid-cols-2 gap-2"
+                              >
                                 {prices.map((pr: any, ri: number) => (
                                   <div key={ri} className="rounded border p-3 bg-card/30">
                                     <div className="grid grid-cols-1 gap-2">
@@ -773,7 +804,7 @@ export default function DocumentDetail() {
                                     </div>
                                   </div>
                                 ))}
-                              </div>
+                              </motion.div>
                             </AccordionContent>
                           </AccordionItem>
                         </Accordion>
@@ -781,12 +812,14 @@ export default function DocumentDetail() {
                         </AccordionContent>
                       </AccordionItem>
                     </Accordion>
-                  );
-                })}
+                      );
+                    })}
+                    </motion.div>
                   </AccordionContent>
                 </AccordionItem>
               </Accordion>
             )}
+            </motion.div>
           </AccordionContent>
         </AccordionItem>
       </Accordion>
