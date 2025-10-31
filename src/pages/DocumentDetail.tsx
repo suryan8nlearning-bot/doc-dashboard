@@ -891,18 +891,41 @@ export default function DocumentDetail() {
     try {
       setIsLoading(true);
 
-      // Fast, lean fetch first (avoid loading huge JSON columns initially)
-      const { data, error } = await supabase
+      // Coerce the id to number if possible to avoid type mismatches in Supabase
+      const idFilter = Number.isFinite(Number(documentId)) ? Number(documentId) : documentId;
+
+      // Try a lean select first; if it fails due to missing columns, fall back to select("*")
+      let data: any | null = null;
+
+      const { data: lean, error: leanError } = await supabase
         .from('N8N Logs')
         .select(
           'id, "Bucket Name", path, object_path, bucket_name, file, filename, name, status, Status, state, State, created_at, createdAt, timestamp, title'
         )
-        .eq('id', documentId)
+        .eq('id', idFilter)
         .single();
 
-      if (error) {
-        console.error('Supabase error (lean):', error);
-        throw error;
+      if (leanError) {
+        const msg = (leanError as any)?.message?.toLowerCase?.() ?? '';
+        const columnMissing =
+          msg.includes('column') ||
+          msg.includes('does not exist') ||
+          msg.includes('unknown') ||
+          msg.includes('schema');
+        if (columnMissing) {
+          // Fallback: fetch full row if some projected columns don't exist in this table
+          const { data: fullRow, error: fullRowErr } = await supabase
+            .from('N8N Logs')
+            .select('*')
+            .eq('id', idFilter)
+            .single();
+          if (fullRowErr) throw fullRowErr;
+          data = fullRow;
+        } else {
+          throw leanError;
+        }
+      } else {
+        data = lean;
       }
 
       if (!data) {
@@ -970,7 +993,7 @@ export default function DocumentDetail() {
           const { data: full, error: fullErr } = await supabase
             .from('N8N Logs')
             .select('*')
-            .eq('id', documentId)
+            .eq('id', idFilter)
             .single();
 
           if (fullErr || !full) {
@@ -1001,9 +1024,17 @@ export default function DocumentDetail() {
       });
     } catch (error) {
       console.error('Error fetching document (lean):', error);
-      toast.error(
-        `Failed to load document: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
+      const msg =
+        (error && typeof (error as any).message === 'string')
+          ? (error as any).message
+          : (() => {
+              try {
+                return JSON.stringify(error);
+              } catch {
+                return String(error);
+              }
+            })();
+      toast.error(`Failed to load document: ${msg}`);
       navigate('/dashboard');
       // Ensure we don't keep the page blocked
       setIsLoading(false);
