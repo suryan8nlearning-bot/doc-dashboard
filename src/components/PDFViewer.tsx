@@ -549,10 +549,8 @@ const toPxBox = (box: WideBox): WideBox => {
     const container = containerRef.current;
 
     const pxBox = toPxBox(focusBox as WideBox);
-    const desiredZoom = clampZoom(Math.max(
-      zoom,
-      (container.clientWidth * 0.6) / Math.max(pxBox.width, 1),
-    ));
+    // Enforce default 100% zoom, do not auto-zoom in
+    const desiredZoom = clampZoom(1);
     setZoom(desiredZoom);
     setTimeout(() => {
       const cx = pxBox.x + pxBox.width / 2;
@@ -588,11 +586,12 @@ const toPxBox = (box: WideBox): WideBox => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === '+' || e.key === '=') {
         e.preventDefault();
-        setZoom((prev) => clampZoom(prev + 0.25));
+        // Use updateZoom for consistent behavior and scroll-centering
+        updateZoom(zoom + 0.25);
       }
       if (e.key === '-' || e.key === '_') {
         e.preventDefault();
-        setZoom((prev) => clampZoom(prev - 0.25));
+        updateZoom(zoom - 0.25);
       }
       if (e.key === '0') {
         e.preventDefault();
@@ -620,7 +619,7 @@ const toPxBox = (box: WideBox): WideBox => {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [invertY, currentPage, totalPages, zoom]); // extend deps for nav
 
-  // Keep hover-centering and zooming for a hovered single box (clamped) + switch page if needed
+  // Keep hover-centering but do NOT auto-zoom when a box is highlighted
   useEffect(() => {
     if (!highlightBox || !containerRef.current) return;
 
@@ -650,20 +649,12 @@ const toPxBox = (box: WideBox): WideBox => {
       }
 
       const pxBox = toPxBox(highlightBox as WideBox);
-      console.debug('PDFViewer: hover highlight box (px)', { pxBox, zoom, base });
-
-      const targetZoom = clampZoom(Math.max(
-        zoom,
-        (container.clientWidth * 0.55) / Math.max(pxBox.width, 1),
-      ));
-      if (targetZoom > zoom + 0.01) {
-        setZoom(targetZoom);
-      }
+      // Center on the highlight at the current zoom, but don't change zoom automatically
       const boxCenterX = pxBox.x + pxBox.width / 2;
       const boxCenterY = pxBox.y + pxBox.height / 2;
       container.scrollTo({
-        left: boxCenterX * targetZoom - container.clientWidth / 2,
-        top: boxCenterY * targetZoom - container.clientHeight / 2,
+        left: boxCenterX * zoom - container.clientWidth / 2,
+        top: boxCenterY * zoom - container.clientHeight / 2,
         behavior: 'smooth',
       });
     };
