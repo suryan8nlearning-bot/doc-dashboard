@@ -38,6 +38,7 @@ import { BulkActionsBar } from "@/components/dashboard/BulkActionsBar";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
 
 export default function Dashboard() {
   const { isLoading: authLoading, isAuthenticated, user, signOut } = useAuth();
@@ -68,6 +69,8 @@ export default function Dashboard() {
   const [selectedSAP, setSelectedSAP] = useState<any | null>(null);
   const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set());
   const [isDarkMode, setIsDarkMode] = useState(false);
+  // Add: toggle to show only documents with data
+  const [showDataOnly, setShowDataOnly] = useState(false);
   const openTable = () => {
     navigate('/documents');
   };
@@ -733,144 +736,217 @@ export default function Dashboard() {
                   <FileText className="h-4 w-4 mr-2" />
                   View Documents
                 </Button>
+                {/* Add: Data Only toggle */}
+                <div className="flex items-center gap-2 pl-2">
+                  <Switch
+                    id="toggle-data-only"
+                    checked={showDataOnly}
+                    onCheckedChange={setShowDataOnly}
+                  />
+                  <label htmlFor="toggle-data-only" className="text-sm">
+                    Data Only
+                  </label>
+                </div>
               </div>
             </div>
 
             {/* Widgets grid */}
-            {isLoadingDocs ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                <Card className="rounded-2xl shadow-sm">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm text-muted-foreground">Total Documents</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <Skeleton className="h-8 w-24 mb-3" />
-                    <Skeleton className="h-2 w-full rounded-full" />
-                  </CardContent>
-                </Card>
-                <Card className="rounded-2xl shadow-sm">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm text-muted-foreground">Processed</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <Skeleton className="h-8 w-24 mb-3" />
-                    <Skeleton className="h-2 w-full rounded-full" />
-                  </CardContent>
-                </Card>
-                <Card className="rounded-2xl shadow-sm">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm text-muted-foreground">New (24h)</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <Skeleton className="h-8 w-24 mb-3" />
-                    <Skeleton className="h-2 w-full rounded-full" />
-                  </CardContent>
-                </Card>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {/* Total Documents */}
-                <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.995 }} className="h-full">
-                  <Card className="rounded-2xl shadow-sm">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm text-muted-foreground">Total Documents</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="p-2 rounded-lg bg-primary/10">
-                          <FileText className="h-5 w-5 text-primary" />
-                        </div>
-                        <div className="text-3xl font-semibold">{totalDocs}</div>
-                      </div>
-                      <div className="text-xs text-muted-foreground mb-1">{processedPct}% processed</div>
-                      <Progress value={processedPct} />
-                    </CardContent>
-                  </Card>
-                </motion.div>
-
-                {/* Processed */}
-                <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.995 }} className="h-full">
-                  <Card className="rounded-2xl shadow-sm">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm text-muted-foreground">Processed</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="p-2 rounded-lg bg-emerald-500/10">
-                          <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-                        </div>
-                        <div className="text-3xl font-semibold">{processedDocs}</div>
-                      </div>
-                      <div className="text-xs text-muted-foreground mb-1">In progress: {inProgressDocs}</div>
-                      <Progress value={Math.min(100, (inProgressDocs / (totalDocs || 1)) * 100)} />
-                    </CardContent>
-                  </Card>
-                </motion.div>
-
-                {/* New in last 24h */}
-                <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.995 }} className="h-full">
-                  <Card className="rounded-2xl shadow-sm">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm text-muted-foreground">New (24h)</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="p-2 rounded-lg bg-amber-500/10">
-                          <Clock className="h-5 w-5 text-amber-500" />
-                        </div>
-                        <div className="text-3xl font-semibold">{last24hDocs}</div>
-                      </div>
-                      <div className="text-xs text-muted-foreground mb-1">Activity trend</div>
-                      <Progress value={Math.min(100, (last24hDocs / Math.max(1, totalDocs)) * 100)} />
-                    </CardContent>
-                  </Card>
-                </motion.div>
-
-                {/* Recent Documents */}
-                <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.995 }} className="h-full md:col-span-2 xl:col-span-1">
-                  <Card className="rounded-2xl shadow-sm">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm text-muted-foreground">Recent Documents</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      {documents.slice(0, 5).map((d) => (
-                        <div key={d.id} className="flex items-center justify-between">
-                          <div className="min-w-0">
-                            <div className="text-sm font-medium truncate">{d.subject || d.title || d.bucket_name || d.id}</div>
-                            <div className="text-xs text-muted-foreground truncate">{d.from_email || '—'}</div>
+            {!isLoadingDocs && showDataOnly ? null : (
+              <>
+                {isLoadingDocs ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    <Card className="rounded-2xl shadow-sm">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm text-muted-foreground">Total Documents</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <Skeleton className="h-8 w-24 mb-3" />
+                        <Skeleton className="h-2 w-full rounded-full" />
+                      </CardContent>
+                    </Card>
+                    <Card className="rounded-2xl shadow-sm">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm text-muted-foreground">Processed</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <Skeleton className="h-8 w-24 mb-3" />
+                        <Skeleton className="h-2 w-full rounded-full" />
+                      </CardContent>
+                    </Card>
+                    <Card className="rounded-2xl shadow-sm">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm text-muted-foreground">New (24h)</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <Skeleton className="h-8 w-24 mb-3" />
+                        <Skeleton className="h-2 w-full rounded-full" />
+                      </CardContent>
+                    </Card>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    {/* Total Documents */}
+                    <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.995 }} className="h-full">
+                      <Card className="rounded-2xl shadow-sm">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm text-muted-foreground">Total Documents</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex items-center gap-3 mb-3">
+                            <div className="p-2 rounded-lg bg-primary/10">
+                              <FileText className="h-5 w-5 text-primary" />
+                            </div>
+                            <div className="text-3xl font-semibold">{totalDocs}</div>
                           </div>
-                          <div className="ml-3 text-xs px-2 py-1 rounded-full bg-white/5 border border-white/10">
-                            {(d.status || '—')}
-                          </div>
-                        </div>
-                      ))}
-                      {documents.length === 0 && <div className="text-sm text-muted-foreground">No documents yet.</div>}
-                    </CardContent>
-                  </Card>
-                </motion.div>
+                          <div className="text-xs text-muted-foreground mb-1">{processedPct}% processed</div>
+                          <Progress value={processedPct} />
+                        </CardContent>
+                      </Card>
+                    </motion.div>
 
-                {/* Quick Actions */}
-                <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.995 }} className="h-full">
-                  <Card className="rounded-2xl shadow-sm">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm text-muted-foreground">Quick Actions</CardTitle>
-                    </CardHeader>
-                    <CardContent className="flex flex-wrap gap-3">
-                      <Button onClick={openTable} className="shadow-sm">
-                        <FileText className="h-4 w-4 mr-2" />
-                        View Documents
-                      </Button>
-                      <Button
-                        onClick={handleRefresh}
-                        variant="outline"
-                        className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur"
-                      >
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        Refresh
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </motion.div>
+                    {/* Processed */}
+                    <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.995 }} className="h-full">
+                      <Card className="rounded-2xl shadow-sm">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm text-muted-foreground">Processed</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex items-center gap-3 mb-3">
+                            <div className="p-2 rounded-lg bg-emerald-500/10">
+                              <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                            </div>
+                            <div className="text-3xl font-semibold">{processedDocs}</div>
+                          </div>
+                          <div className="text-xs text-muted-foreground mb-1">In progress: {inProgressDocs}</div>
+                          <Progress value={Math.min(100, (inProgressDocs / (totalDocs || 1)) * 100)} />
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+
+                    {/* New in last 24h */}
+                    <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.995 }} className="h-full">
+                      <Card className="rounded-2xl shadow-sm">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm text-muted-foreground">New (24h)</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex items-center gap-3 mb-3">
+                            <div className="p-2 rounded-lg bg-amber-500/10">
+                              <Clock className="h-5 w-5 text-amber-500" />
+                            </div>
+                            <div className="text-3xl font-semibold">{last24hDocs}</div>
+                          </div>
+                          <div className="text-xs text-muted-foreground mb-1">Activity trend</div>
+                          <Progress value={Math.min(100, (last24hDocs / Math.max(1, totalDocs)) * 100)} />
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+
+                    {/* Recent Documents */}
+                    <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.995 }} className="h-full md:col-span-2 xl:col-span-1">
+                      <Card className="rounded-2xl shadow-sm">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm text-muted-foreground">Recent Documents</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                          {documents.slice(0, 5).map((d) => (
+                            <div key={d.id} className="flex items-center justify-between">
+                              <div className="min-w-0">
+                                <div className="text-sm font-medium truncate">{d.subject || d.title || d.bucket_name || d.id}</div>
+                                <div className="text-xs text-muted-foreground truncate">{d.from_email || '—'}</div>
+                              </div>
+                              <div className="ml-3 text-xs px-2 py-1 rounded-full bg-white/5 border border-white/10">
+                                {(d.status || '—')}
+                              </div>
+                            </div>
+                          ))}
+                          {documents.length === 0 && <div className="text-sm text-muted-foreground">No documents yet.</div>}
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+
+                    {/* Quick Actions */}
+                    <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.995 }} className="h-full">
+                      <Card className="rounded-2xl shadow-sm">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm text-muted-foreground">Quick Actions</CardTitle>
+                        </CardHeader>
+                        <CardContent className="flex flex-wrap gap-3">
+                          <Button onClick={openTable} className="shadow-sm">
+                            <FileText className="h-4 w-4 mr-2" />
+                            View Documents
+                          </Button>
+                          <Button
+                            onClick={handleRefresh}
+                            variant="outline"
+                            className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur"
+                          >
+                            <RefreshCw className="h-4 w-4 mr-2" />
+                            Refresh
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Add: Data Only view */}
+            {showDataOnly && (
+              <div className="mt-2">
+                <Card className="rounded-2xl shadow-sm">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm text-muted-foreground">Documents with Data</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {isLoadingDocs ? (
+                      <div className="space-y-2">
+                        <Skeleton className="h-5 w-2/3" />
+                        <Skeleton className="h-5 w-1/2" />
+                        <Skeleton className="h-5 w-3/4" />
+                      </div>
+                    ) : (
+                      <div className="max-h-[60vh] overflow-auto no-scrollbar divide-y divide-white/10">
+                        {documents.filter((d) => !!d.document_data).length === 0 ? (
+                          <div className="text-sm text-muted-foreground py-6">
+                            No documents containing parsed data were found.
+                          </div>
+                        ) : (
+                          documents
+                            .filter((d) => !!d.document_data)
+                            .map((d) => {
+                              const docName =
+                                (d.bucket_name ? String(d.bucket_name).split('/').pop() : '') ||
+                                d.title ||
+                                d.id;
+                              return (
+                                <div key={d.id} className="py-3 flex items-center justify-between gap-4">
+                                  <div className="min-w-0">
+                                    <div className="text-sm font-medium truncate">
+                                      {d.subject || d.title || docName}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground truncate">
+                                      From: {d.from_email || '—'} • ID: {d.id} • Status: {d.status || '—'}
+                                    </div>
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    className="px-2 text-lg"
+                                    onClick={() => navigate(`/document/${d.id}`)}
+                                    aria-label={`Open document ${d.id}`}
+                                    title="Open"
+                                  >
+                                    &gt;
+                                  </Button>
+                                </div>
+                              );
+                            })
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
               </div>
             )}
 
