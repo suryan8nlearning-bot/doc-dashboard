@@ -39,6 +39,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
+import { Slider } from "@/components/ui/slider";
 
 export default function Dashboard() {
   const { isLoading: authLoading, isAuthenticated, user, signOut } = useAuth();
@@ -383,14 +384,16 @@ export default function Dashboard() {
   };
 
   // Shrink and wrap SAP KV rows for denser display
-  const KV = ({ label, value }: { label: string; value: any }) => (
-    <div className="flex items-start justify-between rounded-sm border border-white/10 p-1.5 gap-2">
-      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="text-[12px] font-medium leading-snug whitespace-pre-wrap break-words">
-        {String(value ?? '—')}
+  function KV({ label, value }: { label: string; value: any }) {
+    return (
+      <div className="rounded-sm border border-border/60 p-2">
+        <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">{label}</div>
+        <div className="text-sm font-medium whitespace-pre-wrap break-words">
+          {String(value ?? "—")}
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
 
   // Render grouped SAP payload
   const renderSap = (out: any) => {
@@ -409,7 +412,11 @@ export default function Dashboard() {
         <div>
           <div className="font-semibold mb-2">Header</div>
           {headerPairs.length ? (
-            <div className="grid [grid-template-columns:repeat(auto-fit,minmax(160px,1fr))] gap-1.5">
+            <div
+              // apply dynamic min column width; fields will flow as the space changes
+              style={{ ["--minCol" as any]: `${fieldMin}px` }}
+              className="grid gap-2 grid-cols-[repeat(auto-fit,minmax(var(--minCol,220px),1fr))]"
+            >
               {headerPairs.map(([k, v]) => (
                 <KV key={k} label={k} value={v} />
               ))}
@@ -747,6 +754,23 @@ export default function Dashboard() {
     toast.success('Refreshing documents...');
   };
 
+  // Add: fieldMin state and persistence
+  const [fieldMin, setFieldMin] = useState<number>(() => {
+    const v = Number(localStorage.getItem("dashboardFieldMin") || 240);
+    return Number.isFinite(v) ? v : 240;
+  });
+
+  // Persist setting
+  useEffect(() => {
+    try {
+      localStorage.setItem("dashboardFieldMin", String(fieldMin));
+      // also expose a css var for any static class expressions
+      document.documentElement.style.setProperty("--dash-field-min", `${fieldMin}px`);
+    } catch {
+      // ignore
+    }
+  }, [fieldMin]);
+
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -822,6 +846,18 @@ export default function Dashboard() {
                   )}
                   {isNavToDocsLoading ? 'Opening...' : 'View Documents'}
                 </Button>
+                <div className="hidden sm:flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Field width</span>
+                  <div className="w-36">
+                    <Slider
+                      value={[fieldMin]}
+                      min={140}
+                      max={420}
+                      step={10}
+                      onValueChange={(v) => setFieldMin(v?.[0] ?? fieldMin)}
+                    />
+                  </div>
+                </div>
                 {/* Add: Data Only toggle */}
                 <div className="flex items-center gap-2 pl-2">
                   <Switch
