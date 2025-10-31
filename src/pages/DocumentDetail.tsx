@@ -1376,18 +1376,45 @@ export default function DocumentDetail() {
                 Toggle SAP visibility from the user menu. Use "Next" to view the PDF and document data.
               </div>
               {showSAP ? (
-                <ScrollArea className="h-full pr-1 overflow-y-auto">
-                  {
-                    (() => {
-                      try {
-                        const parsed = JSON.parse(sapEditorValue || '{}');
-                        return renderSapEditable(parsed);
-                      } catch {
-                        return <div className="text-sm text-muted-foreground">Invalid JSON in editor. Fix to preview.</div>;
-                      }
-                    })()
-                  }
-                </ScrollArea>
+                <>
+                  <ScrollArea className="h-full pr-1 overflow-y-auto">
+                    {
+                      (() => {
+                        try {
+                          const parsed = JSON.parse(sapEditorValue || '{}');
+                          return renderSapEditable(parsed);
+                        } catch {
+                          return <div className="text-sm text-muted-foreground">Invalid JSON in editor. Fix to preview.</div>;
+                        }
+                      })()
+                    }
+                  </ScrollArea>
+                  {/* Raw SAP JSON box (full-screen view) */}
+                  <div className="mt-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-sm font-medium">Raw SAP JSON</div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          try {
+                            navigator.clipboard.writeText(sapEditorValue || '');
+                            toast.success('SAP JSON copied');
+                          } catch {
+                            toast.error('Copy failed');
+                          }
+                        }}
+                      >
+                        Copy JSON
+                      </Button>
+                    </div>
+                    <ScrollArea className="max-h-[30vh] border rounded bg-muted/30">
+                      <pre className="p-3 text-xs overflow-x-auto whitespace-pre-wrap break-all">
+                        {sapEditorValue || ''}
+                      </pre>
+                    </ScrollArea>
+                  </div>
+                </>
               ) : (
                 <div className="text-sm text-muted-foreground">
                   SAP data . Enable it from the user menu.
@@ -1459,7 +1486,31 @@ export default function DocumentDetail() {
                       }
                     </ScrollArea>
 
-                    {/* JSON editor removed; fields are now edited inline above */}
+                    {/* Raw SAP JSON box (split view aside) */}
+                    <div className="pt-2">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-sm font-medium">Raw SAP JSON</div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            try {
+                              navigator.clipboard.writeText(sapEditorValue || '');
+                              toast.success('SAP JSON copied');
+                            } catch {
+                              toast.error('Copy failed');
+                            }
+                          }}
+                        >
+                          Copy JSON
+                        </Button>
+                      </div>
+                      <ScrollArea className="max-h-[30vh] border rounded bg-muted/30">
+                        <pre className="p-3 text-xs overflow-x-auto whitespace-pre-wrap break-all">
+                          {sapEditorValue || ''}
+                        </pre>
+                      </ScrollArea>
+                    </div>
                   </div>
                 ) : (
                   <div className="text-sm text-muted-foreground">
