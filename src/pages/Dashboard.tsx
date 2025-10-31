@@ -7,7 +7,7 @@ import { FileText, Loader2, LogOut, Mail, Trash2, User, Moon, Sun, CheckCircle2,
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+ // removed status filter select import
 import {
   Table,
   TableBody,
@@ -720,21 +720,7 @@ export default function Dashboard() {
                 <p className="text-sm text-muted-foreground">Overview of your documents and activity</p>
               </div>
               <div className="flex items-center gap-3">
-                {uniqueStatuses.length > 0 && (
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-48 sm:w-56 bg-background/50 backdrop-blur border-white/10">
-                      <SelectValue placeholder="Filter by Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ALL">All Statuses</SelectItem>
-                      {uniqueStatuses.map((s) => (
-                        <SelectItem key={s} value={s}>
-                          {s}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
+                {/* removed status filter button */}
                 <Button
                   onClick={handleRefresh}
                   variant="outline"
