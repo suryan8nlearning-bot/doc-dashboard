@@ -174,6 +174,15 @@ export function DocumentsTable({
                 <TableHead className="w-[220px]">From Mail</TableHead>
                 <TableHead className="min-w-[220px]">Subject</TableHead>
                 <TableHead
+                  className="w-[140px] cursor-pointer select-none"
+                  onClick={() => toggleSort("status")}
+                >
+                  <div className="flex items-center gap-2">
+                    Status
+                    <SortIcon active={sortBy === "status"} dir={sortDir} />
+                  </div>
+                </TableHead>
+                <TableHead
                   className="min-w-[220px] cursor-pointer select-none"
                   onClick={() => toggleSort("name")}
                 >
@@ -226,6 +235,10 @@ export function DocumentsTable({
                     {/* Subject */}
                     <TableCell className="truncate" title={doc.subject || "—"}>
                       {subject}
+                    </TableCell>
+                    {/* Add: Status cell */}
+                    <TableCell>
+                      <StatusBadge value={doc.status} />
                     </TableCell>
                     {/* Document (last segment) */}
                     <TableCell className="truncate" title={docName}>
@@ -298,6 +311,11 @@ export function DocumentsTable({
                     </div>
                     <div className="mt-1 text-xs text-muted-foreground truncate" title={doc.subject || "—"}>
                       Subject: {truncateText(doc.subject || "—", 80)}
+                    </div>
+                    {/* Add: Status (mobile) */}
+                    <div className="mt-1 text-xs text-muted-foreground flex items-center gap-2">
+                      <span>Status:</span>
+                      <StatusBadge value={doc.status} />
                     </div>
                   </div>
                 </div>
