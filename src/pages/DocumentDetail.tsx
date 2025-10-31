@@ -875,6 +875,33 @@ export default function DocumentDetail() {
                     }
                   }
 
+                  // Compute column widths (in ch units) based on content length
+                  const headerLenByCol: Record<string, number> = Object.fromEntries(
+                    cols.map((c) => [c, c.length])
+                  );
+                  const valueLenByCol: Record<string, number> = {};
+                  for (const c of cols) {
+                    let maxLen = headerLenByCol[c] || 0;
+                    for (const it of itemsArr) {
+                      const v = it?.[c];
+                      if (v !== undefined && v !== null) {
+                        const s = String(v);
+                        // cap extremely long values to avoid blowing up the layout
+                        maxLen = Math.max(maxLen, Math.min(s.length, 40));
+                      }
+                    }
+                    valueLenByCol[c] = maxLen;
+                  }
+                  const colWidthCh: Record<string, number> = {};
+                  for (const c of cols) {
+                    const max = valueLenByCol[c];
+                    // tighter caps for numeric columns
+                    const clamped = numericCols.has(c)
+                      ? Math.min(Math.max(max, 6), 12)
+                      : Math.min(Math.max(max, 10), 28);
+                    colWidthCh[c] = clamped;
+                  }
+
                   return (
                     <Card className="bg-card/40">
                       <CardHeader>
@@ -885,21 +912,25 @@ export default function DocumentDetail() {
                           <Table className="min-w-[760px] text-sm">
                             <TableHeader className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
                               <TableRow className="hover:bg-transparent">
-                                <TableHead className="whitespace-nowrap py-2 px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                <TableHead
+                                  className="whitespace-nowrap py-2 px-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
+                                  style={{ width: '4ch' }}
+                                >
                                   #
                                 </TableHead>
                                 {cols.map((c) => (
                                   <TableHead
                                     key={c}
                                     className={[
-                                      "whitespace-nowrap py-2 px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground",
+                                      "whitespace-nowrap py-2 px-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground",
                                       numericCols.has(c) ? "text-right" : "text-left",
                                     ].join(" ")}
+                                    style={{ width: `${colWidthCh[c]}ch` }}
                                   >
                                     {c}
                                   </TableHead>
                                 ))}
-                                <TableHead className="whitespace-nowrap py-2 px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground text-right">
+                                <TableHead className="whitespace-nowrap py-2 px-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground text-right">
                                   Actions
                                 </TableHead>
                               </TableRow>
@@ -910,16 +941,20 @@ export default function DocumentDetail() {
                                   key={idx}
                                   className="even:bg-muted/10 hover:bg-muted/30 transition-colors"
                                 >
-                                  <TableCell className="py-2 px-3 text-xs text-muted-foreground">
+                                  <TableCell
+                                    className="py-2 px-2 text-xs text-muted-foreground"
+                                    style={{ width: '4ch' }}
+                                  >
                                     {idx + 1}
                                   </TableCell>
                                   {cols.map((c) => (
                                     <TableCell
                                       key={c}
                                       className={[
-                                        "py-2 px-3 align-top",
+                                        "py-2 px-2 align-top",
                                         numericCols.has(c) ? "text-right tabular-nums" : "",
                                       ].join(" ")}
+                                      style={{ width: `${colWidthCh[c]}ch` }}
                                     >
                                       <Input
                                         value={String(
@@ -937,9 +972,8 @@ export default function DocumentDetail() {
                                       />
                                     </TableCell>
                                   ))}
-                                  <TableCell className="py-2 px-3 text-right">
+                                  <TableCell className="py-2 px-2 text-right">
                                     <Button
-                                      // Make always visible by removing any group-hover/opacity-0 classes
                                       className={ALWAYS_VISIBLE_BTN_CLASSES}
                                       variant="outline"
                                       size="sm"
