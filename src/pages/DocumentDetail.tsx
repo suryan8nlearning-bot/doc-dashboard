@@ -63,6 +63,9 @@ export default function DocumentDetail() {
   // Add: view state to switch between 'sap' full-screen and 'document' split view
   const [view, setView] = useState<'sap' | 'document'>('document');
 
+  // Add: full page toggle state
+  const [isExpanded, setIsExpanded] = useState<boolean>(true);
+
   // Removed view sync with showSAP so PDF + data are visible by default and independent of the toggle.
 
   useEffect(() => {
@@ -1262,6 +1265,15 @@ export default function DocumentDetail() {
             )}
 
             <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsExpanded((v) => !v)}
+              className="px-4 rounded-md"
+            >
+              {isExpanded ? 'Split View' : 'Full Page'}
+            </Button>
+
+            <Button
               variant="default"
               size="sm"
               onClick={handleSave}
@@ -1425,7 +1437,14 @@ export default function DocumentDetail() {
         </div>
 
         {/* Document Fields */}
-        <aside ref={asideRef} className="relative w-[420px] lg:w-[560px] border-l bg-background overflow-y-auto no-scrollbar flex-shrink-0 flex flex-col scroll-smooth">
+        <aside
+  ref={asideRef}
+  className={
+    isExpanded
+      ? 'hidden'
+      : 'relative w-[420px] lg:w-[560px] border-l bg-background overflow-y-auto no-scrollbar flex-shrink-0 flex flex-col scroll-smooth'
+  }
+>
           <div className="p-4 border-b">
             <Card className="bg-card/60">
               <CardHeader>
