@@ -8,6 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { User } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase, type BoundingBox, hasSupabaseEnv, publicUrlForPath } from '@/lib/supabase';
@@ -689,14 +690,14 @@ export default function DocumentDetail() {
           </AccordionTrigger>
           <AccordionContent>
             <Card className="bg-card/50 border">
-              <CardContent className="pt-4">
+              <CardContent className="pt-3">
                 <motion.div
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.3, ease: "easeOut" }}
                 >
                   {headerPairs.length ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                       {headerPairs.map(([k, v]) => {
                         const isNumericLike =
                           typeof v === 'number' ||
@@ -708,12 +709,15 @@ export default function DocumentDetail() {
                             })());
 
                         return (
-                          <div key={k} className="rounded-md border bg-card/50 p-3 hover:bg-muted/30 transition-colors">
-                            <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1.5">{k}</div>
+                          <div key={k} className="rounded-md border bg-card/40 p-2 hover:bg-muted/20 transition-colors">
+                            <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">{k}</div>
                             <Input
                               value={String(v ?? '')}
                               onChange={(e) => updateHeaderField(k, e.target.value)}
-                              className={["h-9 text-sm bg-muted/30 focus-visible:ring-1 shadow-sm", isNumericLike ? "text-right tabular-nums" : ""].join(" ")}
+                              className={[
+                                "h-8 text-xs bg-muted/20 focus-visible:ring-1 shadow-sm",
+                                isNumericLike ? "text-right tabular-nums" : ""
+                              ].join(" ")}
                               onKeyDown={onEditingKeyDown}
                               title={String(v ?? '')}
                             />
@@ -1766,141 +1770,169 @@ export default function DocumentDetail() {
       )}
 
       {/* Main Content (Step 2) */}
-      <div className={showSAP && view === 'sap' ? 'hidden' : 'flex-1 flex overflow-hidden'}>
-        {/* PDF Viewer */}
-        <div className="relative h-full min-w-0 flex-1 overflow-hidden">
-          {/* Overlay open-in-new tab button on PDF preview */}
-          <div className="absolute top-3 right-3 z-10">
-            <Button variant="secondary" size="sm" className="shadow-md" asChild>
-              <a
-                href={doc.pdf_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                title="Open PDF in new tab"
-                aria-label="Open PDF in new tab"
-                onClick={() => toast('Opening PDF in a new tab...')}
-              >
-                <ExternalLink className="h-4 w-4 mr-2" />
-                Open PDF
-              </a>
-            </Button>
-          </div>
-          <Suspense fallback={<PDFSkeleton />}>
-            <PDFViewerLazy
-              pdfUrl={doc.pdf_url}
-              highlightBox={highlightBox}
-              documentData={showSAP ? doc.document_data : undefined}
-            />
-          </Suspense>
-        </div>
-
-        {/* Document Fields */}
-        <aside
-  ref={asideRef}
-  className={
-    isExpanded
-      ? 'hidden'
-      : 'relative w-[680px] lg:w-[860px] bg-background overflow-y-auto no-scrollbar flex-shrink-0 flex flex-col scroll-smooth'
-  }
->
-          <div className="p-4 border-b">
-            <Card className="bg-card/60">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold tracking-tight">SAP and Document Data</h3>
-                  <button
-                    type="button"
-                    onClick={collapseAllHierarchy}
-                    className="text-xs px-2 py-1 rounded-md border hover:bg-muted transition-colors"
-                    title={sapExpandAll ? "Collapse both SAP and Document Data" : "Expand both SAP and Document Data"}
+      {showSAP && view === 'sap' ? null : (
+        isExpanded ? (
+          // Full page PDF view
+          <div className="flex-1 flex overflow-hidden">
+            <div className="relative h-full min-w-0 flex-1 overflow-hidden">
+              <div className="absolute top-3 right-3 z-10">
+                <Button variant="secondary" size="sm" className="shadow-md" asChild>
+                  <a
+                    href={doc.pdf_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Open PDF in new tab"
+                    aria-label="Open PDF in new tab"
+                    onClick={() => toast('Opening PDF in a new tab...')}
                   >
-                    {sapExpandAll ? 'Collapse All' : 'Expand All'}
-                  </button>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Accordion
-                  type="multiple"
-                  value={openHierarchySections}
-                  onValueChange={setOpenHierarchySections}
-                >
-                  {/* SAP Data hierarchy */}
-                  <AccordionItem value="sap">
-                    <AccordionTrigger className="text-base font-semibold">
-                      SAP Data
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      {showSAP ? (
-                        <ScrollArea className="max-h-[60vh] pr-1 overflow-y-auto no-scrollbar">
-                          {
-                            (() => {
-                              try {
-                                const parsed = JSON.parse(sapEditorValue || '{}');
-                                return renderSapEditable(parsed, sapCollapseNonce, sapExpandAll);
-                              } catch {
-                                return (
-                                  <div className="text-sm text-muted-foreground">
-                                    Invalid JSON in editor. Fix to preview.
-                                  </div>
-                                );
-                              }
-                            })()
-                          }
-                        </ScrollArea>
-                      ) : (
-                        <div className="text-sm text-muted-foreground">
-                          SAP data hidden. Enable it from the user menu.
-                        </div>
-                      )}
-                    </AccordionContent>
-                  </AccordionItem>
-
-                  {/* Document Data hierarchy */}
-                  <AccordionItem value="doc">
-                    <AccordionTrigger className="text-base font-semibold">
-                      Document Data
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      {doc.document_data && doc.document_data?.document?.pages?.length > 0 ? (
-                        <Suspense fallback={<RightPanelSkeleton />}>
-                          <DocumentFieldsLazy
-                            documentData={doc.document_data}
-                            onFieldHover={setHighlightBox}
-                          />
-                        </Suspense>
-                      ) : (
-                        <div className="text-sm text-muted-foreground">
-                          No structured data available for this document.
-                        </div>
-                      )}
-                    </AccordionContent>
-                  </AccordionItem>
-                </Accordion>
-              </CardContent>
-            </Card>
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Open PDF
+                  </a>
+                </Button>
+              </div>
+              <Suspense fallback={<PDFSkeleton />}>
+                <PDFViewerLazy
+                  pdfUrl={doc.pdf_url}
+                  highlightBox={highlightBox}
+                  documentData={showSAP ? doc.document_data : undefined}
+                />
+              </Suspense>
+            </div>
           </div>
+        ) : (
+          // Resizable split: PDF | Data
+          <ResizablePanelGroup direction="horizontal" className="flex-1 overflow-hidden">
+            <ResizablePanel defaultSize={65} minSize={40} className="relative min-w-0">
+              <div className="relative h-full min-w-0 overflow-hidden">
+                <div className="absolute top-3 right-3 z-10">
+                  <Button variant="secondary" size="sm" className="shadow-md" asChild>
+                    <a
+                      href={doc.pdf_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Open PDF in new tab"
+                      aria-label="Open PDF in new tab"
+                      onClick={() => toast('Opening PDF in a new tab...')}
+                    >
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      Open PDF
+                    </a>
+                  </Button>
+                </div>
+                <Suspense fallback={<PDFSkeleton />}>
+                  <PDFViewerLazy
+                    pdfUrl={doc.pdf_url}
+                    highlightBox={highlightBox}
+                    documentData={showSAP ? doc.document_data : undefined}
+                  />
+                </Suspense>
+              </div>
+            </ResizablePanel>
 
-          {/* Scroll to top button for fields panel */}
-          <Button
-            variant="outline"
-            size="icon"
-            className="absolute bottom-4 right-4 z-20 rounded-full h-8 w-8"
-            onClick={() => {
-              const viewport = asideRef.current?.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null;
-              if (viewport) {
-                viewport.scrollTo({ top: 0, behavior: 'smooth' });
-              } else {
-                // Fallback: scroll the aside if viewport not detected
-                asideRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-              }
-            }}
-            aria-label="Scroll to top"
-            title="Scroll to top"
-          >
-            <ArrowUp className="h-4 w-4" />
-          </Button>
-        </aside>
-      </div>
+            <ResizableHandle withHandle />
+
+            <ResizablePanel defaultSize={35} minSize={25} maxSize={60} className="relative">
+              <div
+                ref={asideRef}
+                className="h-full bg-background overflow-y-auto no-scrollbar flex-shrink-0 flex flex-col scroll-smooth"
+              >
+                <div className="p-4 border-b">
+                  <Card className="bg-card/60">
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-semibold tracking-tight">SAP and Document Data</h3>
+                        <button
+                          type="button"
+                          onClick={collapseAllHierarchy}
+                          className="text-xs px-2 py-1 rounded-md border hover:bg-muted transition-colors"
+                          title={sapExpandAll ? "Collapse both SAP and Document Data" : "Expand both SAP and Document Data"}
+                        >
+                          {sapExpandAll ? 'Collapse All' : 'Expand All'}
+                        </button>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <Accordion
+                        type="multiple"
+                        value={openHierarchySections}
+                        onValueChange={setOpenHierarchySections}
+                      >
+                        <AccordionItem value="sap">
+                          <AccordionTrigger className="text-base font-semibold">
+                            SAP Data
+                          </AccordionTrigger>
+                          <AccordionContent>
+                            {showSAP ? (
+                              <ScrollArea className="max-h-[60vh] pr-1 overflow-y-auto no-scrollbar">
+                                {
+                                  (() => {
+                                    try {
+                                      const parsed = JSON.parse(sapEditorValue || '{}');
+                                      return renderSapEditable(parsed, sapCollapseNonce, sapExpandAll);
+                                    } catch {
+                                      return (
+                                        <div className="text-sm text-muted-foreground">
+                                          Invalid JSON in editor. Fix to preview.
+                                        </div>
+                                      );
+                                    }
+                                  })()
+                                }
+                              </ScrollArea>
+                            ) : (
+                              <div className="text-sm text-muted-foreground">
+                                SAP data hidden. Enable it from the user menu.
+                              </div>
+                            )}
+                          </AccordionContent>
+                        </AccordionItem>
+
+                        <AccordionItem value="doc">
+                          <AccordionTrigger className="text-base font-semibold">
+                            Document Data
+                          </AccordionTrigger>
+                          <AccordionContent>
+                            {doc.document_data && doc.document_data?.document?.pages?.length > 0 ? (
+                              <Suspense fallback={<RightPanelSkeleton />}>
+                                <DocumentFieldsLazy
+                                  documentData={doc.document_data}
+                                  onFieldHover={setHighlightBox}
+                                />
+                              </Suspense>
+                            ) : (
+                              <div className="text-sm text-muted-foreground">
+                                No structured data available for this document.
+                              </div>
+                            )}
+                          </AccordionContent>
+                        </AccordionItem>
+                      </Accordion>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="absolute bottom-4 right-4 z-20 rounded-full h-8 w-8"
+                  onClick={() => {
+                    const viewport = asideRef.current?.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null;
+                    if (viewport) {
+                      viewport.scrollTo({ top: 0, behavior: 'smooth' });
+                    } else {
+                      asideRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
+                  }}
+                  aria-label="Scroll to top"
+                  title="Scroll to top"
+                >
+                  <ArrowUp className="h-4 w-4" />
+                </Button>
+              </div>
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        )
+      )}
     </div>
   );
 }
