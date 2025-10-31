@@ -1802,7 +1802,7 @@ export default function DocumentDetail() {
         ) : (
           // Resizable split: PDF | Data
           <ResizablePanelGroup direction="horizontal" className="flex-1 overflow-hidden">
-            <ResizablePanel defaultSize={65} minSize={40} className="relative min-w-0">
+            <ResizablePanel defaultSize={50} minSize={40} className="relative min-w-0">
               <div className="relative h-full min-w-0 overflow-hidden">
                 <div className="absolute top-3 right-3 z-10">
                   <Button variant="secondary" size="sm" className="shadow-md" asChild>
@@ -1831,7 +1831,7 @@ export default function DocumentDetail() {
 
             <ResizableHandle withHandle />
 
-            <ResizablePanel defaultSize={35} minSize={25} maxSize={60} className="relative">
+            <ResizablePanel defaultSize={50} minSize={25} maxSize={60} className="relative">
               <div
                 ref={asideRef}
                 className="h-full bg-background overflow-y-auto no-scrollbar flex-shrink-0 flex flex-col scroll-smooth"
