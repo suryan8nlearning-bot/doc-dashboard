@@ -38,6 +38,7 @@ export default function DocumentDetail() {
   const [doc, setDoc] = useState<DocumentData | null>(null);
   const [highlightBox, setHighlightBox] = useState<(BoundingBox & { page?: number }) | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [navLoading, setNavLoading] = useState<null | 'prev' | 'next'>(null);
 
   // SAP data viewer state
   const [showSAP, setShowSAP] = useState<boolean>(() => {
@@ -1120,14 +1121,25 @@ export default function DocumentDetail() {
 
   const goPrev = () => {
     if (currentIndex > 0) {
+      setNavLoading('prev');
+      toast('Loading previous document...');
       navigate(`/document/${idList[currentIndex - 1]}`);
     }
   };
   const goNext = () => {
     if (currentIndex >= 0 && currentIndex < idList.length - 1) {
+      setNavLoading('next');
+      toast('Loading next document...');
       navigate(`/document/${idList[currentIndex + 1]}`);
     }
   };
+
+  // Clear nav loading once the new document finishes loading
+  useEffect(() => {
+    if (!isLoading) {
+      setNavLoading(null);
+    }
+  }, [isLoading]);
 
   // Initialize first line highlight when document data becomes available
   useEffect(() => {
@@ -1300,19 +1312,33 @@ export default function DocumentDetail() {
                 variant="outline" 
                 size="sm" 
                 onClick={goPrev} 
-                disabled={currentIndex <= 0}
+                disabled={currentIndex <= 0 || navLoading !== null}
                 className="px-4"
               >
-                Previous
+                {navLoading === 'prev' ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Loading...
+                  </>
+                ) : (
+                  'Previous'
+                )}
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={goNext}
-                disabled={currentIndex < 0 || currentIndex >= idList.length - 1}
+                disabled={currentIndex < 0 || currentIndex >= idList.length - 1 || navLoading !== null}
                 className="px-4"
               >
-                Next
+                {navLoading === 'next' ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Loading...
+                  </>
+                ) : (
+                  'Next'
+                )}
               </Button>
             </div>
 
@@ -1423,6 +1449,7 @@ export default function DocumentDetail() {
                 rel="noopener noreferrer"
                 title="Open PDF in new tab"
                 aria-label="Open PDF in new tab"
+                onClick={() => toast('Opening PDF in a new tab...')}
               >
                 <ExternalLink className="h-4 w-4 mr-2" />
                 Open PDF
