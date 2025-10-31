@@ -13,6 +13,13 @@ import { Mail } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ChevronDown, ChevronUp, ArrowUpDown, ChevronRight } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ReactNode, useMemo, useState } from "react";
 
 const MotionTableRow = motion(TableRow);
@@ -75,13 +82,18 @@ export function DocumentsTable({
   onEdit,
 }: DocumentsTableProps): ReactNode {
   const [search, setSearch] = useState("");
-  // Change default sorting to ID (largest to smallest)
-  const [sortBy, setSortBy] = useState<"id" | "name" | "date" | "status">("id");
+  // Change: expand sort keys to include all columns
+  const [sortBy, setSortBy] = useState<"id" | "from" | "subject" | "status" | "doc" | "created" | "cc">("id");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
-  const toggleSort = (key: "name" | "date" | "status") => {
+  // Add: optional column visibility
+  const [showCreatedAt, setShowCreatedAt] = useState(false);
+  const [showCC, setShowCC] = useState(false);
+
+  // Update: allow toggling sort for all keys
+  const toggleSort = (key: "id" | "from" | "subject" | "status" | "doc" | "created" | "cc") => {
     if (sortBy === key) {
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     } else {
@@ -103,6 +115,7 @@ export function DocumentsTable({
       : docs;
 
     const sorted = [...filtered].sort((a, b) => {
+      // ID
       if (sortBy === "id") {
         const ai = Number(a.id);
         const bi = Number(b.id);
@@ -115,19 +128,43 @@ export function DocumentsTable({
         const bs = (b.id || "").toLowerCase();
         return sortDir === "asc" ? as.localeCompare(bs) : bs.localeCompare(as);
       }
-      if (sortBy === "name") {
-        const an = (a.subject || a.title || a.bucket_name || a.id || "").toLowerCase();
-        const bn = (b.subject || b.title || b.bucket_name || b.id || "").toLowerCase();
+      // From Mail
+      if (sortBy === "from") {
+        const af = (a.from_email || "").toLowerCase();
+        const bf = (b.from_email || "").toLowerCase();
+        return sortDir === "asc" ? af.localeCompare(bf) : bf.localeCompare(af);
+      }
+      // Subject
+      if (sortBy === "subject") {
+        const asub = ((a.subject || "").replace(/<[^>]*>/g, "")).toLowerCase();
+        const bsub = ((b.subject || "").replace(/<[^>]*>/g, "")).toLowerCase();
+        return sortDir === "asc" ? asub.localeCompare(bsub) : bsub.localeCompare(asub);
+      }
+      // Document (last path segment)
+      if (sortBy === "doc") {
+        const an = (extractDocName(a.bucket_name) || extractDocName(a.title || "") || extractDocName(a.subject || "") || a.id || "").toLowerCase();
+        const bn = (extractDocName(b.bucket_name) || extractDocName(b.title || "") || extractDocName(b.subject || "") || b.id || "").toLowerCase();
         return sortDir === "asc" ? an.localeCompare(bn) : bn.localeCompare(an);
       }
+      // Status
       if (sortBy === "status") {
         const as = (a.status || "").toLowerCase();
         const bs = (b.status || "").toLowerCase();
         return sortDir === "asc" ? as.localeCompare(bs) : bs.localeCompare(as);
       }
-      const ad = a.created_at ? new Date(a.created_at).getTime() : 0;
-      const bd = b.created_at ? new Date(b.created_at).getTime() : 0;
-      return sortDir === "asc" ? ad - bd : bd - ad;
+      // Created At
+      if (sortBy === "created") {
+        const ad = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const bd = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return sortDir === "asc" ? ad - bd : bd - ad;
+      }
+      // CC Emails (join to a single string)
+      if (sortBy === "cc") {
+        const ac = (Array.isArray(a.cc_emails) ? a.cc_emails.join(", ") : "").toLowerCase();
+        const bc = (Array.isArray(b.cc_emails) ? b.cc_emails.join(", ") : "").toLowerCase();
+        return sortDir === "asc" ? ac.localeCompare(bc) : bc.localeCompare(ac);
+      }
+      return 0;
     });
 
     return sorted;
@@ -150,7 +187,7 @@ export function DocumentsTable({
       transition={{ duration: 0.35, ease: "easeOut" }}
       className="rounded-2xl border border-white/10 bg-white/[0.04] supports-[backdrop-filter]:bg-white/10 backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] overflow-hidden ring-1 ring-white/5"
     >
-      {/* Search bar */}
+      {/* Search + controls */}
       <div className="p-4 border-b border-white/10 bg-white/[0.06] supports-[backdrop-filter]:bg-white/10 backdrop-blur-xl">
         <div className="flex items-center gap-3">
           <Input
@@ -163,7 +200,35 @@ export function DocumentsTable({
             className="bg-background/50"
             aria-label="Search documents"
           />
-          <div className="hidden" />
+          {/* Add: Columns menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="ml-auto bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur"
+                aria-label="Configure columns"
+                title="Columns"
+              >
+                <SlidersHorizontal className="h-4 w-4 mr-2" />
+                Columns
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-48">
+              <DropdownMenuCheckboxItem
+                checked={showCreatedAt}
+                onCheckedChange={(v) => setShowCreatedAt(!!v)}
+              >
+                Created At
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={showCC}
+                onCheckedChange={(v) => setShowCC(!!v)}
+              >
+                CC Emails
+              </DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -181,9 +246,47 @@ export function DocumentsTable({
                     aria-label="Select all documents"
                   />
                 </TableHead>
-                <TableHead className="w-[160px]">ID</TableHead>
-                <TableHead className="w-[220px]">From Mail</TableHead>
-                <TableHead className="min-w-[220px]">Subject</TableHead>
+                {/* Make ID sortable */}
+                <TableHead
+                  className="w-[160px] cursor-pointer select-none"
+                  onClick={() => toggleSort("id")}
+                >
+                  <div className="flex items-center gap-2">
+                    ID
+                    <SortIcon active={sortBy === "id"} dir={sortDir} />
+                  </div>
+                </TableHead>
+                {/* From Mail sortable */}
+                <TableHead
+                  className="w-[220px] cursor-pointer select-none"
+                  onClick={() => toggleSort("from")}
+                >
+                  <div className="flex items-center gap-2">
+                    From Mail
+                    <SortIcon active={sortBy === "from"} dir={sortDir} />
+                  </div>
+                </TableHead>
+                {/* Subject sortable */}
+                <TableHead
+                  className="min-w-[220px] cursor-pointer select-none"
+                  onClick={() => toggleSort("subject")}
+                >
+                  <div className="flex items-center gap-2">
+                    Subject
+                    <SortIcon active={sortBy === "subject"} dir={sortDir} />
+                  </div>
+                </TableHead>
+                {/* Reordered: Document before Status, and sortable */}
+                <TableHead
+                  className="min-w-[220px] cursor-pointer select-none"
+                  onClick={() => toggleSort("doc")}
+                >
+                  <div className="flex items-center gap-2">
+                    Document
+                    <SortIcon active={sortBy === "doc"} dir={sortDir} />
+                  </div>
+                </TableHead>
+                {/* Status sortable */}
                 <TableHead
                   className="w-[140px] cursor-pointer select-none"
                   onClick={() => toggleSort("status")}
@@ -193,15 +296,30 @@ export function DocumentsTable({
                     <SortIcon active={sortBy === "status"} dir={sortDir} />
                   </div>
                 </TableHead>
-                <TableHead
-                  className="min-w-[220px] cursor-pointer select-none"
-                  onClick={() => toggleSort("name")}
-                >
-                  <div className="flex items-center gap-2">
-                    Document
-                    <SortIcon active={sortBy === "name"} dir={sortDir} />
-                  </div>
-                </TableHead>
+                {/* Optional: Created At */}
+                {showCreatedAt && (
+                  <TableHead
+                    className="w-[180px] cursor-pointer select-none"
+                    onClick={() => toggleSort("created")}
+                  >
+                    <div className="flex items-center gap-2">
+                      Created At
+                      <SortIcon active={sortBy === "created"} dir={sortDir} />
+                    </div>
+                  </TableHead>
+                )}
+                {/* Optional: CC Emails */}
+                {showCC && (
+                  <TableHead
+                    className="min-w-[200px] cursor-pointer select-none"
+                    onClick={() => toggleSort("cc")}
+                  >
+                    <div className="flex items-center gap-2">
+                      CC Emails
+                      <SortIcon active={sortBy === "cc"} dir={sortDir} />
+                    </div>
+                  </TableHead>
+                )}
                 <TableHead className="w-24">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -247,15 +365,27 @@ export function DocumentsTable({
                     <TableCell className="truncate" title={doc.subject || "—"}>
                       {subject}
                     </TableCell>
-                    {/* Add: Status cell */}
-                    <TableCell>
-                      <StatusBadge value={doc.status} />
-                    </TableCell>
-                    {/* Document (last segment) */}
+                    {/* Reordered: Document before Status */}
                     <TableCell className="truncate" title={docName}>
                       {docName}
                     </TableCell>
-                    {/* Actions: only display chevron (open) */}
+                    {/* Status */}
+                    <TableCell>
+                      <StatusBadge value={doc.status} />
+                    </TableCell>
+                    {/* Optional: Created At */}
+                    {showCreatedAt && (
+                      <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                        {doc.created_at ? new Date(doc.created_at).toLocaleString() : "—"}
+                      </TableCell>
+                    )}
+                    {/* Optional: CC Emails */}
+                    {showCC && (
+                      <TableCell className="truncate" title={(doc.cc_emails || []).join(", ") || "—"}>
+                        {(doc.cc_emails || []).slice(0, 3).join(", ") || "—"}
+                      </TableCell>
+                    )}
+                    {/* Actions: only chevron */}
                     <TableCell>
                       <Button
                         variant="outline"
