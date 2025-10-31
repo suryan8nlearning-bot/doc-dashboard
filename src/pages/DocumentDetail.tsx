@@ -13,7 +13,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { supabase, type BoundingBox, hasSupabaseEnv, publicUrlForPath } from '@/lib/supabase';
 import { createSignedUrlForPath } from '@/lib/supabase';
 import { motion } from 'framer-motion';
-import { ArrowLeft, FileText, Loader2, ExternalLink, ArrowUp } from 'lucide-react';
+import { ArrowLeft, FileText, Loader2, ExternalLink, ArrowUp, Pencil, Check } from 'lucide-react';
 import { useEffect, useState, useRef, lazy, Suspense } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { useLocation } from 'react-router';
@@ -93,6 +93,8 @@ export default function DocumentDetail() {
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [isCreating, setIsCreating] = useState<boolean>(false);
   const [currentItemIndex, setCurrentItemIndex] = useState<number>(0);
+  // Rows that are currently in edit mode for the Items table
+  const [editingRows, setEditingRows] = useState<Set<number>>(() => new Set());
 
   // New: background details loading (structured data)
   const [detailsLoading, setDetailsLoading] = useState<boolean>(false);
@@ -890,6 +892,9 @@ export default function DocumentDetail() {
                                     {c}
                                   </TableHead>
                                 ))}
+                                <TableHead className="whitespace-nowrap py-2 px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground text-right">
+                                  Actions
+                                </TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -921,9 +926,37 @@ export default function DocumentDetail() {
                                           numericCols.has(c) ? "text-right" : "",
                                         ].join(" ")}
                                         onKeyDown={onEditingKeyDown}
+                                        disabled={!editingRows.has(idx)}
                                       />
                                     </TableCell>
                                   ))}
+                                  <TableCell className="py-2 px-3 text-right">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => {
+                                        setEditingRows((prev) => {
+                                          const next = new Set(prev);
+                                          if (next.has(idx)) next.delete(idx);
+                                          else next.add(idx);
+                                          return next;
+                                        });
+                                      }}
+                                      className="h-8"
+                                    >
+                                      {editingRows.has(idx) ? (
+                                        <>
+                                          <Check className="h-3.5 w-3.5 mr-1.5" />
+                                          Done
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Pencil className="h-3.5 w-3.5 mr-1.5" />
+                                          Edit
+                                        </>
+                                      )}
+                                    </Button>
+                                  </TableCell>
                                 </TableRow>
                               ))}
                             </TableBody>
