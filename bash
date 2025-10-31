@@ -1,1 +1,2 @@
-pnpm add pdfjs-dist
+--call getFile--
+--args "src/components/dashboard/DashboardHeader.tsx"--
