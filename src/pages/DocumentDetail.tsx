@@ -667,29 +667,33 @@ export default function DocumentDetail() {
             Header ({headerPairs.length})
           </AccordionTrigger>
           <AccordionContent>
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, ease: "easeOut" }}
-            >
-              {headerPairs.length ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {headerPairs.map(([k, v]) => (
-                    <div key={k} className="rounded bg-card/50 p-3 border">
-                      <div className="text-sm text-muted-foreground mb-1.5">{k}</div>
-                      <Input
-                        value={String(v ?? '')}
-                        onChange={(e) => updateHeaderField(k, e.target.value)}
-                        className="h-9 text-base"
-                        onKeyDown={onEditingKeyDown}
-                      />
+            <Card className="bg-card/50 border">
+              <CardContent className="pt-4">
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, ease: "easeOut" }}
+                >
+                  {headerPairs.length ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {headerPairs.map(([k, v]) => (
+                        <div key={k} className="rounded bg-card/50 p-3 border">
+                          <div className="text-sm text-muted-foreground mb-1.5">{k}</div>
+                          <Input
+                            value={String(v ?? '')}
+                            onChange={(e) => updateHeaderField(k, e.target.value)}
+                            className="h-9 text-base"
+                            onKeyDown={onEditingKeyDown}
+                          />
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-sm text-muted-foreground">No header fields.</div>
-              )}
-            </motion.div>
+                  ) : (
+                    <div className="text-sm text-muted-foreground">No header fields.</div>
+                  )}
+                </motion.div>
+              </CardContent>
+            </Card>
           </AccordionContent>
         </AccordionItem>
 
@@ -707,22 +711,26 @@ export default function DocumentDetail() {
                 className="space-y-2"
               >
                 {out.to_Partner.map((p: any, idx: number) => (
-                  <div key={idx} className="rounded border p-3 bg-card/40">
-                    <div className="text-sm text-muted-foreground mb-2">Partner {idx + 1}</div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      {Object.entries(p || {}).map(([k, v]) => (
-                        <div key={k} className="rounded bg-card/50 p-3 border">
-                          <div className="text-sm text-muted-foreground mb-1.5">{k}</div>
-                          <Input
-                            value={String(v ?? '')}
-                            onChange={(e) => updatePartnerField(idx, k, e.target.value)}
-                            className="h-9 text-base"
-                            onKeyDown={onEditingKeyDown}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                  <Card key={idx} className="bg-card/40">
+                    <CardHeader>
+                      <CardTitle className="text-sm">Partner {idx + 1}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {Object.entries(p || {}).map(([k, v]) => (
+                          <div key={k} className="rounded bg-card/50 p-3 border">
+                            <div className="text-sm text-muted-foreground mb-1.5">{k}</div>
+                            <Input
+                              value={String(v ?? '')}
+                              onChange={(e) => updatePartnerField(idx, k, e.target.value)}
+                              className="h-9 text-base"
+                              onKeyDown={onEditingKeyDown}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
                 ))}
               </motion.div>
             </AccordionContent>
@@ -743,22 +751,26 @@ export default function DocumentDetail() {
                 className="space-y-2"
               >
                 {out.to_PricingElement.map((pe: any, idx: number) => (
-                  <div key={idx} className="rounded border p-3 bg-card/40">
-                    <div className="text-sm text-muted-foreground mb-2">Pricing {idx + 1}</div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      {Object.entries(pe || {}).map(([k, v]) => (
-                        <div key={k} className="rounded bg-card/50 p-3 border">
-                          <div className="text-sm text-muted-foreground mb-1.5">{k}</div>
-                          <Input
-                            value={String(v ?? '')}
-                            onChange={(e) => updatePricingField(idx, k, e.target.value)}
-                            className="h-9 text-base"
-                            onKeyDown={onEditingKeyDown}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                  <Card key={idx} className="bg-card/40">
+                    <CardHeader>
+                      <CardTitle className="text-sm">Pricing {idx + 1}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {Object.entries(pe || {}).map(([k, v]) => (
+                          <div key={k} className="rounded bg-card/50 p-3 border">
+                            <div className="text-sm text-muted-foreground mb-1.5">{k}</div>
+                            <Input
+                              value={String(v ?? '')}
+                              onChange={(e) => updatePricingField(idx, k, e.target.value)}
+                              className="h-9 text-base"
+                              onKeyDown={onEditingKeyDown}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
                 ))}
               </motion.div>
             </AccordionContent>
@@ -795,92 +807,110 @@ export default function DocumentDetail() {
                         <AccordionTrigger className="px-3 text-sm font-medium">
                           Item {idx + 1}
                         </AccordionTrigger>
-                        <AccordionContent className="px-3 pb-3 space-y-3">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                            {itemHeaderPairs.map(([k, v]) => (
-                              <div key={k} className="rounded bg-card/50 p-3 border">
-                                <div className="text-sm text-muted-foreground mb-1.5">{k}</div>
-                                <Input
-                                  value={String(v ?? '')}
-                                  onChange={(e) => updateItemField(idx, k, e.target.value)}
-                                  className="h-9 text-base"
-                                  onKeyDown={onEditingKeyDown}
-                                />
+                        <AccordionContent className="px-0 pb-0">
+                          <Card className="bg-card/40 border-0 shadow-none">
+                            <CardContent className="pt-4 space-y-3">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                {itemHeaderPairs.map(([k, v]) => (
+                                  <div key={k} className="rounded bg-card/50 p-3 border">
+                                    <div className="text-sm text-muted-foreground mb-1.5">{k}</div>
+                                    <Input
+                                      value={String(v ?? '')}
+                                      onChange={(e) => updateItemField(idx, k, e.target.value)}
+                                      className="h-9 text-base"
+                                      onKeyDown={onEditingKeyDown}
+                                    />
+                                  </div>
+                                ))}
                               </div>
-                            ))}
-                          </div>
 
-                          {partners.length > 0 && (
-                            <Accordion type="multiple">
-                              <AccordionItem value="item-partners">
-                                <AccordionTrigger className="text-sm font-medium">
-                                  Item Partners ({partners.length})
-                                </AccordionTrigger>
-                                <AccordionContent>
-                                  <motion.div
-                                    initial={{ opacity: 0, scale: 0.98 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    transition={{ duration: 0.25 }}
-                                    className="grid grid-cols-1 md:grid-cols-2 gap-2"
-                                  >
-                                    {partners.map((p: any, pi: number) => (
-                                      <div key={pi} className="rounded border p-3 bg-card/30">
-                                        <div className="grid grid-cols-1 gap-2">
-                                          {Object.entries(p || {}).map(([k, v]) => (
-                                            <div key={k} className="rounded bg-card/50 p-3 border">
-                                              <div className="text-sm text-muted-foreground mb-1.5">{k}</div>
-                                              <Input
-                                                value={String(v ?? '')}
-                                                onChange={(e) => updateItemPartnerField(idx, pi, k, e.target.value)}
-                                                className="h-9 text-base"
-                                                onKeyDown={onEditingKeyDown}
-                                              />
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </motion.div>
-                                </AccordionContent>
-                              </AccordionItem>
-                            </Accordion>
-                          )}
+                              {partners.length > 0 && (
+                                <Accordion type="multiple" className="mt-2">
+                                  <AccordionItem value="item-partners">
+                                    <AccordionTrigger className="text-sm font-medium">
+                                      Item Partners ({partners.length})
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                      <motion.div
+                                        initial={{ opacity: 0, scale: 0.98 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        transition={{ duration: 0.25 }}
+                                        className="grid grid-cols-1 md:grid-cols-2 gap-2"
+                                      >
+                                        {partners.map((p: any, pi: number) => (
+                                          <Card key={pi} className="bg-card/30">
+                                            <CardHeader>
+                                              <CardTitle className="text-sm">Partner {pi + 1}</CardTitle>
+                                            </CardHeader>
+                                            <CardContent>
+                                              <div className="grid grid-cols-1 gap-2">
+                                                {Object.entries(p || {}).map(([k, v]) => (
+                                                  <div key={k} className="rounded bg-card/50 p-3 border">
+                                                    <div className="text-sm text-muted-foreground mb-1.5">{k}</div>
+                                                    <Input
+                                                      value={String(v ?? '')}
+                                                      onChange={(e) =>
+                                                        updateItemPartnerField(idx, pi, k, e.target.value)
+                                                      }
+                                                      className="h-9 text-base"
+                                                      onKeyDown={onEditingKeyDown}
+                                                    />
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            </CardContent>
+                                          </Card>
+                                        ))}
+                                      </motion.div>
+                                    </AccordionContent>
+                                  </AccordionItem>
+                                </Accordion>
+                              )}
 
-                          {prices.length > 0 && (
-                            <Accordion type="multiple">
-                              <AccordionItem value="item-pricing">
-                                <AccordionTrigger className="text-sm font-medium">
-                                  Item Pricing ({prices.length})
-                                </AccordionTrigger>
-                                <AccordionContent>
-                                  <motion.div
-                                    initial={{ opacity: 0, scale: 0.98 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    transition={{ duration: 0.25 }}
-                                    className="grid grid-cols-1 md:grid-cols-2 gap-2"
-                                  >
-                                    {prices.map((pr: any, ri: number) => (
-                                      <div key={ri} className="rounded border p-3 bg-card/30">
-                                        <div className="grid grid-cols-1 gap-2">
-                                          {Object.entries(pr || {}).map(([k, v]) => (
-                                            <div key={k} className="rounded bg-card/50 p-3 border">
-                                              <div className="text-sm text-muted-foreground mb-1.5">{k}</div>
-                                              <Input
-                                                value={String(v ?? '')}
-                                                onChange={(e) => updateItemPricingField(idx, ri, k, e.target.value)}
-                                                className="h-9 text-base"
-                                                onKeyDown={onEditingKeyDown}
-                                              />
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </motion.div>
-                                </AccordionContent>
-                              </AccordionItem>
-                            </Accordion>
-                          )}
+                              {prices.length > 0 && (
+                                <Accordion type="multiple" className="mt-2">
+                                  <AccordionItem value="item-pricing">
+                                    <AccordionTrigger className="text-sm font-medium">
+                                      Item Pricing ({prices.length})
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                      <motion.div
+                                        initial={{ opacity: 0, scale: 0.98 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        transition={{ duration: 0.25 }}
+                                        className="grid grid-cols-1 md:grid-cols-2 gap-2"
+                                      >
+                                        {prices.map((pr: any, ri: number) => (
+                                          <Card key={ri} className="bg-card/30">
+                                            <CardHeader>
+                                              <CardTitle className="text-sm">Pricing {ri + 1}</CardTitle>
+                                            </CardHeader>
+                                            <CardContent>
+                                              <div className="grid grid-cols-1 gap-2">
+                                                {Object.entries(pr || {}).map(([k, v]) => (
+                                                  <div key={k} className="rounded bg-card/50 p-3 border">
+                                                    <div className="text-sm text-muted-foreground mb-1.5">{k}</div>
+                                                    <Input
+                                                      value={String(v ?? '')}
+                                                      onChange={(e) =>
+                                                        updateItemPricingField(idx, ri, k, e.target.value)
+                                                      }
+                                                      className="h-9 text-base"
+                                                      onKeyDown={onEditingKeyDown}
+                                                    />
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            </CardContent>
+                                          </Card>
+                                        ))}
+                                      </motion.div>
+                                    </AccordionContent>
+                                  </AccordionItem>
+                                </Accordion>
+                              )}
+                            </CardContent>
+                          </Card>
                         </AccordionContent>
                       </AccordionItem>
                     </Accordion>
