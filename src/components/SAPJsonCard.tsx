@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Copy, Download, ChevronDown, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
+import * as SalesSchema from "@/schemas/salesOrderCreate";
 
 type SAPJsonCardProps = {
   data: unknown;
@@ -21,20 +22,113 @@ export function SAPJsonCard({
   const [collapsed, setCollapsed] = useState<boolean>(defaultCollapsed);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set<string>());
 
+  // Insert: derive order tree from backend schema and reordering helpers
+  const deriveOrderTreeFromSchema = (schemaMod: any): any => {
+    // Try common named exports first
+    const candidates = [
+      schemaMod?.fieldOrderTree,
+      schemaMod?.orderTree,
+      schemaMod?.schemaOrder,
+      schemaMod?.salesOrderCreate,
+      schemaMod?.SalesOrderCreate,
+      schemaMod?.salesOrderSchema,
+      schemaMod?.SalesOrderSchema,
+      schemaMod?.default,
+    ].filter(Boolean);
+
+    const visit = (node: any): any => {
+      if (!node) return null;
+
+      // Heuristic for Zod: node._def.shape or node._def.shape()
+      try {
+        const def = (node as any)?._def;
+        const shape = typeof def?.shape === "function" ? def.shape() : def?.shape;
+        if (shape && typeof shape === "object") {
+          const out: Record<string, any> = {};
+          for (const k of Object.keys(shape)) out[k] = visit((shape as any)[k]);
+          return out;
+        }
+      } catch {
+        // ignore
+      }
+
+      // If plain object, use its keys order
+      if (typeof node === "object" && !Array.isArray(node)) {
+        const out: Record<string, any> = {};
+        for (const k of Object.keys(node)) out[k] = visit((node as any)[k]);
+        return out;
+      }
+
+      // If array, use first element as schema for items
+      if (Array.isArray(node)) {
+        return node.length > 0 ? [visit(node[0])] : [];
+      }
+
+      return null;
+    };
+
+    for (const cand of candidates) {
+      const tree = visit(cand);
+      if (tree && typeof tree === "object") return tree;
+    }
+    return null;
+  };
+
+  const reorderByOrderTree = (value: any, orderTree: any): any => {
+    if (!orderTree) return value;
+
+    if (Array.isArray(value)) {
+      const elemTree = Array.isArray(orderTree) ? orderTree[0] : orderTree;
+      return value.map((v) => reorderByOrderTree(v, elemTree));
+    }
+
+    if (value !== null && typeof value === "object") {
+      const ordered: Record<string, any> = {};
+      const orderKeys = Array.isArray(orderTree) ? [] : Object.keys(orderTree ?? {});
+      const seen = new Set<string>();
+
+      // Place keys that exist in the provided order first
+      for (const k of orderKeys) {
+        if (k in (value as any)) {
+          ordered[k] = reorderByOrderTree((value as any)[k], (orderTree ?? {})[k]);
+          seen.add(k);
+        }
+      }
+
+      // Append any extra keys that aren't in the schema order
+      for (const k of Object.keys(value as any)) {
+        if (!seen.has(k)) {
+          ordered[k] = reorderByOrderTree((value as any)[k], undefined);
+        }
+      }
+
+      return ordered;
+    }
+
+    return value;
+  };
+
+  const orderTree = useMemo(() => deriveOrderTreeFromSchema(SalesSchema), []);
+
   const pretty = useMemo(() => {
     try {
       if (typeof data === "string") {
         if (!data.trim()) return "// Empty";
-        const parsed = JSON.parse(data);
-        return JSON.stringify(parsed, null, 2);
+        const parsedLocal = JSON.parse(data);
+        const maybeOrdered = orderTree ? reorderByOrderTree(parsedLocal, orderTree) : parsedLocal;
+        return JSON.stringify(maybeOrdered, null, 2);
       }
       if (data == null) return "// No data";
+      if (typeof data === "object") {
+        const maybeOrdered = orderTree ? reorderByOrderTree(data as any, orderTree) : data;
+        return JSON.stringify(maybeOrdered, null, 2);
+      }
       return JSON.stringify(data, null, 2);
     } catch {
       // Not JSON-parsable string; show as-is
       return String(data);
     }
-  }, [data]);
+  }, [data, orderTree]);
 
   const parsed = useMemo(() => {
     try {
@@ -45,6 +139,16 @@ export function SAPJsonCard({
       return null;
     }
   }, [data]);
+
+  // Insert: derive a schema-ordered object for the tree view
+  const ordered = useMemo(() => {
+    if (!parsed || typeof parsed !== "object") return parsed;
+    try {
+      return orderTree ? reorderByOrderTree(parsed, orderTree) : parsed;
+    } catch {
+      return parsed;
+    }
+  }, [parsed, orderTree]);
 
   const handleCopy = async () => {
     try {
@@ -174,12 +278,12 @@ export function SAPJsonCard({
       {!collapsed && (
         <CardContent id="sap-json-content" className="pt-0">
           <ScrollArea className="h-64 w-full rounded-md border">
-            {parsed && typeof parsed === "object" ? (
+            {ordered && typeof ordered === "object" ? (
               <div className="p-2">
-                {Array.isArray(parsed) ? (
-                  <TreeNode label="[]" value={parsed} path="$" depth={0} />
+                {Array.isArray(ordered) ? (
+                  <TreeNode label="[]" value={ordered} path="$" depth={0} />
                 ) : (
-                  Object.entries(parsed as Record<string, any>).map(([k, v]) => (
+                  Object.entries(ordered as Record<string, any>).map(([k, v]) => (
                     <TreeNode key={`$.${k}`} label={k} value={v} path={`$.${k}`} depth={0} />
                   ))
                 )}
