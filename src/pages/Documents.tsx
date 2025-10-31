@@ -306,8 +306,19 @@ export default function Documents() {
     setIsMailDialogOpen(true);
   };
 
-  const handleEditDocument = (docId: string) => {
+  const openDocumentWithOrder = (docId: string) => {
+    try {
+      const order = documents.map((d) => d.id);
+      localStorage.setItem('nav_order', JSON.stringify(order));
+      localStorage.setItem('nav_context', 'documents');
+    } catch {
+      // ignore storage errors
+    }
     navigate(`/document/${docId}`);
+  };
+
+  const handleEditDocument = (docId: string) => {
+    openDocumentWithOrder(docId);
   };
 
   const handleSelectDocument = (docId: string) => {
@@ -417,7 +428,7 @@ export default function Documents() {
               onToggleSelectAll={handleSelectAll}
               onToggleSelect={handleSelectDocument}
               onViewMailContent={(content) => handleViewMailContent(content)}
-              onViewDetails={(id) => navigate(`/document/${id}`)}
+              onViewDetails={(id) => openDocumentWithOrder(id)}
               onEdit={handleEditDocument}
             />
           )}

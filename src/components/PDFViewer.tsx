@@ -19,9 +19,11 @@ interface PDFViewerProps {
   highlightBox: BoundingBox | null;
   onLoad?: () => void;
   documentData?: ExtractedDocumentData;
+  // Add: opt-in initial fit-to-width (default false to keep 100% zoom)
+  fitToWidthInitially?: boolean;
 }
 
-export function PDFViewer({ pdfUrl, highlightBox, onLoad, documentData }: PDFViewerProps) {
+export function PDFViewer({ pdfUrl, highlightBox, onLoad, documentData, fitToWidthInitially = false }: PDFViewerProps) {
   const [zoom, setZoom] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -452,14 +454,13 @@ const toPxBox = (box: WideBox): WideBox => {
         const baseViewport = page.getViewport({ scale: 1 });
         baseViewportRef.current = { width: baseViewport.width, height: baseViewport.height };
 
-        // If fit-to-width hasn't happened yet, attempt it now for a great first paint
-        if (!didFitToWidthRef.current && containerRef.current && baseViewport.width) {
+        // If fit-to-width is opted in, do it once; otherwise render at current zoom (100%)
+        if (fitToWidthInitially && !didFitToWidthRef.current && containerRef.current && baseViewport.width) {
           const containerWidth = containerRef.current.clientWidth;
           const targetScale = containerWidth / baseViewport.width;
           setZoom(clampZoom(targetScale));
           didFitToWidthRef.current = true;
         } else {
-          // Render at current zoom immediately
           renderPage(zoom);
         }
       } catch (e: any) {
@@ -476,7 +477,7 @@ const toPxBox = (box: WideBox): WideBox => {
         renderTaskRef.current?.cancel();
       } catch {}
     };
-  }, [pdfArrayBuffer]);
+  }, [pdfArrayBuffer, fitToWidthInitially]);
 
   // Add: page navigation helpers
   const goToPage = async (pageNum: number) => {
@@ -506,6 +507,18 @@ const toPxBox = (box: WideBox): WideBox => {
       } catch {}
     };
   }, [zoom]);
+
+  // Fit-to-width only if explicitly requested
+  useEffect(() => {
+    if (!fitToWidthInitially) return;
+    if (!containerRef.current || didFitToWidthRef.current) return;
+    const base = baseViewportRef.current;
+    if (!base) return;
+    const containerWidth = containerRef.current.clientWidth;
+    const targetScale = containerWidth && base.width ? containerWidth / base.width : 1;
+    setZoom(clampZoom(targetScale));
+    didFitToWidthRef.current = true;
+  }, [pdfArrayBuffer, fitToWidthInitially]);
 
   // Fit PDF to container width once using cached page metrics
   useEffect(() => {
