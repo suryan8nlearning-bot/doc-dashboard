@@ -12,7 +12,7 @@ import { motion } from "framer-motion";
 import { Mail } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { ChevronDown, ChevronUp, ArrowUpDown, Eye, Pencil } from "lucide-react";
+import { ChevronDown, ChevronUp, ArrowUpDown, ChevronRight } from "lucide-react";
 import { ReactNode, useMemo, useState } from "react";
 
 const MotionTableRow = motion(TableRow);
@@ -45,6 +45,13 @@ function truncateText(text: string, maxLength = 50) {
   return stripped.length > maxLength ? stripped.substring(0, maxLength) + "..." : stripped;
 }
 
+// Add: extract last path segment helper for document name
+function extractDocName(input?: string) {
+  if (!input) return "—";
+  const parts = input.split("/").filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : input;
+}
+
 function StatusBadge({ value }: { value?: string }) {
   const s = (value || "—").toLowerCase();
   let cls = "bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-300";
@@ -68,7 +75,8 @@ export function DocumentsTable({
   onEdit,
 }: DocumentsTableProps): ReactNode {
   const [search, setSearch] = useState("");
-  const [sortBy, setSortBy] = useState<"name" | "date" | "status">("date");
+  // Change default sorting to name since we're not showing date/status columns
+  const [sortBy, setSortBy] = useState<"name" | "date" | "status">("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
   const pageSize = 10;
@@ -160,31 +168,29 @@ export function DocumentsTable({
                   aria-label="Select all documents"
                 />
               </TableHead>
-              <TableHead className="min-w-[220px] cursor-pointer select-none" onClick={() => toggleSort("name")}>
+              <TableHead className="w-[160px]">ID</TableHead>
+              <TableHead className="w-[220px]">From Mail</TableHead>
+              <TableHead className="min-w-[220px]">Subject</TableHead>
+              <TableHead
+                className="min-w-[220px] cursor-pointer select-none"
+                onClick={() => toggleSort("name")}
+              >
                 <div className="flex items-center gap-2">
-                  Name
+                  Document
                   <SortIcon active={sortBy === "name"} dir={sortDir} />
                 </div>
               </TableHead>
-              <TableHead className="w-[160px] cursor-pointer select-none" onClick={() => toggleSort("date")}>
-                <div className="flex items-center gap-2">
-                  Date
-                  <SortIcon active={sortBy === "date"} dir={sortDir} />
-                </div>
-              </TableHead>
-              <TableHead className="w-[140px] cursor-pointer select-none" onClick={() => toggleSort("status")}>
-                <div className="flex items-center gap-2">
-                  Status
-                  <SortIcon active={sortBy === "status"} dir={sortDir} />
-                </div>
-              </TableHead>
-              <TableHead className="w-32">Actions</TableHead>
+              <TableHead className="w-24">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody className="divide-y divide-white/10">
             {visible.map((doc, idx) => {
-              const name = doc.subject || doc.title || doc.bucket_name || doc.id;
-              const dateStr = doc.created_at ? new Date(doc.created_at).toLocaleString() : "—";
+              const docName =
+                extractDocName(doc.bucket_name) ||
+                extractDocName(doc.title || "") ||
+                extractDocName(doc.subject || "") ||
+                doc.id;
+              const subject = truncateText(doc.subject || "—", 80);
               return (
                 <MotionTableRow
                   key={doc.id}
@@ -207,55 +213,34 @@ export function DocumentsTable({
                       aria-label={`Select document ${doc.id}`}
                     />
                   </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <div className="font-medium truncate max-w-[360px]" title={name}>
-                        {name}
-                      </div>
-                      <div className="text-xs text-muted-foreground truncate max-w-[360px]" title={doc.from_email || "—"}>
-                        {doc.from_email || "—"}
-                      </div>
-                    </div>
+                  {/* ID */}
+                  <TableCell className="whitespace-nowrap font-mono text-xs">
+                    {truncateText(doc.id, 24)}
                   </TableCell>
-                  <TableCell className="whitespace-nowrap">{dateStr}</TableCell>
-                  <TableCell>
-                    <StatusBadge value={doc.status} />
+                  {/* From Mail */}
+                  <TableCell className="truncate max-w-[220px]" title={doc.from_email || "—"}>
+                    {doc.from_email || "—"}
                   </TableCell>
-                  <TableCell className="space-x-1">
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur"
-                        onClick={() => onViewDetails(doc.id)}
-                        aria-label="View details"
-                        title="View"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur"
-                        onClick={() => onEdit?.(doc.id)}
-                        aria-label="Edit document"
-                        title="Edit"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      {doc.mail_content && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur"
-                          onClick={() => onViewMailContent(doc.mail_content!)}
-                          aria-label="View email"
-                          title="Mail"
-                        >
-                          <Mail className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
+                  {/* Subject */}
+                  <TableCell className="truncate" title={doc.subject || "—"}>
+                    {subject}
+                  </TableCell>
+                  {/* Document (last segment) */}
+                  <TableCell className="truncate" title={docName}>
+                    {docName}
+                  </TableCell>
+                  {/* Actions: only display chevron (open) */}
+                  <TableCell>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur"
+                      onClick={() => onViewDetails(doc.id)}
+                      aria-label="Open details"
+                      title="Open"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
                   </TableCell>
                 </MotionTableRow>
               );
@@ -267,8 +252,11 @@ export function DocumentsTable({
       {/* Mobile card list */}
       <div className="md:hidden p-3 space-y-3">
         {visible.map((doc, idx) => {
-          const name = doc.subject || doc.title || doc.bucket_name || doc.id;
-          const dateStr = doc.created_at ? new Date(doc.created_at).toLocaleString() : "—";
+          const docName =
+            extractDocName(doc.bucket_name) ||
+            extractDocName(doc.title || "") ||
+            extractDocName(doc.subject || "") ||
+            doc.id;
           return (
             <motion.div
               key={doc.id}
@@ -279,45 +267,35 @@ export function DocumentsTable({
               className={`rounded-xl border border-white/10 bg-white/[0.06] supports-[backdrop-filter]:bg-white/10 backdrop-blur p-3 shadow-sm`}
             >
               <div className="flex items-start gap-3">
-                <Checkbox checked={selectedIds.has(doc.id)} onCheckedChange={() => onToggleSelect(doc.id)} aria-label={`Select ${doc.id}`} />
+                <Checkbox
+                  checked={selectedIds.has(doc.id)}
+                  onCheckedChange={() => onToggleSelect(doc.id)}
+                  aria-label={`Select ${doc.id}`}
+                />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="font-medium truncate" title={name}>
-                      {name}
+                    <div className="font-medium truncate" title={docName}>
+                      {docName}
                     </div>
-                    <StatusBadge value={doc.status} />
-                  </div>
-                  <div className="mt-1 text-xs text-muted-foreground">{dateStr}</div>
-                  <div className="mt-2 flex items-center gap-2">
                     <Button
                       variant="outline"
                       size="sm"
                       className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur"
                       onClick={() => onViewDetails(doc.id)}
+                      aria-label="Open details"
+                      title="Open"
                     >
-                      <Eye className="h-4 w-4 mr-1" />
-                      View
+                      <ChevronRight className="h-4 w-4" />
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur"
-                      onClick={() => onEdit?.(doc.id)}
-                    >
-                      <Pencil className="h-4 w-4 mr-1" />
-                      Edit
-                    </Button>
-                    {doc.mail_content && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur"
-                        onClick={() => onViewMailContent(doc.mail_content!)}
-                      >
-                        <Mail className="h-4 w-4 mr-1" />
-                        Mail
-                      </Button>
-                    )}
+                  </div>
+                  <div className="mt-1 text-[11px] text-muted-foreground font-mono truncate" title={doc.id}>
+                    ID: {doc.id}
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground truncate" title={doc.from_email || "—"}>
+                    From: {doc.from_email || "—"}
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground truncate" title={doc.subject || "—"}>
+                    Subject: {truncateText(doc.subject || "—", 80)}
                   </div>
                 </div>
               </div>
