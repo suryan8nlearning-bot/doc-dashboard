@@ -907,7 +907,7 @@ export default function Dashboard() {
                         <Skeleton className="h-5 w-3/4" />
                       </div>
                     ) : (
-                      <div className="max-h-[60vh] overflow-auto no-scrollbar divide-y divide-white/10">
+                      <div className="divide-y divide-white/10">
                         {documents.filter((d) => !!d.document_data).length === 0 ? (
                           <div className="text-sm text-muted-foreground py-6">
                             No documents containing parsed data were found.
