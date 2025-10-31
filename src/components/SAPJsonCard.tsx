@@ -24,7 +24,7 @@ export function SAPJsonCard({
 
   // Insert: derive order tree from backend schema and reordering helpers
   const deriveOrderTreeFromSchema = (schemaMod: any): any => {
-    // Try common named exports first
+    // Try common named exports first (include our actual export name)
     const candidates = [
       schemaMod?.fieldOrderTree,
       schemaMod?.orderTree,
@@ -33,11 +33,28 @@ export function SAPJsonCard({
       schemaMod?.SalesOrderCreate,
       schemaMod?.salesOrderSchema,
       schemaMod?.SalesOrderSchema,
+      schemaMod?.salesOrderCreateSchema,
       schemaMod?.default,
     ].filter(Boolean);
 
     const visit = (node: any): any => {
       if (!node) return null;
+
+      // Handle JSON Schema (object/array) explicitly
+      if (typeof node === "object") {
+        // Object schema: { type: "object", properties: {...} }
+        if (node.type === "object" && node.properties && typeof node.properties === "object") {
+          const out: Record<string, any> = {};
+          for (const k of Object.keys(node.properties)) {
+            out[k] = visit(node.properties[k]);
+          }
+          return out;
+        }
+        // Array schema: { type: "array", items: {...} }
+        if (node.type === "array" && node.items) {
+          return [visit(node.items)];
+        }
+      }
 
       // Heuristic for Zod: node._def.shape or node._def.shape()
       try {

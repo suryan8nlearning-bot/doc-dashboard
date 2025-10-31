@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { supabase, hasSupabaseEnv, publicUrlForPath } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, Loader2, LogOut, Mail, Trash2, User, Moon, Sun, CheckCircle2, Clock, RefreshCw } from 'lucide-react';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
  // removed status filter select import
@@ -40,6 +40,7 @@ import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from "@/components/ui/slider";
+import * as SalesSchema from "@/schemas/salesOrderCreate";
 
 export default function Dashboard() {
   const { isLoading: authLoading, isAuthenticated, user, signOut } = useAuth();
@@ -383,6 +384,106 @@ export default function Dashboard() {
     return undefined;
   };
 
+  // Add helpers to derive schema order and reorder objects for SAP grouping
+  // Place near other helper functions (after extractSap is defined is fine)
+  // Derive order tree from JSON Schema or Zod-like schemas
+  const deriveOrderTreeFromSchema = (schemaMod: any): any => {
+    const candidates = [
+      schemaMod?.fieldOrderTree,
+      schemaMod?.orderTree,
+      schemaMod?.schemaOrder,
+      schemaMod?.salesOrderCreate,
+      schemaMod?.SalesOrderCreate,
+      schemaMod?.salesOrderSchema,
+      schemaMod?.SalesOrderSchema,
+      schemaMod?.salesOrderCreateSchema,
+      schemaMod?.default,
+    ].filter(Boolean);
+
+    const visit = (node: any): any => {
+      if (!node) return null;
+
+      if (typeof node === "object") {
+        if (node.type === "object" && node.properties && typeof node.properties === "object") {
+          const out: Record<string, any> = {};
+          for (const k of Object.keys(node.properties)) {
+            out[k] = visit(node.properties[k]);
+          }
+          return out;
+        }
+        if (node.type === "array" && node.items) {
+          return [visit(node.items)];
+        }
+      }
+
+      try {
+        const def = (node as any)?._def;
+        const shape = typeof def?.shape === "function" ? def.shape() : def?.shape;
+        if (shape && typeof shape === "object") {
+          const out: Record<string, any> = {};
+          for (const k of Object.keys(shape)) out[k] = visit((shape as any)[k]);
+          return out;
+        }
+      } catch {
+        // ignore
+      }
+
+      if (typeof node === "object" && !Array.isArray(node)) {
+        const out: Record<string, any> = {};
+        for (const k of Object.keys(node)) out[k] = visit((node as any)[k]);
+        return out;
+      }
+
+      if (Array.isArray(node)) {
+        return node.length > 0 ? [visit(node[0])] : [];
+      }
+
+      return null;
+    };
+
+    for (const cand of candidates) {
+      const tree = visit(cand);
+      if (tree && typeof tree === "object") return tree;
+    }
+    return null;
+  };
+
+  // Reorder any value to follow the order tree
+  const reorderByOrderTree = (value: any, orderTree: any): any => {
+    if (!orderTree) return value;
+
+    if (Array.isArray(value)) {
+      const elemTree = Array.isArray(orderTree) ? orderTree[0] : orderTree;
+      return value.map((v) => reorderByOrderTree(v, elemTree));
+    }
+
+    if (value !== null && typeof value === "object") {
+      const ordered: Record<string, any> = {};
+      const orderKeys = Array.isArray(orderTree) ? [] : Object.keys(orderTree ?? {});
+      const seen = new Set<string>();
+
+      for (const k of orderKeys) {
+        if (k in (value as any)) {
+          ordered[k] = reorderByOrderTree((value as any)[k], (orderTree ?? {})[k]);
+          seen.add(k);
+        }
+      }
+
+      for (const k of Object.keys(value as any)) {
+        if (!seen.has(k)) {
+          ordered[k] = reorderByOrderTree((value as any)[k], undefined);
+        }
+      }
+
+      return ordered;
+    }
+
+    return value;
+  };
+
+  // Memoize schema order tree once
+  const orderTree = useMemo(() => deriveOrderTreeFromSchema(SalesSchema), []);
+
   // Shrink and wrap SAP KV rows for denser display
   function KV({ label, value }: { label: string; value: any }) {
     return (
@@ -400,8 +501,12 @@ export default function Dashboard() {
     if (!out || typeof out !== 'object') {
       return <div className="text-sm text-muted-foreground">No SAP data.</div>;
     }
+
+    // Use schema order for the output object (use output-level if present)
+    const s = orderTree ? reorderByOrderTree(out, (orderTree as any)?.output ?? orderTree) : out;
+
     const headerIgnore = new Set(['to_Partner', 'to_PricingElement', 'to_Item']);
-    const headerPairs = Object.entries(out).filter(
+    const headerPairs = Object.entries(s).filter(
       ([k, v]) =>
         !headerIgnore.has(k) &&
         (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean')
@@ -426,11 +531,11 @@ export default function Dashboard() {
           )}
         </div>
 
-        {Array.isArray(out?.to_Partner) && (
+        {Array.isArray(s?.to_Partner) && (
           <div>
             <div className="font-semibold mb-2">Partners</div>
             <div className="space-y-2">
-              {out.to_Partner.map((p: any, idx: number) => (
+              {s.to_Partner.map((p: any, idx: number) => (
                 <div key={idx} className="rounded-sm border border-white/10 p-2">
                   <div className="text-[11px] text-muted-foreground mb-1">Partner {idx + 1}</div>
                   <div className="grid [grid-template-columns:repeat(auto-fit,minmax(160px,1fr))] gap-1.5">
@@ -449,11 +554,11 @@ export default function Dashboard() {
           </div>
         )}
 
-        {Array.isArray(out?.to_PricingElement) && (
+        {Array.isArray(s?.to_PricingElement) && (
           <div>
             <div className="font-semibold mb-2">Header Pricing</div>
             <div className="space-y-2">
-              {out.to_PricingElement.map((pe: any, idx: number) => (
+              {s.to_PricingElement.map((pe: any, idx: number) => (
                 <div key={idx} className="rounded-sm border border-white/10 p-2">
                   <div className="text-[11px] text-muted-foreground mb-1">Pricing {idx + 1}</div>
                   <div className="grid [grid-template-columns:repeat(auto-fit,minmax(160px,1fr))] gap-1.5">
@@ -472,11 +577,11 @@ export default function Dashboard() {
           </div>
         )}
 
-        {Array.isArray(out?.to_Item) && (
+        {Array.isArray(s?.to_Item) && (
           <div>
             <div className="font-semibold mb-2">Items</div>
             <div className="space-y-3">
-              {out.to_Item.map((it: any, idx: number) => {
+              {s.to_Item.map((it: any, idx: number) => {
                 const partners = Array.isArray(it?.to_ItemPartner) ? it.to_ItemPartner : [];
                 const prices = Array.isArray(it?.to_ItemPricingElement) ? it.to_ItemPricingElement : [];
                 const itemHeaderPairs = Object.entries(it || {}).filter(
