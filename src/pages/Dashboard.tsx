@@ -71,12 +71,22 @@ export default function Dashboard() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   // Add: toggle to show only documents with data
   const [showDataOnly, setShowDataOnly] = useState(false);
-  const openTable = () => {
-    navigate('/documents');
+  // Add: navigation loading state for "View Documents"
+  const [isNavToDocsLoading, setIsNavToDocsLoading] = useState(false);
+  // Add: prefetch Documents page chunk for faster navigation
+  const prefetchDocuments = () => {
+    import('@/pages/Documents').catch(() => {});
   };
 
   // Add MotionTableRow for animating rows
   const MotionTableRow = motion(TableRow);
+
+  // Add: openTable navigate handler for 'View Documents' to set loading and navigate
+  const openTable = () => {
+    if (isNavToDocsLoading) return;
+    setIsNavToDocsLoading(true);
+    navigate('/documents');
+  };
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -732,9 +742,21 @@ export default function Dashboard() {
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Refresh
                 </Button>
-                <Button onClick={openTable} className="shadow-sm">
-                  <FileText className="h-4 w-4 mr-2" />
-                  View Documents
+                <Button
+                  onClick={openTable}
+                  onMouseEnter={prefetchDocuments}
+                  onFocus={prefetchDocuments}
+                  onTouchStart={prefetchDocuments}
+                  className="shadow-sm"
+                  disabled={isNavToDocsLoading}
+                  aria-busy={isNavToDocsLoading}
+                >
+                  {isNavToDocsLoading ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <FileText className="h-4 w-4 mr-2" />
+                  )}
+                  {isNavToDocsLoading ? 'Opening...' : 'View Documents'}
                 </Button>
                 {/* Add: Data Only toggle */}
                 <div className="flex items-center gap-2 pl-2">
@@ -872,9 +894,21 @@ export default function Dashboard() {
                           <CardTitle className="text-sm text-muted-foreground">Quick Actions</CardTitle>
                         </CardHeader>
                         <CardContent className="flex flex-wrap gap-3">
-                          <Button onClick={openTable} className="shadow-sm">
-                            <FileText className="h-4 w-4 mr-2" />
-                            View Documents
+                          <Button
+                            onClick={openTable}
+                            onMouseEnter={prefetchDocuments}
+                            onFocus={prefetchDocuments}
+                            onTouchStart={prefetchDocuments}
+                            className="shadow-sm"
+                            disabled={isNavToDocsLoading}
+                            aria-busy={isNavToDocsLoading}
+                          >
+                            {isNavToDocsLoading ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <FileText className="h-4 w-4 mr-2" />
+                            )}
+                            {isNavToDocsLoading ? 'Opening...' : 'View Documents'}
                           </Button>
                           <Button
                             onClick={handleRefresh}
