@@ -833,28 +833,70 @@ export default function DocumentDetail() {
                     );
                   }
 
+                  // Detect numeric-looking columns to right-align them
+                  const isNumericLike = (val: unknown) => {
+                    if (typeof val === 'number') return true;
+                    if (typeof val === 'string') {
+                      const trimmed = val.trim().replace(/[, ]+/g, '');
+                      const n = Number(trimmed);
+                      return trimmed.length > 0 && Number.isFinite(n);
+                    }
+                    return false;
+                  };
+                  const numericCols = new Set<string>();
+                  for (const c of cols) {
+                    for (const it of itemsArr) {
+                      const v = it?.[c];
+                      if (isNumericLike(v)) {
+                        numericCols.add(c);
+                        break;
+                      }
+                    }
+                  }
+
                   return (
                     <Card className="bg-card/40">
                       <CardHeader>
                         <CardTitle className="text-sm">Items ({itemsArr.length})</CardTitle>
                       </CardHeader>
                       <CardContent className="pt-2">
-                        <div className="w-full overflow-x-auto">
-                          <Table className="min-w-[720px]">
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead className="whitespace-nowrap">#</TableHead>
+                        <div className="w-full overflow-x-auto rounded-md border shadow-sm">
+                          <Table className="min-w-[760px] text-sm">
+                            <TableHeader className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+                              <TableRow className="hover:bg-transparent">
+                                <TableHead className="whitespace-nowrap py-2 px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                  #
+                                </TableHead>
                                 {cols.map((c) => (
-                                  <TableHead key={c} className="whitespace-nowrap">{c}</TableHead>
+                                  <TableHead
+                                    key={c}
+                                    className={[
+                                      "whitespace-nowrap py-2 px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground",
+                                      numericCols.has(c) ? "text-right" : "text-left",
+                                    ].join(" ")}
+                                  >
+                                    {c}
+                                  </TableHead>
                                 ))}
                               </TableRow>
                             </TableHeader>
                             <TableBody>
                               {itemsArr.map((it: any, idx: number) => (
-                                <TableRow key={idx}>
-                                  <TableCell className="text-xs text-muted-foreground">{idx + 1}</TableCell>
+                                <TableRow
+                                  key={idx}
+                                  className="even:bg-muted/10 hover:bg-muted/30 transition-colors"
+                                >
+                                  <TableCell className="py-2 px-3 text-xs text-muted-foreground">
+                                    {idx + 1}
+                                  </TableCell>
                                   {cols.map((c) => (
-                                    <TableCell key={c} className="align-top">
+                                    <TableCell
+                                      key={c}
+                                      className={[
+                                        "py-2 px-3 align-top",
+                                        numericCols.has(c) ? "text-right tabular-nums" : "",
+                                      ].join(" ")}
+                                    >
                                       <Input
                                         value={String(
                                           (it && (typeof it[c] === 'string' || typeof it[c] === 'number' || typeof it[c] === 'boolean'))
@@ -862,7 +904,10 @@ export default function DocumentDetail() {
                                             : ''
                                         )}
                                         onChange={(e) => updateItemField(idx, c, e.target.value)}
-                                        className="h-8 text-sm"
+                                        className={[
+                                          "h-8 text-sm",
+                                          numericCols.has(c) ? "text-right" : "",
+                                        ].join(" ")}
                                         onKeyDown={onEditingKeyDown}
                                       />
                                     </TableCell>
