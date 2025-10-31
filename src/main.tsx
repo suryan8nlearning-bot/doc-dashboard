@@ -27,6 +27,7 @@ const Dashboard = lazy(() => import("./pages/Dashboard.tsx"));
 const DocumentDetail = lazy(() => import("./pages/DocumentDetail.tsx"));
 const Profile = lazy(() => import("@/pages/Profile.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
+const Documents = lazy(() => import("./pages/Documents.tsx"));
 
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL as string);
 
@@ -149,6 +150,7 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="/auth" element={<AuthPage redirectAfterAuth="/dashboard" />} />
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/document/:documentId" element={<DocumentDetail />} />
+                <Route path="/documents" element={<Documents />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>

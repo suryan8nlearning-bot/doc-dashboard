@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { supabase, hasSupabaseEnv, publicUrlForPath } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, Loader2, LogOut, Mail, Trash2, User, Moon, Sun, CheckCircle2, Clock, RefreshCw } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -69,14 +69,8 @@ export default function Dashboard() {
   const [selectedSAP, setSelectedSAP] = useState<any | null>(null);
   const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set());
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const tableRef = useRef<HTMLDivElement | null>(null);
   const openTable = () => {
-    if (window.location.pathname !== '/dashboard') {
-      navigate('/dashboard');
-      setTimeout(() => tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
-    } else {
-      tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    navigate('/documents');
   };
 
   // Add MotionTableRow for animating rows
@@ -935,17 +929,17 @@ export default function Dashboard() {
               </div>
             </motion.div>
           ) : (
-            <div ref={tableRef}>
-              <DocumentsTable
-                docs={filteredDocs}
-                selectedIds={selectedDocuments}
-                onToggleSelectAll={handleSelectAll}
-                onToggleSelect={handleSelectDocument}
-                onViewMailContent={(content) => handleViewMailContent(content)}
-                onViewDetails={(id) => navigate(`/document/${id}`)}
-                onEdit={handleEditDocument}
-              />
-            </div>
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, ease: 'easeOut' }}>
+              <div className="text-center py-12 space-y-4">
+                <FileText className="h-16 w-16 mx-auto text-muted-foreground opacity-20" />
+                <div className="text-lg font-medium">Documents moved to a dedicated page</div>
+                <p className="text-sm text-muted-foreground">Open the full documents dashboard to browse and manage your files.</p>
+                <Button onClick={() => navigate('/documents')} className="shadow-sm">
+                  <FileText className="h-4 w-4 mr-2" />
+                  Open Documents
+                </Button>
+              </div>
+            </motion.div>
           )}
         </div>
       </div>
