@@ -67,7 +67,7 @@ export default function DocumentDetail() {
   const [view, setView] = useState<'sap' | 'document'>('document');
 
   // Add: full page toggle state
-  const [isExpanded, setIsExpanded] = useState<boolean>(true);
+  const [isExpanded, setIsExpanded] = useState(false); // default to Split View (PDF + SAP panel)
 
   // Removed view sync with showSAP so PDF + data are visible by default and independent of the toggle.
 
@@ -1121,20 +1121,42 @@ export default function DocumentDetail() {
     };
   }, [currentId, hasSupabaseEnv]);
 
-  const goPrev = () => {
-    if (currentIndex > 0) {
-      setNavLoading('prev');
-      toast('Loading previous document...');
-      navigate(`/document/${idList[currentIndex - 1]}`);
+  // Helper to compute navigation targets using the Dashboard's displayed order if available
+  function computeNavTarget(direction: 'prev' | 'next') {
+    // Derive current id from URL to avoid coupling to page state names
+    const currentId = Number((/\/document\/(\d+)/.exec(window.location.pathname)?.[1] ?? "0"));
+    const fallback = direction === 'prev' ? currentId - 1 : currentId + 1;
+
+    try {
+      const raw = localStorage.getItem('docNavOrder');
+      if (!raw) return fallback;
+      const parsed = JSON.parse(raw) as Array<number | string>;
+      const ids = parsed.map((v) => Number(v)).filter((n) => Number.isFinite(n));
+      if (!ids.length) return fallback;
+      const idx = ids.indexOf(currentId);
+      if (idx === -1) return fallback;
+      const nextIdx = direction === 'prev' ? idx - 1 : idx + 1;
+      if (nextIdx < 0 || nextIdx >= ids.length) return fallback;
+      return ids[nextIdx];
+    } catch {
+      return fallback;
     }
-  };
-  const goNext = () => {
-    if (currentIndex >= 0 && currentIndex < idList.length - 1) {
-      setNavLoading('next');
-      toast('Loading next document...');
-      navigate(`/document/${idList[currentIndex + 1]}`);
-    }
-  };
+  }
+
+  // Update navigation handlers to use the above
+  async function goPrev() {
+    setNavLoading(true);
+    const target = computeNavTarget('prev');
+    navigate(`/document/${target}`);
+    // ... keep existing code (loading and toasts if present)
+  }
+
+  async function goNext() {
+    setNavLoading(true);
+    const target = computeNavTarget('next');
+    navigate(`/document/${target}`);
+    // ... keep existing code (loading and toasts if present)
+  }
 
   // Clear nav loading once the new document finishes loading
   useEffect(() => {
