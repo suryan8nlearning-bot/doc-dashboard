@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { Copy, Download, ChevronDown, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import * as SalesSchema from "@/schemas/salesOrderCreate";
@@ -21,6 +22,7 @@ export function SAPJsonCard({
 }: SAPJsonCardProps) {
   const [collapsed, setCollapsed] = useState<boolean>(defaultCollapsed);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set<string>());
+  const [initExpandedApplied, setInitExpandedApplied] = useState<boolean>(false);
 
   // Insert: derive order tree from backend schema and reordering helpers
   const deriveOrderTreeFromSchema = (schemaMod: any): any => {
@@ -167,6 +169,41 @@ export function SAPJsonCard({
     }
   }, [parsed, orderTree]);
 
+  // Compute all expandable object/array paths so we can expand/collapse all and default-open
+  const computeAllExpandablePaths = (value: any, path: string = "$"): Array<string> => {
+    const paths: Array<string> = [];
+    const isObj = value !== null && typeof value === "object";
+    if (!isObj) return paths;
+    paths.push(path);
+    if (Array.isArray(value)) {
+      (value as Array<any>).forEach((v, i) => {
+        paths.push(...computeAllExpandablePaths(v, `${path}.[${i}]`));
+      });
+    } else {
+      Object.entries(value as Record<string, any>).forEach(([k, v]) => {
+        paths.push(...computeAllExpandablePaths(v, `${path}.${k}`));
+      });
+    }
+    return paths;
+  };
+
+  const allExpandablePaths = useMemo<Array<string>>(() => {
+    if (!ordered || typeof ordered !== "object") return [];
+    try {
+      return computeAllExpandablePaths(ordered, "$");
+    } catch {
+      return [];
+    }
+  }, [ordered]);
+
+  // Default to expanded on initial render when data is available
+  useEffect(() => {
+    if (!initExpandedApplied && allExpandablePaths.length > 0) {
+      setExpanded(new Set(allExpandablePaths));
+      setInitExpandedApplied(true);
+    }
+  }, [allExpandablePaths, initExpandedApplied]);
+
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(pretty);
@@ -217,7 +254,6 @@ export function SAPJsonCard({
     depth: number;
   }) => {
     const isComplex = isObjectLike(value);
-    const isExpanded = expanded.has(path);
     const indentStyle = { paddingLeft: `${depth * 16}px` };
 
     if (!isComplex) {
@@ -236,31 +272,36 @@ export function SAPJsonCard({
       : Object.entries(value as Record<string, any>);
 
     return (
-      <div>
-        <button
-          onClick={() => togglePath(path)}
-          className="w-full flex items-center gap-2 py-1.5 px-2 hover:bg-muted/50 rounded-md"
-          style={indentStyle}
-          aria-expanded={isExpanded}
-        >
-          {isExpanded ? (
-            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-          ) : (
-            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-          )}
-          <span className="text-xs font-semibold text-foreground">{label}</span>
-          <span className="ml-2 text-[10px] text-muted-foreground">
-            {isArr(value) ? `[${(value as any[]).length}]` : `{${Object.keys(value as any).length}}`}
-          </span>
-        </button>
-        {isExpanded && (
-          <div className="mt-0.5">
+      <Accordion
+        type="single"
+        collapsible
+        value={expanded.has(path) ? path : ""}
+        onValueChange={(val) =>
+          setExpanded((prev) => {
+            const next = new Set(prev);
+            if (val) next.add(path);
+            else next.delete(path);
+            return next;
+          })
+        }
+      >
+        <AccordionItem value={path} className="border-none">
+          <AccordionTrigger
+            className="w-full flex items-center gap-2 py-1.5 px-2 hover:bg-muted/50 rounded-md"
+            style={indentStyle}
+          >
+            <span className="text-xs font-semibold text-foreground">{label}</span>
+            <span className="ml-2 text-[10px] text-muted-foreground">
+              {isArr(value) ? `[${(value as any[]).length}]` : `{${Object.keys(value as any).length}}`}
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="mt-0.5 pl-0">
             {entries.map(([k, v]) => (
               <TreeNode key={`${path}.${k}`} label={k} value={v} path={`${path}.${k}`} depth={depth + 1} />
             ))}
-          </div>
-        )}
-      </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
     );
   };
 
@@ -282,6 +323,24 @@ export function SAPJsonCard({
           <CardTitle className="text-base">{title}</CardTitle>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setExpanded(new Set(allExpandablePaths))}
+            aria-label="Expand all"
+            title="Expand all"
+          >
+            Expand all
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setExpanded(new Set())}
+            aria-label="Collapse all"
+            title="Collapse all"
+          >
+            Collapse all
+          </Button>
           <Button variant="outline" size="sm" onClick={handleCopy} aria-label="Copy JSON">
             <Copy className="h-4 w-4 mr-2" />
             Copy
