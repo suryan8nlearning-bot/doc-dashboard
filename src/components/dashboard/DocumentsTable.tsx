@@ -75,8 +75,8 @@ export function DocumentsTable({
   onEdit,
 }: DocumentsTableProps): ReactNode {
   const [search, setSearch] = useState("");
-  // Change default sorting to name since we're not showing date/status columns
-  const [sortBy, setSortBy] = useState<"name" | "date" | "status">("name");
+  // Change default sorting to ID (largest to smallest)
+  const [sortBy, setSortBy] = useState<"id" | "name" | "date" | "status">("id");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
   const pageSize = 10;
@@ -103,6 +103,18 @@ export function DocumentsTable({
       : docs;
 
     const sorted = [...filtered].sort((a, b) => {
+      if (sortBy === "id") {
+        const ai = Number(a.id);
+        const bi = Number(b.id);
+        const aNum = Number.isFinite(ai);
+        const bNum = Number.isFinite(bi);
+        if (aNum && bNum) {
+          return sortDir === "asc" ? ai - bi : bi - ai;
+        }
+        const as = (a.id || "").toLowerCase();
+        const bs = (b.id || "").toLowerCase();
+        return sortDir === "asc" ? as.localeCompare(bs) : bs.localeCompare(as);
+      }
       if (sortBy === "name") {
         const an = (a.subject || a.title || a.bucket_name || a.id || "").toLowerCase();
         const bn = (b.subject || b.title || b.bucket_name || b.id || "").toLowerCase();
@@ -113,7 +125,6 @@ export function DocumentsTable({
         const bs = (b.status || "").toLowerCase();
         return sortDir === "asc" ? as.localeCompare(bs) : bs.localeCompare(as);
       }
-      // date
       const ad = a.created_at ? new Date(a.created_at).getTime() : 0;
       const bd = b.created_at ? new Date(b.created_at).getTime() : 0;
       return sortDir === "asc" ? ad - bd : bd - ad;
@@ -127,7 +138,7 @@ export function DocumentsTable({
   const currentPage = Math.min(page, totalPages);
   const start = (currentPage - 1) * pageSize;
   const end = Math.min(start + pageSize, total);
-  const visible = processed.slice(start, end);
+  const visible = processed;
 
   const SortIcon = ({ active, dir }: { active: boolean; dir: "asc" | "desc" }) =>
     active ? (dir === "asc" ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />) : <ArrowUpDown className="h-4 w-4" />;
@@ -152,7 +163,7 @@ export function DocumentsTable({
             className="bg-background/50"
             aria-label="Search documents"
           />
-          <div className="text-xs text-muted-foreground">{total} results</div>
+          <div className="hidden" />
         </div>
       </div>
 
@@ -326,34 +337,7 @@ export function DocumentsTable({
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between px-4 py-3 border-t border-white/10 bg-white/[0.04] supports-[backdrop-filter]:bg-white/10 backdrop-blur">
-        <div className="text-xs text-muted-foreground">
-          Showing {total === 0 ? 0 : start + 1}-{end} of {total}
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={currentPage <= 1}
-          >
-            Prev
-          </Button>
-          <div className="text-xs tabular-nums">
-            {currentPage} / {totalPages}
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur"
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={currentPage >= totalPages}
-          >
-            Next
-          </Button>
-        </div>
-      </div>
+      <div className="hidden" />
     </motion.div>
   );
 }

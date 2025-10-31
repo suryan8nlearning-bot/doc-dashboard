@@ -359,8 +359,8 @@ export default function Documents() {
         />
       </motion.header>
 
-      <div className="flex-1 p-6 md:p-8 overflow-auto">
-        <div className="max-w-full mx-auto">
+      <div className="flex-1 overflow-hidden p-0">
+        <div className="w-full">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-xl md:text-2xl font-bold tracking-tight">Documents</h2>
             <Button
