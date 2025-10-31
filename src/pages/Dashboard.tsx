@@ -35,7 +35,6 @@ import { useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { BulkActionsBar } from "@/components/dashboard/BulkActionsBar";
-import { DocumentsTable } from "@/components/dashboard/DocumentsTable";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -929,15 +928,16 @@ export default function Dashboard() {
               </div>
             </motion.div>
           ) : (
-            <DocumentsTable
-              docs={filteredDocs}
-              selectedIds={selectedDocuments}
-              onToggleSelectAll={handleSelectAll}
-              onToggleSelect={handleSelectDocument}
-              onViewMailContent={(content) => handleViewMailContent(content)}
-              onViewDetails={(id) => navigate(`/document/${id}`)}
-              onEdit={handleEditDocument}
-            />
+            <div className="text-center py-12 space-y-4">
+              <FileText className="h-16 w-16 mx-auto text-muted-foreground opacity-20" />
+              <div className="text-lg font-medium">Documents moved to a dedicated page</div>
+              <p className="text-sm text-muted-foreground">
+                Open the Documents page to view and manage your files in a full, dedicated table.
+              </p>
+              <Button onClick={openTable} className="shadow-sm">
+                Open Documents
+              </Button>
+            </div>
           )}
         </div>
       </div>
