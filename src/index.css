@@ -151,6 +151,24 @@
   border: 1px solid oklch(0.85 0.01 250 / 0.3);
 }
 
+/* Hide scrollbars while preserving scroll functionality */
+.no-scrollbar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
+
+/* Radix ScrollArea viewport inside containers marked as no-scrollbar */
+.no-scrollbar [data-radix-scroll-area-viewport] {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar [data-radix-scroll-area-viewport]::-webkit-scrollbar {
+  display: none;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

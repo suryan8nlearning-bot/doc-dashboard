@@ -1376,7 +1376,7 @@ export default function DocumentDetail() {
                 Toggle SAP visibility from the user menu. Use "Next" to view the PDF and document data.
               </div>
               {showSAP ? (
-                <ScrollArea className="h-full pr-1 overflow-y-auto">
+                <ScrollArea className="h-full pr-1 overflow-y-auto no-scrollbar">
                   {
                     (() => {
                       try {
@@ -1425,7 +1425,7 @@ export default function DocumentDetail() {
         </div>
 
         {/* Document Fields */}
-        <aside ref={asideRef} className="relative w-[420px] lg:w-[560px] border-l bg-background overflow-y-auto flex-shrink-0 flex flex-col scroll-smooth">
+        <aside ref={asideRef} className="relative w-[420px] lg:w-[560px] border-l bg-background overflow-y-auto no-scrollbar flex-shrink-0 flex flex-col scroll-smooth">
           <div className="p-4 border-b">
             <Card className="bg-card/60">
               <CardHeader>
@@ -1446,7 +1446,7 @@ export default function DocumentDetail() {
                 {showSAP ? (
                   <div className="space-y-4">
                     {/* Scrollable hierarchical view */}
-                    <ScrollArea className="max-h-[60vh] pr-1 overflow-y-auto">
+                    <ScrollArea className="max-h-[60vh] pr-1 overflow-y-auto no-scrollbar">
                       {
                         (() => {
                           try {
