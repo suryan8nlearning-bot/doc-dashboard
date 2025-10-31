@@ -927,18 +927,7 @@ export default function Dashboard() {
                 </p>
               </div>
             </motion.div>
-          ) : (
-            <div className="text-center py-12 space-y-4">
-              <FileText className="h-16 w-16 mx-auto text-muted-foreground opacity-20" />
-              <div className="text-lg font-medium">Documents moved to a dedicated page</div>
-              <p className="text-sm text-muted-foreground">
-                Open the Documents page to view and manage your files in a full, dedicated table.
-              </p>
-              <Button onClick={openTable} className="shadow-sm">
-                Open Documents
-              </Button>
-            </div>
-          )}
+          ) : null}
         </div>
       </div>
 
