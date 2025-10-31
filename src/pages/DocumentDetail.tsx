@@ -18,7 +18,6 @@ import { useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
 import { useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { SAPJsonCard } from "@/components/SAPJsonCard";
 
 export default function DocumentDetail() {
   const { isLoading: authLoading, isAuthenticated, user, signOut } = useAuth();
@@ -1443,26 +1442,6 @@ export default function DocumentDetail() {
                 <div className="text-xs text-muted-foreground">
                   Toggle SAP visibility from the user menu.
                 </div>
-
-                <SAPJsonCard
-                  className="mb-4"
-                  title="SAP JSON (Raw)"
-                  data={(() => {
-                    try {
-                      // Prefer the editor value if it's a non-empty JSON string
-                      // Falls back to the structured sapObj
-                      // If both are empty, the card will show a helpful placeholder
-                      // @ts-ignore: sapEditorValue is defined in this file
-                      if (typeof sapEditorValue === "string" && sapEditorValue.trim()) {
-                        return JSON.parse(sapEditorValue);
-                      }
-                    } catch {
-                      // ignore parse errors; fallback below
-                    }
-                    // @ts-ignore: sapObj is defined in this file
-                    return sapObj ?? null;
-                  })()}
-                />
 
                 {showSAP ? (
                   <div className="space-y-4">

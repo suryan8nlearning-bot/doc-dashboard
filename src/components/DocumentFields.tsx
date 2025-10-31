@@ -66,7 +66,7 @@ interface DocumentFieldsProps {
 
 export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsProps) {
   // Collapse all sections by default
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['metadata','vendor','customer','items','other']));
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const showDebug = false; // Hide debug lines by default for a cleaner UI
 
   const toggleSection = (section: string) => {
