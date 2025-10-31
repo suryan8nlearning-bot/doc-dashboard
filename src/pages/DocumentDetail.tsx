@@ -624,15 +624,24 @@ export default function DocumentDetail() {
   };
 
   // Add: open/close state for right-panel accordion sections (default collapsed)
-  const [openHierarchySections, setOpenHierarchySections] = useState<Array<string>>([]);
+  // Default SAP section open at top-level
+  const [openHierarchySections, setOpenHierarchySections] = useState<Array<string>>(['sap']);
 
   // Add: collapse all handler on top of both top-level hierarchies
   const [sapCollapseNonce, setSapCollapseNonce] = useState<number>(0);
+  // Track whether SAP nested accordions should be expanded by default
+  const [sapExpandAll, setSapExpandAll] = useState<boolean>(true);
 
   // Update collapse all to also reset SAP nested accordions
   const collapseAllHierarchy = () => {
-    setOpenHierarchySections([]);
-    setSapCollapseNonce((n) => n + 1);
+    setSapExpandAll((prev) => {
+      const next = !prev;
+      // Toggle both top-level sections together
+      setOpenHierarchySections(next ? ['sap', 'doc'] : []);
+      // Remount nested accordions so defaultValue applies
+      setSapCollapseNonce((n) => n + 1);
+      return next;
+    });
   };
 
   // Optional: expand all if needed later
@@ -646,21 +655,30 @@ export default function DocumentDetail() {
   };
 
   // Update signature to accept a collapse key for remounting
-  const renderSapEditable = (out: any, collapseKey?: number) => {
+  const renderSapEditable = (out: any, collapseKey?: number, expandAll?: boolean) => {
     if (!out || typeof out !== 'object') {
       return <div className="text-base text-muted-foreground">No SAP data.</div>;
     }
     const headerIgnore = new Set(['to_Partner', 'to_PricingElement', 'to_Item']);
-    const headerPairs = Object.entries(out)
-      .filter(
-        ([k, v]) =>
-          !headerIgnore.has(k) &&
-          (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean')
-      )
-      .sort(([a], [b]) => a.localeCompare(b));
+    // Preserve original JSON order; no sorting
+    const headerPairs = Object.entries(out).filter(
+      ([k, v]) =>
+        !headerIgnore.has(k) &&
+        (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean')
+    );
+
+    // Compute top-level default open targets when expanding all
+    const topDefaultOpen: Array<string> | undefined = expandAll
+      ? [
+          'header',
+          ...(Array.isArray(out?.to_Partner) && out.to_Partner.length > 0 ? ['partners'] : []),
+          ...(Array.isArray(out?.to_PricingElement) && out.to_PricingElement.length > 0 ? ['pricing'] : []),
+          ...(Array.isArray(out?.to_Item) && out.to_Item.length > 0 ? ['items'] : []),
+        ]
+      : undefined;
 
     return (
-      <Accordion key={collapseKey} type="multiple" className="space-y-3">
+      <Accordion key={collapseKey} type="multiple" className="space-y-3" defaultValue={topDefaultOpen}>
         {/* Header - top level */}
         <AccordionItem value="header">
           <AccordionTrigger className="text-base font-semibold">
@@ -793,16 +811,20 @@ export default function DocumentDetail() {
                 {out.to_Item.map((it: any, idx: number) => {
                   const partners = Array.isArray(it?.to_ItemPartner) ? it.to_ItemPartner : [];
                   const prices = Array.isArray(it?.to_ItemPricingElement) ? it.to_ItemPricingElement : [];
-                  const itemHeaderPairs = Object.entries(it || {})
-                    .filter(
-                      ([k, v]) =>
-                        !['to_ItemPartner', 'to_ItemPricingElement'].includes(k) &&
-                        (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean')
-                    )
-                    .sort(([a], [b]) => a.localeCompare(b));
+                  // Preserve JSON order for item-level fields too
+                  const itemHeaderPairs = Object.entries(it || {}).filter(
+                    ([k, v]) =>
+                      !['to_ItemPartner', 'to_ItemPricingElement'].includes(k) &&
+                      (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean')
+                  );
 
                   return (
-                    <Accordion key={idx} type="multiple" className="rounded border bg-card/40">
+                    <Accordion
+                      key={idx}
+                      type="multiple"
+                      className="rounded border bg-card/40"
+                      defaultValue={expandAll ? [`item-${idx}`] : undefined}
+                    >
                       <AccordionItem value={`item-${idx}`}>
                         <AccordionTrigger className="px-3 text-sm font-medium">
                           Item {idx + 1}
@@ -825,7 +847,11 @@ export default function DocumentDetail() {
                               </div>
 
                               {partners.length > 0 && (
-                                <Accordion type="multiple" className="mt-2">
+                                <Accordion
+                                  type="multiple"
+                                  className="mt-2"
+                                  defaultValue={expandAll ? ['item-partners'] : undefined}
+                                >
                                   <AccordionItem value="item-partners">
                                     <AccordionTrigger className="text-sm font-medium">
                                       Item Partners ({partners.length})
@@ -868,7 +894,11 @@ export default function DocumentDetail() {
                               )}
 
                               {prices.length > 0 && (
-                                <Accordion type="multiple" className="mt-2">
+                                <Accordion
+                                  type="multiple"
+                                  className="mt-2"
+                                  defaultValue={expandAll ? ['item-pricing'] : undefined}
+                                >
                                   <AccordionItem value="item-pricing">
                                     <AccordionTrigger className="text-sm font-medium">
                                       Item Pricing ({prices.length})
@@ -1603,7 +1633,7 @@ export default function DocumentDetail() {
                     (() => {
                       try {
                         const parsed = JSON.parse(sapEditorValue || '{}');
-                        return renderSapEditable(parsed, sapCollapseNonce);
+                        return renderSapEditable(parsed, sapCollapseNonce, sapExpandAll);
                       } catch {
                         return <div className="text-sm text-muted-foreground">Invalid JSON in editor. Fix to preview.</div>;
                       }
@@ -1655,7 +1685,7 @@ export default function DocumentDetail() {
   className={
     isExpanded
       ? 'hidden'
-      : 'relative w-[420px] lg:w-[560px] border-l bg-background overflow-y-auto no-scrollbar flex-shrink-0 flex flex-col scroll-smooth'
+      : 'relative w-[520px] lg:w-[680px] bg-background overflow-y-auto no-scrollbar flex-shrink-0 flex flex-col scroll-smooth'
   }
 >
           <div className="p-4 border-b">
@@ -1667,9 +1697,9 @@ export default function DocumentDetail() {
                     type="button"
                     onClick={collapseAllHierarchy}
                     className="text-xs px-2 py-1 rounded-md border hover:bg-muted transition-colors"
-                    title="Collapse both SAP and Document Data"
+                    title={sapExpandAll ? "Collapse both SAP and Document Data" : "Expand both SAP and Document Data"}
                   >
-                    Collapse All
+                    {sapExpandAll ? 'Collapse All' : 'Expand All'}
                   </button>
                 </div>
               </CardHeader>
@@ -1691,7 +1721,7 @@ export default function DocumentDetail() {
                             (() => {
                               try {
                                 const parsed = JSON.parse(sapEditorValue || '{}');
-                                return renderSapEditable(parsed, sapCollapseNonce);
+                                return renderSapEditable(parsed, sapCollapseNonce, sapExpandAll);
                               } catch {
                                 return (
                                   <div className="text-sm text-muted-foreground">
