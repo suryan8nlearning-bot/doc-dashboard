@@ -559,6 +559,26 @@ const toPxBox = (box: WideBox): WideBox => {
     return () => ro.disconnect();
   }, [fitToWidthOnResize, currentPage]);
 
+  // Also fit-to-width on window resize and orientation changes (mobile rotation)
+  useEffect(() => {
+    if (!fitToWidthOnResize) return;
+    const handler = () => {
+      const container = containerRef.current;
+      const base = baseViewportRef.current;
+      if (!container || !base?.width) return;
+      const width = container.clientWidth;
+      if (!width) return;
+      const targetScale = width / base.width;
+      updateZoom(targetScale, true);
+    };
+    window.addEventListener('resize', handler);
+    window.addEventListener('orientationchange', handler);
+    return () => {
+      window.removeEventListener('resize', handler);
+      window.removeEventListener('orientationchange', handler);
+    };
+  }, [fitToWidthOnResize, currentPage]);
+
   // Auto-focus/zoom into key region once after load if focusBox exists
   useEffect(() => {
     if (didAutoFocusRef.current) return;
@@ -825,7 +845,7 @@ const toPxBox = (box: WideBox): WideBox => {
 
       <div
         ref={containerRef}
-        className="h-full overflow-auto relative"
+        className="h-full w-full overflow-auto relative"
         style={{ scrollBehavior: 'smooth' }}
       >
         {/* Canvas-based PDF rendering */}
