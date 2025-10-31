@@ -1520,64 +1520,68 @@ export default function DocumentDetail() {
             <Card className="bg-card/60">
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
-                  <span>SAP Data</span>
+                  <span>Hierarchy</span>
                   <div className="flex items-center gap-3">
                     <div className="text-xs text-muted-foreground">
-                      {sapOut ? 'Loaded' : 'No SAP data'}
+                      {sapOut ? 'SAP: Loaded' : 'SAP: None'}
                     </div>
                   </div>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="text-xs text-muted-foreground">
-                  Toggle SAP visibility from the user menu.
-                </div>
-
-                {showSAP ? (
-                  <div className="space-y-4">
-                    {/* Scrollable hierarchical view */}
-                    <ScrollArea className="max-h-[60vh] pr-1 overflow-y-auto no-scrollbar">
-                      {
-                        (() => {
-                          try {
-                            const parsed = JSON.parse(sapEditorValue || '{}');
-                            return renderSapEditable(parsed);
-                          } catch {
-                            return <div className="text-sm text-muted-foreground">Invalid JSON in editor. Fix to preview.</div>;
+              <CardContent className="space-y-3">
+                <Accordion type="multiple" className="space-y-2">
+                  {/* SAP Data hierarchy */}
+                  <AccordionItem value="sap-data">
+                    <AccordionTrigger className="text-base font-semibold">
+                      SAP Data
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      {showSAP ? (
+                        <ScrollArea className="max-h-[60vh] pr-1 overflow-y-auto no-scrollbar">
+                          {
+                            (() => {
+                              try {
+                                const parsed = JSON.parse(sapEditorValue || '{}');
+                                return renderSapEditable(parsed);
+                              } catch {
+                                return (
+                                  <div className="text-sm text-muted-foreground">
+                                    Invalid JSON in editor. Fix to preview.
+                                  </div>
+                                );
+                              }
+                            })()
                           }
-                        })()
-                      }
-                    </ScrollArea>
+                        </ScrollArea>
+                      ) : (
+                        <div className="text-sm text-muted-foreground">
+                          SAP data hidden. Enable it from the user menu.
+                        </div>
+                      )}
+                    </AccordionContent>
+                  </AccordionItem>
 
-                    {/* JSON editor removed; fields are now edited inline above */}
-                  </div>
-                ) : (
-                  <div className="text-sm text-muted-foreground">
-                    SAP data hidden. Enable it from the user menu.
-                  </div>
-                )}
+                  {/* Document Data hierarchy */}
+                  <AccordionItem value="document-data">
+                    <AccordionTrigger className="text-base font-semibold">
+                      Document Data
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      {doc.document_data && doc.document_data?.document?.pages?.length > 0 ? (
+                        <DocumentFields
+                          documentData={doc.document_data}
+                          onFieldHover={setHighlightBox}
+                        />
+                      ) : (
+                        <div className="text-sm text-muted-foreground">
+                          No structured data available for this document.
+                        </div>
+                      )}
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
               </CardContent>
             </Card>
-          </div>
-
-          <div className="flex-1 min-h-0">
-            {showSAP ? (
-              doc.document_data &&
-              doc.document_data?.document?.pages?.length > 0 ? (
-                <DocumentFields
-                  documentData={doc.document_data}
-                  onFieldHover={setHighlightBox}
-                />
-              ) : (
-                <div className="h-full p-6 text-sm text-muted-foreground">
-                  No structured data available for this document.
-                </div>
-              )
-            ) : (
-              <div className="h-full p-6 text-sm text-muted-foreground">
-                SAP data hidden. Enable "Show SAP Data" from the user menu.
-              </div>
-            )}
           </div>
 
           {/* Scroll to top button for fields panel */}
