@@ -21,9 +21,11 @@ interface PDFViewerProps {
   documentData?: ExtractedDocumentData;
   // Add: opt-in initial fit-to-width (default false to keep 100% zoom)
   fitToWidthInitially?: boolean;
+  // Add: fit PDF to container width whenever the panel is resized (default true)
+  fitToWidthOnResize?: boolean;
 }
 
-export function PDFViewer({ pdfUrl, highlightBox, onLoad, documentData, fitToWidthInitially = false }: PDFViewerProps) {
+export function PDFViewer({ pdfUrl, highlightBox, onLoad, documentData, fitToWidthInitially = false, fitToWidthOnResize = true }: PDFViewerProps) {
   const [zoom, setZoom] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -173,7 +175,7 @@ const toPxBox = (box: WideBox): WideBox => {
   };
 
   // Helper: update zoom and keep the visual center stable while scrolling
-  const updateZoom = (nextZoom: number) => {
+  const updateZoom = (nextZoom: number, silent = false) => {
     const container = containerRef.current;
     if (!container) {
       setZoom(clampZoom(nextZoom));
@@ -195,9 +197,11 @@ const toPxBox = (box: WideBox): WideBox => {
       container.scrollTo({ left: newLeft, top: newTop });
     }, 0);
 
-    // Trigger a brief HUD to show zoom level
-    setShowZoomHud(true);
-    setTimeout(() => setShowZoomHud(false), 450);
+    // Trigger a brief HUD to show zoom level (skip when resizing container)
+    if (!silent) {
+      setShowZoomHud(true);
+      setTimeout(() => setShowZoomHud(false), 450);
+    }
   };
 
   // Fast render helper: reuse parsed PDF & page and cancel in-flight renders
@@ -532,6 +536,28 @@ const toPxBox = (box: WideBox): WideBox => {
     setZoom(clampZoom(targetScale));
     didFitToWidthRef.current = true;
   }, [pdfArrayBuffer]);
+
+  // Add: Automatically fit PDF to the container width when the panel is resized
+  useEffect(() => {
+    if (!fitToWidthOnResize) return;
+    const container = containerRef.current;
+    const base = baseViewportRef.current;
+    if (!container || !base?.width) return;
+
+    let lastWidth = 0;
+    const ro = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      const width = entry?.contentRect?.width || 0;
+      if (!width || width === lastWidth) return;
+      lastWidth = width;
+
+      const targetScale = width / base.width;
+      updateZoom(targetScale, true); // silent zoom HUD on resize
+    });
+
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, [fitToWidthOnResize, currentPage]);
 
   // Auto-focus/zoom into key region once after load if focusBox exists
   useEffect(() => {
