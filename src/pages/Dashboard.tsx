@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { supabase, hasSupabaseEnv, publicUrlForPath } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, Loader2, LogOut, Mail, Trash2, User, Moon, Sun, CheckCircle2, Clock, RefreshCw } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
  // removed status filter select import
@@ -87,6 +87,66 @@ export default function Dashboard() {
     setIsNavToDocsLoading(true);
     navigate('/documents');
   };
+
+  // Add: idle-callback helper to safely prefetch without blocking
+  const ric = (cb: () => void) =>
+    typeof (window as any).requestIdleCallback === "function"
+      ? (window as any).requestIdleCallback(cb)
+      : setTimeout(cb, 1);
+
+  // Add: keep a single prefetch promise so chunk loads only once
+  const docsChunkPreload = useRef<Promise<any> | null>(null);
+
+  // Add: prefetch the /documents route chunk (avoid on very slow networks)
+  const prefetchDocumentsChunk = () => {
+    try {
+      const conn = (navigator as any)?.connection?.effectiveType as string | undefined;
+      if (conn && (conn.includes("2g") || conn === "slow-2g")) return;
+      if (!docsChunkPreload.current) {
+        docsChunkPreload.current = import("@/pages/Documents");
+      }
+      return docsChunkPreload.current;
+    } catch {
+      // ignore prefetch errors
+      return null;
+    }
+  };
+
+  // Add: warm up a lightweight first-page query to improve perceived load time
+  const prefetchDocumentsFirstPage = () => {
+    try {
+      // relies on existing hasSupabaseEnv and supabase imports in this file
+      if (!hasSupabaseEnv) return;
+      const cacheKey = "prefetch:documents:firstPage:v1";
+      if (sessionStorage.getItem(cacheKey)) return;
+
+      supabase
+        .from("N8N Logs")
+        .select("id, title, status, created_at")
+        .order("created_at", { ascending: false })
+        .limit(50)
+        .then(
+          (res) => {
+            if (!res.error && res.data) {
+              sessionStorage.setItem(cacheKey, "1");
+            }
+          },
+          () => {
+            // ignore warm-up errors
+          }
+        );
+    } catch {
+      // ignore
+    }
+  };
+
+  // Add: idle prefetch on mount (no UI changes, just speeds up first navigation)
+  useEffect(() => {
+    ric(() => {
+      prefetchDocumentsChunk();
+      prefetchDocumentsFirstPage();
+    });
+  }, []);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
