@@ -382,11 +382,11 @@ export default function Dashboard() {
     return undefined;
   };
 
-  // Renders a simple field row for key/value
+  // Shrink and wrap SAP KV rows for denser display
   const KV = ({ label, value }: { label: string; value: any }) => (
-    <div className="flex items-center justify-between rounded border p-2">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="text-sm font-medium max-w-[60%] truncate" title={String(value)}>
+    <div className="flex items-start justify-between rounded-sm border border-white/10 p-1.5 gap-2">
+      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="text-[12px] font-medium leading-snug whitespace-pre-wrap break-words">
         {String(value ?? '—')}
       </div>
     </div>
@@ -409,7 +409,7 @@ export default function Dashboard() {
         <div>
           <div className="font-semibold mb-2">Header</div>
           {headerPairs.length ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div className="grid [grid-template-columns:repeat(auto-fit,minmax(160px,1fr))] gap-1.5">
               {headerPairs.map(([k, v]) => (
                 <KV key={k} label={k} value={v} />
               ))}
@@ -424,13 +424,13 @@ export default function Dashboard() {
             <div className="font-semibold mb-2">Partners</div>
             <div className="space-y-2">
               {out.to_Partner.map((p: any, idx: number) => (
-                <div key={idx} className="rounded border p-2">
-                  <div className="text-xs text-muted-foreground mb-1">Partner {idx + 1}</div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <div key={idx} className="rounded-sm border border-white/10 p-2">
+                  <div className="text-[11px] text-muted-foreground mb-1">Partner {idx + 1}</div>
+                  <div className="grid [grid-template-columns:repeat(auto-fit,minmax(160px,1fr))] gap-1.5">
                     {Object.entries(p || {}).map(([k, v]) => (
-                      <div key={k} className="flex items-center justify-between rounded bg-card/50 p-2">
-                        <div className="text-xs text-muted-foreground">{k}</div>
-                        <div className="text-sm font-medium max-w-[60%] truncate" title={String(v)}>
+                      <div key={k} className="flex items-start justify-between rounded-sm bg-card/40 p-1.5 gap-2">
+                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{k}</div>
+                        <div className="text-[12px] font-medium leading-snug whitespace-pre-wrap break-words">
                           {String(v ?? '—')}
                         </div>
                       </div>
@@ -447,13 +447,13 @@ export default function Dashboard() {
             <div className="font-semibold mb-2">Header Pricing</div>
             <div className="space-y-2">
               {out.to_PricingElement.map((pe: any, idx: number) => (
-                <div key={idx} className="rounded border p-2">
-                  <div className="text-xs text-muted-foreground mb-1">Pricing {idx + 1}</div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <div key={idx} className="rounded-sm border border-white/10 p-2">
+                  <div className="text-[11px] text-muted-foreground mb-1">Pricing {idx + 1}</div>
+                  <div className="grid [grid-template-columns:repeat(auto-fit,minmax(160px,1fr))] gap-1.5">
                     {Object.entries(pe || {}).map(([k, v]) => (
-                      <div key={k} className="flex items-center justify-between rounded bg-card/50 p-2">
-                        <div className="text-xs text-muted-foreground">{k}</div>
-                        <div className="text-sm font-medium max-w-[60%] truncate" title={String(v)}>
+                      <div key={k} className="flex items-start justify-between rounded-sm bg-card/40 p-1.5 gap-2">
+                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{k}</div>
+                        <div className="text-[12px] font-medium leading-snug whitespace-pre-wrap break-words">
                           {String(v ?? '—')}
                         </div>
                       </div>
@@ -478,13 +478,13 @@ export default function Dashboard() {
                     (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean')
                 );
                 return (
-                  <div key={idx} className="rounded border p-2 space-y-2">
-                    <div className="text-xs text-muted-foreground">Item {idx + 1}</div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <div key={idx} className="rounded-sm border border-white/10 p-2 space-y-2">
+                    <div className="text-[11px] text-muted-foreground">Item {idx + 1}</div>
+                    <div className="grid [grid-template-columns:repeat(auto-fit,minmax(160px,1fr))] gap-1.5">
                       {itemHeaderPairs.map(([k, v]) => (
-                        <div key={k} className="flex items-center justify-between rounded bg-card/50 p-2">
-                          <div className="text-xs text-muted-foreground">{k}</div>
-                          <div className="text-sm font-medium max-w-[60%] truncate" title={String(v)}>
+                        <div key={k} className="flex items-start justify-between rounded-sm bg-card/40 p-1.5 gap-2">
+                          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{k}</div>
+                          <div className="text-[12px] font-medium leading-snug whitespace-pre-wrap break-words">
                             {String(v ?? '—')}
                           </div>
                         </div>
@@ -494,14 +494,16 @@ export default function Dashboard() {
                     {partners.length > 0 && (
                       <div className="space-y-1">
                         <div className="text-xs font-medium">Item Partners</div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        <div className="grid [grid-template-columns:repeat(auto-fit,minmax(160px,1fr))] gap-1.5">
                           {partners.map((p: any, pi: number) => (
-                            <div key={pi} className="rounded border p-2">
+                            <div key={pi} className="rounded-sm border border-white/10 p-2">
                               <div className="grid grid-cols-1 gap-1">
                                 {Object.entries(p || {}).map(([k, v]) => (
-                                  <div key={k} className="flex items-center justify-between">
-                                    <span className="text-[11px] text-muted-foreground">{k}</span>
-                                    <span className="text-sm font-medium">{String(v ?? '—')}</span>
+                                  <div key={k} className="flex items-start justify-between gap-2">
+                                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{k}</span>
+                                    <span className="text-[12px] font-medium leading-snug whitespace-pre-wrap break-words">
+                                      {String(v ?? '—')}
+                                    </span>
                                   </div>
                                 ))}
                               </div>
@@ -514,14 +516,16 @@ export default function Dashboard() {
                     {prices.length > 0 && (
                       <div className="space-y-1">
                         <div className="text-xs font-medium">Item Pricing</div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        <div className="grid [grid-template-columns:repeat(auto-fit,minmax(160px,1fr))] gap-1.5">
                           {prices.map((pr: any, ri: number) => (
-                            <div key={ri} className="rounded border p-2">
+                            <div key={ri} className="rounded-sm border border-white/10 p-2">
                               <div className="grid grid-cols-1 gap-1">
                                 {Object.entries(pr || {}).map(([k, v]) => (
-                                  <div key={k} className="flex items-center justify-between">
-                                    <span className="text-[11px] text-muted-foreground">{k}</span>
-                                    <span className="text-sm font-medium">{String(v ?? '—')}</span>
+                                  <div key={k} className="flex items-start justify-between gap-2">
+                                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{k}</span>
+                                    <span className="text-[12px] font-medium leading-snug whitespace-pre-wrap break-words">
+                                      {String(v ?? '—')}
+                                    </span>
                                   </div>
                                 ))}
                               </div>
