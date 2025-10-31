@@ -12,7 +12,7 @@ import { motion } from "framer-motion";
 import { Mail } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { ChevronDown, ChevronUp, ArrowUpDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronUp, ArrowUpDown, ChevronRight, Loader2 } from "lucide-react";
 import { SlidersHorizontal } from "lucide-react";
 import {
   DropdownMenu,
@@ -82,15 +82,16 @@ export function DocumentsTable({
   onEdit,
 }: DocumentsTableProps): ReactNode {
   const [search, setSearch] = useState("");
-  // Change: expand sort keys to include all columns
   const [sortBy, setSortBy] = useState<"id" | "from" | "subject" | "status" | "doc" | "created" | "cc">("id");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
-  // Add: optional column visibility
   const [showCreatedAt, setShowCreatedAt] = useState(false);
   const [showCC, setShowCC] = useState(false);
+
+  // Add: opening state to show instant feedback when navigating
+  const [openingId, setOpeningId] = useState<string | null>(null);
 
   // Update: allow toggling sort for all keys
   const toggleSort = (key: "id" | "from" | "subject" | "status" | "doc" | "created" | "cc") => {
@@ -176,6 +177,14 @@ export function DocumentsTable({
   const start = (currentPage - 1) * pageSize;
   const end = Math.min(start + pageSize, total);
   const visible = processed;
+
+  // Add: central open handler with quick visual feedback
+  const handleOpen = (id: string) => {
+    setOpeningId(id);
+    onViewDetails(id);
+    // Safety reset if navigation is slow
+    setTimeout(() => setOpeningId((curr) => (curr === id ? null : curr)), 3000);
+  };
 
   const SortIcon = ({ active, dir }: { active: boolean; dir: "asc" | "desc" }) =>
     active ? (dir === "asc" ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />) : <ArrowUpDown className="h-4 w-4" />;
@@ -338,15 +347,25 @@ export function DocumentsTable({
                       selectedIds.has(doc.id)
                         ? "bg-white/[0.12] ring-1 ring-white/20 shadow-inner"
                         : "odd:bg-white/[0.02] even:bg-white/[0.04]"
-                    } hover:bg-white/[0.08] transition-colors border-b border-white/10 backdrop-blur-xl group`}
+                    } hover:bg-white/[0.08] transition-colors border-b border-white/10 backdrop-blur-xl group cursor-pointer`}
                     initial={{ opacity: 0, y: 16 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.35, ease: "easeOut", delay: Math.min(idx * 0.03, 0.4) }}
                     whileHover={{ y: -2 }}
                     whileTap={{ scale: 0.995 }}
                     layout
+                    // Make the entire row navigable
+                    onClick={() => handleOpen(doc.id)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        handleOpen(doc.id);
+                      }
+                    }}
                   >
-                    <TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <Checkbox
                         checked={selectedIds.has(doc.id)}
                         onCheckedChange={() => onToggleSelect(doc.id)}
@@ -386,16 +405,25 @@ export function DocumentsTable({
                       </TableCell>
                     )}
                     {/* Actions: only chevron */}
-                    <TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <Button
                         variant="outline"
                         size="sm"
-                        className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur"
-                        onClick={() => onViewDetails(doc.id)}
+                        className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur transition-transform active:scale-95"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpen(doc.id);
+                        }}
                         aria-label="Open details"
                         title="Open"
+                        disabled={openingId === doc.id}
+                        aria-busy={openingId === doc.id}
                       >
-                        <ChevronRight className="h-4 w-4" />
+                        {openingId === doc.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4" />
+                        )}
                       </Button>
                     </TableCell>
                   </MotionTableRow>
@@ -420,13 +448,23 @@ export function DocumentsTable({
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.25, ease: "easeOut", delay: Math.min(idx * 0.03, 0.3) }}
                 whileHover={{ y: -2 }}
-                className={`rounded-xl border border-white/10 bg-white/[0.06] supports-[backdrop-filter]:bg-white/10 backdrop-blur p-3 shadow-sm`}
+                className="rounded-xl border border-white/10 bg-white/[0.06] supports-[backdrop-filter]:bg-white/10 backdrop-blur p-3 shadow-sm cursor-pointer"
+                onClick={() => handleOpen(doc.id)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    handleOpen(doc.id);
+                  }
+                }}
               >
                 <div className="flex items-start gap-3">
                   <Checkbox
                     checked={selectedIds.has(doc.id)}
                     onCheckedChange={() => onToggleSelect(doc.id)}
                     aria-label={`Select ${doc.id}`}
+                    onClick={(e) => e.stopPropagation()}
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
@@ -436,12 +474,21 @@ export function DocumentsTable({
                       <Button
                         variant="outline"
                         size="sm"
-                        className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur"
-                        onClick={() => onViewDetails(doc.id)}
+                        className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur transition-transform active:scale-95"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpen(doc.id);
+                        }}
                         aria-label="Open details"
                         title="Open"
+                        disabled={openingId === doc.id}
+                        aria-busy={openingId === doc.id}
                       >
-                        <ChevronRight className="h-4 w-4" />
+                        {openingId === doc.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4" />
+                        )}
                       </Button>
                     </div>
                     <div className="mt-1 text-[11px] text-muted-foreground font-mono truncate" title={doc.id}>
