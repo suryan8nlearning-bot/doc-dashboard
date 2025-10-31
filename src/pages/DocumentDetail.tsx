@@ -1795,6 +1795,8 @@ export default function DocumentDetail() {
                   pdfUrl={doc.pdf_url}
                   highlightBox={highlightBox}
                   documentData={showSAP ? doc.document_data : undefined}
+                  fitToWidthInitially
+                  fitToWidthOnResize
                 />
               </Suspense>
             </div>
@@ -1824,6 +1826,8 @@ export default function DocumentDetail() {
                     pdfUrl={doc.pdf_url}
                     highlightBox={highlightBox}
                     documentData={showSAP ? doc.document_data : undefined}
+                    fitToWidthInitially
+                    fitToWidthOnResize
                   />
                 </Suspense>
               </div>
@@ -1863,22 +1867,20 @@ export default function DocumentDetail() {
                           </AccordionTrigger>
                           <AccordionContent>
                             {showSAP ? (
-                              <ScrollArea className="max-h-[60vh] pr-1 overflow-y-auto no-scrollbar">
-                                {
-                                  (() => {
-                                    try {
-                                      const parsed = JSON.parse(sapEditorValue || '{}');
-                                      return renderSapEditable(parsed, sapCollapseNonce, sapExpandAll);
-                                    } catch {
-                                      return (
-                                        <div className="text-sm text-muted-foreground">
-                                          Invalid JSON in editor. Fix to preview.
-                                        </div>
-                                      );
-                                    }
-                                  })()
-                                }
-                              </ScrollArea>
+                              <div className="pr-1">
+                                {(() => {
+                                  try {
+                                    const parsed = JSON.parse(sapEditorValue || '{}');
+                                    return renderSapEditable(parsed, sapCollapseNonce, sapExpandAll);
+                                  } catch {
+                                    return (
+                                      <div className="text-sm text-muted-foreground">
+                                        Invalid JSON in editor. Fix to preview.
+                                      </div>
+                                    );
+                                  }
+                                })()}
+                              </div>
                             ) : (
                               <div className="text-sm text-muted-foreground">
                                 SAP data hidden. Enable it from the user menu.
