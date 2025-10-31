@@ -112,6 +112,32 @@ export default function DocumentDetail() {
   // Add: full page toggle state
   const [isExpanded, setIsExpanded] = useState(false); // default to Split View (PDF + SAP panel)
 
+  // Add: observe left panel width so PDF re-fits when resizing the splitter
+  const leftPanelRef = useRef<HTMLDivElement | null>(null);
+  const [leftPanelWidth, setLeftPanelWidth] = useState<number>(0);
+
+  useEffect(() => {
+    const el = leftPanelRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+
+    // Set initial width
+    try {
+      const rect = el.getBoundingClientRect?.();
+      if (rect?.width) setLeftPanelWidth(Math.round(rect.width));
+    } catch {
+      // ignore
+    }
+
+    const ro = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      const w = Math.round(entry.contentRect.width);
+      setLeftPanelWidth((prev) => (prev !== w ? w : prev));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   // Removed view sync with showSAP so PDF + data are visible by default and independent of the toggle.
 
   // Prefetch heavy chunks on idle so the bundle is ready ASAP
@@ -875,33 +901,6 @@ export default function DocumentDetail() {
                     }
                   }
 
-                  // Compute column widths (in ch units) based on content length
-                  const headerLenByCol: Record<string, number> = Object.fromEntries(
-                    cols.map((c) => [c, c.length])
-                  );
-                  const valueLenByCol: Record<string, number> = {};
-                  for (const c of cols) {
-                    let maxLen = headerLenByCol[c] || 0;
-                    for (const it of itemsArr) {
-                      const v = it?.[c];
-                      if (v !== undefined && v !== null) {
-                        const s = String(v);
-                        // cap extremely long values to avoid blowing up the layout
-                        maxLen = Math.max(maxLen, Math.min(s.length, 40));
-                      }
-                    }
-                    valueLenByCol[c] = maxLen;
-                  }
-                  const colWidthCh: Record<string, number> = {};
-                  for (const c of cols) {
-                    const max = valueLenByCol[c];
-                    // tighter caps for numeric columns
-                    const clamped = numericCols.has(c)
-                      ? Math.min(Math.max(max, 6), 12)
-                      : Math.min(Math.max(max, 10), 28);
-                    colWidthCh[c] = clamped;
-                  }
-
                   return (
                     <Card className="bg-card/40">
                       <CardHeader>
@@ -912,25 +911,21 @@ export default function DocumentDetail() {
                           <Table className="min-w-[760px] text-sm">
                             <TableHeader className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
                               <TableRow className="hover:bg-transparent">
-                                <TableHead
-                                  className="whitespace-nowrap py-2 px-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
-                                  style={{ width: '4ch' }}
-                                >
+                                <TableHead className="whitespace-nowrap py-2 px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                                   #
                                 </TableHead>
                                 {cols.map((c) => (
                                   <TableHead
                                     key={c}
                                     className={[
-                                      "whitespace-nowrap py-2 px-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground",
+                                      "whitespace-nowrap py-2 px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground",
                                       numericCols.has(c) ? "text-right" : "text-left",
                                     ].join(" ")}
-                                    style={{ width: `${colWidthCh[c]}ch` }}
                                   >
                                     {c}
                                   </TableHead>
                                 ))}
-                                <TableHead className="whitespace-nowrap py-2 px-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground text-right">
+                                <TableHead className="whitespace-nowrap py-2 px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground text-right">
                                   Actions
                                 </TableHead>
                               </TableRow>
@@ -941,20 +936,16 @@ export default function DocumentDetail() {
                                   key={idx}
                                   className="even:bg-muted/10 hover:bg-muted/30 transition-colors"
                                 >
-                                  <TableCell
-                                    className="py-2 px-2 text-xs text-muted-foreground"
-                                    style={{ width: '4ch' }}
-                                  >
+                                  <TableCell className="py-2 px-3 text-xs text-muted-foreground">
                                     {idx + 1}
                                   </TableCell>
                                   {cols.map((c) => (
                                     <TableCell
                                       key={c}
                                       className={[
-                                        "py-2 px-2 align-top",
+                                        "py-2 px-3 align-top",
                                         numericCols.has(c) ? "text-right tabular-nums" : "",
                                       ].join(" ")}
-                                      style={{ width: `${colWidthCh[c]}ch` }}
                                     >
                                       <Input
                                         value={String(
@@ -972,8 +963,9 @@ export default function DocumentDetail() {
                                       />
                                     </TableCell>
                                   ))}
-                                  <TableCell className="py-2 px-2 text-right">
+                                  <TableCell className="py-2 px-3 text-right">
                                     <Button
+                                      // Make always visible by removing any group-hover/opacity-0 classes
                                       className={ALWAYS_VISIBLE_BTN_CLASSES}
                                       variant="outline"
                                       size="sm"
@@ -1843,7 +1835,10 @@ export default function DocumentDetail() {
           // Resizable split: PDF | Data
           <ResizablePanelGroup direction="horizontal" className="flex-1 overflow-hidden">
             <ResizablePanel defaultSize={50} minSize={40} className="relative min-w-0">
-              <div className="relative h-full min-w-0 overflow-hidden">
+              <div
+                ref={leftPanelRef}
+                className="relative h-full min-w-0 overflow-hidden"
+              >
                 <div className="absolute top-3 right-3 z-10">
                   <Button variant="secondary" size="sm" className="shadow-md" asChild>
                     <a
@@ -1861,6 +1856,7 @@ export default function DocumentDetail() {
                 </div>
                 <Suspense fallback={<PDFSkeleton />}>
                   <PDFViewerLazy
+                    key={leftPanelWidth ? `pdf-${leftPanelWidth}` : 'pdf'}
                     pdfUrl={doc.pdf_url}
                     highlightBox={highlightBox}
                     documentData={showSAP ? doc.document_data : undefined}
