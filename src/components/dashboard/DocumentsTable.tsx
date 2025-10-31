@@ -12,7 +12,7 @@ import { motion } from "framer-motion";
 import { Mail } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { ChevronDown, ChevronUp, ArrowUpDown, Eye, Pencil, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, ArrowUpDown, Eye, Pencil } from "lucide-react";
 import { ReactNode, useMemo, useState } from "react";
 
 const MotionTableRow = motion(TableRow);
@@ -37,7 +37,6 @@ type DocumentsTableProps = {
   onViewMailContent: (content: string) => void;
   onViewDetails: (id: string) => void;
   onEdit?: (id: string) => void;
-  onDelete?: (id: string) => void;
 };
 
 function truncateText(text: string, maxLength = 50) {
@@ -67,7 +66,6 @@ export function DocumentsTable({
   onViewMailContent,
   onViewDetails,
   onEdit,
-  onDelete,
 }: DocumentsTableProps): ReactNode {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"name" | "date" | "status">("date");
@@ -245,16 +243,6 @@ export function DocumentsTable({
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur text-red-500 hover:text-red-400"
-                        onClick={() => onDelete?.(doc.id)}
-                        aria-label="Delete document"
-                        title="Delete"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
                       {doc.mail_content && (
                         <Button
                           variant="outline"
@@ -318,15 +306,6 @@ export function DocumentsTable({
                     >
                       <Pencil className="h-4 w-4 mr-1" />
                       Edit
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur text-red-500 hover:text-red-400"
-                      onClick={() => onDelete?.(doc.id)}
-                    >
-                      <Trash2 className="h-4 w-4 mr-1" />
-                      Delete
                     </Button>
                     {doc.mail_content && (
                       <Button

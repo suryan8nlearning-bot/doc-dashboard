@@ -66,7 +66,7 @@ interface DocumentFieldsProps {
 
 export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsProps) {
   // Collapse all sections by default
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['metadata','vendor','customer','items','other']));
   const showDebug = false; // Hide debug lines by default for a cleaner UI
 
   const toggleSection = (section: string) => {
@@ -150,7 +150,7 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
 
   return (
     <ScrollArea className="h-full">
-      <div className="p-4 space-y-3">
+      <div className="p-4 space-y-2">
         {/* Metadata Section */}
         <div className="space-y-1.5 bg-card rounded-lg border p-2">
           <SectionHeader title="Document Metadata" id="metadata" />

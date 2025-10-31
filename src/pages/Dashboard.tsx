@@ -944,7 +944,6 @@ export default function Dashboard() {
                 onViewMailContent={(content) => handleViewMailContent(content)}
                 onViewDetails={(id) => navigate(`/document/${id}`)}
                 onEdit={handleEditDocument}
-                onDelete={handleDeleteDocument}
               />
             </div>
           )}
