@@ -520,8 +520,10 @@ const toPxBox = (box: WideBox): WideBox => {
     didFitToWidthRef.current = true;
   }, [pdfArrayBuffer, fitToWidthInitially]);
 
-  // Fit PDF to container width once using cached page metrics
+  // Fit PDF to container width once using cached page metrics (gate behind fitToWidthInitially)
   useEffect(() => {
+    // Only fit-to-width when explicitly requested
+    if (!fitToWidthInitially) return;
     if (!containerRef.current || didFitToWidthRef.current) return;
     const base = baseViewportRef.current;
     if (!base) return;

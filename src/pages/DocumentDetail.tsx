@@ -623,6 +623,15 @@ export default function DocumentDetail() {
     });
   };
 
+  // Add: open/close state for right-panel accordion sections (default collapsed)
+  const [openHierarchySections, setOpenHierarchySections] = useState<Array<string>>([]);
+
+  // Add: collapse all handler on top of both top-level hierarchies
+  const collapseAllHierarchy = () => setOpenHierarchySections([]);
+
+  // Optional: expand all if needed later
+  // const expandAllHierarchy = () => setOpenHierarchySections(['sap', 'doc']);
+
   // Add a local keydown handler to prevent PDF shortcuts while typing
   const onEditingKeyDown = (e: any) => {
     if (e.key === '0') {
@@ -1584,19 +1593,26 @@ export default function DocumentDetail() {
           <div className="p-4 border-b">
             <Card className="bg-card/60">
               <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span>Hierarchy</span>
-                  <div className="flex items-center gap-3">
-                    <div className="text-xs text-muted-foreground">
-                      {sapOut ? 'SAP: Loaded' : 'SAP: None'}
-                    </div>
-                  </div>
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold tracking-tight">SAP and Document Data</h3>
+                  <button
+                    type="button"
+                    onClick={collapseAllHierarchy}
+                    className="text-xs px-2 py-1 rounded-md border hover:bg-muted transition-colors"
+                    title="Collapse both SAP and Document Data"
+                  >
+                    Collapse All
+                  </button>
+                </div>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Accordion type="multiple" className="space-y-2">
+                <Accordion
+                  type="multiple"
+                  value={openHierarchySections}
+                  onValueChange={setOpenHierarchySections}
+                >
                   {/* SAP Data hierarchy */}
-                  <AccordionItem value="sap-data">
+                  <AccordionItem value="sap">
                     <AccordionTrigger className="text-base font-semibold">
                       SAP Data
                     </AccordionTrigger>
@@ -1627,7 +1643,7 @@ export default function DocumentDetail() {
                   </AccordionItem>
 
                   {/* Document Data hierarchy */}
-                  <AccordionItem value="document-data">
+                  <AccordionItem value="doc">
                     <AccordionTrigger className="text-base font-semibold">
                       Document Data
                     </AccordionTrigger>
