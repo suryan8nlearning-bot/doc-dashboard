@@ -627,7 +627,13 @@ export default function DocumentDetail() {
   const [openHierarchySections, setOpenHierarchySections] = useState<Array<string>>([]);
 
   // Add: collapse all handler on top of both top-level hierarchies
-  const collapseAllHierarchy = () => setOpenHierarchySections([]);
+  const [sapCollapseNonce, setSapCollapseNonce] = useState<number>(0);
+
+  // Update collapse all to also reset SAP nested accordions
+  const collapseAllHierarchy = () => {
+    setOpenHierarchySections([]);
+    setSapCollapseNonce((n) => n + 1);
+  };
 
   // Optional: expand all if needed later
   // const expandAllHierarchy = () => setOpenHierarchySections(['sap', 'doc']);
@@ -639,7 +645,8 @@ export default function DocumentDetail() {
     }
   };
 
-  const renderSapEditable = (out: any) => {
+  // Update signature to accept a collapse key for remounting
+  const renderSapEditable = (out: any, collapseKey?: number) => {
     if (!out || typeof out !== 'object') {
       return <div className="text-base text-muted-foreground">No SAP data.</div>;
     }
@@ -653,7 +660,7 @@ export default function DocumentDetail() {
       .sort(([a], [b]) => a.localeCompare(b));
 
     return (
-      <Accordion type="multiple" className="space-y-3">
+      <Accordion key={collapseKey} type="multiple" className="space-y-3">
         {/* Header - top level */}
         <AccordionItem value="header">
           <AccordionTrigger className="text-base font-semibold">
@@ -1566,7 +1573,7 @@ export default function DocumentDetail() {
                     (() => {
                       try {
                         const parsed = JSON.parse(sapEditorValue || '{}');
-                        return renderSapEditable(parsed);
+                        return renderSapEditable(parsed, sapCollapseNonce);
                       } catch {
                         return <div className="text-sm text-muted-foreground">Invalid JSON in editor. Fix to preview.</div>;
                       }
@@ -1654,7 +1661,7 @@ export default function DocumentDetail() {
                             (() => {
                               try {
                                 const parsed = JSON.parse(sapEditorValue || '{}');
-                                return renderSapEditable(parsed);
+                                return renderSapEditable(parsed, sapCollapseNonce);
                               } catch {
                                 return (
                                   <div className="text-sm text-muted-foreground">
