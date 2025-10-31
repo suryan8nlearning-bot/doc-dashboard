@@ -55,6 +55,9 @@ const ric = (cb: () => void) =>
     ? (window as any).requestIdleCallback(cb)
     : setTimeout(cb, 1);
 
+/* Always-visible action button classes for SAP Items table rows */
+const ALWAYS_VISIBLE_BTN_CLASSES = "inline-flex items-center gap-1 h-8 px-2 text-xs font-medium opacity-100 hover:opacity-100";
+
 export default function DocumentDetail() {
   const { isLoading: authLoading, isAuthenticated, user, signOut } = useAuth();
   const navigate = useNavigate();
@@ -936,6 +939,8 @@ export default function DocumentDetail() {
                                   ))}
                                   <TableCell className="py-2 px-3 text-right">
                                     <Button
+                                      // Make always visible by removing any group-hover/opacity-0 classes
+                                      className={ALWAYS_VISIBLE_BTN_CLASSES}
                                       variant="outline"
                                       size="sm"
                                       onClick={() => {
@@ -946,7 +951,6 @@ export default function DocumentDetail() {
                                           return next;
                                         });
                                       }}
-                                      className="h-8"
                                     >
                                       {editingRows.has(idx) ? (
                                         <>
