@@ -18,6 +18,7 @@ import { useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
 import { useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { SAPJsonCard } from "@/components/SAPJsonCard";
 
 export default function DocumentDetail() {
   const { isLoading: authLoading, isAuthenticated, user, signOut } = useAuth();
@@ -1376,45 +1377,18 @@ export default function DocumentDetail() {
                 Toggle SAP visibility from the user menu. Use "Next" to view the PDF and document data.
               </div>
               {showSAP ? (
-                <>
-                  <ScrollArea className="h-full pr-1 overflow-y-auto">
-                    {
-                      (() => {
-                        try {
-                          const parsed = JSON.parse(sapEditorValue || '{}');
-                          return renderSapEditable(parsed);
-                        } catch {
-                          return <div className="text-sm text-muted-foreground">Invalid JSON in editor. Fix to preview.</div>;
-                        }
-                      })()
-                    }
-                  </ScrollArea>
-                  {/* Raw SAP JSON box (full-screen view) */}
-                  <div className="mt-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="text-sm font-medium">Raw SAP JSON</div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          try {
-                            navigator.clipboard.writeText(sapEditorValue || '');
-                            toast.success('SAP JSON copied');
-                          } catch {
-                            toast.error('Copy failed');
-                          }
-                        }}
-                      >
-                        Copy JSON
-                      </Button>
-                    </div>
-                    <ScrollArea className="max-h-[30vh] border rounded bg-muted/30">
-                      <pre className="p-3 text-xs overflow-x-auto whitespace-pre-wrap break-all">
-                        {sapEditorValue || ''}
-                      </pre>
-                    </ScrollArea>
-                  </div>
-                </>
+                <ScrollArea className="h-full pr-1 overflow-y-auto">
+                  {
+                    (() => {
+                      try {
+                        const parsed = JSON.parse(sapEditorValue || '{}');
+                        return renderSapEditable(parsed);
+                      } catch {
+                        return <div className="text-sm text-muted-foreground">Invalid JSON in editor. Fix to preview.</div>;
+                      }
+                    })()
+                  }
+                </ScrollArea>
               ) : (
                 <div className="text-sm text-muted-foreground">
                   SAP data . Enable it from the user menu.
@@ -1470,6 +1444,26 @@ export default function DocumentDetail() {
                   Toggle SAP visibility from the user menu.
                 </div>
 
+                <SAPJsonCard
+                  className="mb-4"
+                  title="SAP JSON (Raw)"
+                  data={(() => {
+                    try {
+                      // Prefer the editor value if it's a non-empty JSON string
+                      // Falls back to the structured sapObj
+                      // If both are empty, the card will show a helpful placeholder
+                      // @ts-ignore: sapEditorValue is defined in this file
+                      if (typeof sapEditorValue === "string" && sapEditorValue.trim()) {
+                        return JSON.parse(sapEditorValue);
+                      }
+                    } catch {
+                      // ignore parse errors; fallback below
+                    }
+                    // @ts-ignore: sapObj is defined in this file
+                    return sapObj ?? null;
+                  })()}
+                />
+
                 {showSAP ? (
                   <div className="space-y-4">
                     {/* Scrollable hierarchical view */}
@@ -1486,31 +1480,7 @@ export default function DocumentDetail() {
                       }
                     </ScrollArea>
 
-                    {/* Raw SAP JSON box (split view aside) */}
-                    <div className="pt-2">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="text-sm font-medium">Raw SAP JSON</div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            try {
-                              navigator.clipboard.writeText(sapEditorValue || '');
-                              toast.success('SAP JSON copied');
-                            } catch {
-                              toast.error('Copy failed');
-                            }
-                          }}
-                        >
-                          Copy JSON
-                        </Button>
-                      </div>
-                      <ScrollArea className="max-h-[30vh] border rounded bg-muted/30">
-                        <pre className="p-3 text-xs overflow-x-auto whitespace-pre-wrap break-all">
-                          {sapEditorValue || ''}
-                        </pre>
-                      </ScrollArea>
-                    </div>
+                    {/* JSON editor removed; fields are now edited inline above */}
                   </div>
                 ) : (
                   <div className="text-sm text-muted-foreground">
