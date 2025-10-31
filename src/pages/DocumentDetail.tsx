@@ -694,18 +694,30 @@ export default function DocumentDetail() {
                   transition={{ duration: 0.3, ease: "easeOut" }}
                 >
                   {headerPairs.length ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      {headerPairs.map(([k, v]) => (
-                        <div key={k} className="rounded bg-card/50 p-3 border">
-                          <div className="text-sm text-muted-foreground mb-1.5">{k}</div>
-                          <Input
-                            value={String(v ?? '')}
-                            onChange={(e) => updateHeaderField(k, e.target.value)}
-                            className="h-9 text-base"
-                            onKeyDown={onEditingKeyDown}
-                          />
-                        </div>
-                      ))}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                      {headerPairs.map(([k, v]) => {
+                        const isNumericLike =
+                          typeof v === 'number' ||
+                          (typeof v === 'string' &&
+                            (() => {
+                              const trimmed = v.trim().replace(/[, ]+/g, '');
+                              const n = Number(trimmed);
+                              return trimmed.length > 0 && Number.isFinite(n);
+                            })());
+
+                        return (
+                          <div key={k} className="rounded-md border bg-card/50 p-3 hover:bg-muted/30 transition-colors">
+                            <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1.5">{k}</div>
+                            <Input
+                              value={String(v ?? '')}
+                              onChange={(e) => updateHeaderField(k, e.target.value)}
+                              className={["h-9 text-sm bg-muted/30 focus-visible:ring-1 shadow-sm", isNumericLike ? "text-right tabular-nums" : ""].join(" ")}
+                              onKeyDown={onEditingKeyDown}
+                              title={String(v ?? '')}
+                            />
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="text-sm text-muted-foreground">No header fields.</div>
