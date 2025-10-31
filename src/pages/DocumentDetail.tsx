@@ -1,5 +1,5 @@
-import { DocumentFields } from '@/components/DocumentFields';
-import { PDFViewer } from '@/components/PDFViewer';
+// using lazy-loaded DocumentFields
+// using lazy-loaded PDFViewer
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
@@ -13,12 +13,45 @@ import { supabase, type BoundingBox, hasSupabaseEnv, publicUrlForPath } from '@/
 import { createSignedUrlForPath } from '@/lib/supabase';
 import { motion } from 'framer-motion';
 import { ArrowLeft, FileText, Loader2, ExternalLink, ArrowUp } from 'lucide-react';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, lazy, Suspense } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { useLocation } from 'react-router';
 import { toast } from 'sonner';
 import { useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
+
+const PDFViewerLazy = lazy(() =>
+  import('@/components/PDFViewer').then((m) => ({ default: m.PDFViewer }))
+);
+const DocumentFieldsLazy = lazy(() =>
+  import('@/components/DocumentFields').then((m) => ({ default: m.DocumentFields }))
+);
+
+// Lightweight fallbacks
+function PDFSkeleton() {
+  return (
+    <div className="h-full w-full grid place-items-center text-muted-foreground">
+      <Loader2 className="h-6 w-6 animate-spin" />
+    </div>
+  );
+}
+
+function RightPanelSkeleton() {
+  return (
+    <div className="space-y-3">
+      <div className="h-6 bg-muted/40 rounded-md animate-pulse" />
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} className="h-10 bg-muted/40 rounded-md animate-pulse" />
+      ))}
+    </div>
+  );
+}
+
+// Idle-callback helper
+const ric = (cb: () => void) =>
+  typeof (window as any).requestIdleCallback === 'function'
+    ? (window as any).requestIdleCallback(cb)
+    : setTimeout(cb, 1);
 
 export default function DocumentDetail() {
   const { isLoading: authLoading, isAuthenticated, user, signOut } = useAuth();
@@ -60,6 +93,9 @@ export default function DocumentDetail() {
   const [isCreating, setIsCreating] = useState<boolean>(false);
   const [currentItemIndex, setCurrentItemIndex] = useState<number>(0);
 
+  // New: background details loading (structured data)
+  const [detailsLoading, setDetailsLoading] = useState<boolean>(false);
+
   // Add aside ref for scroll-to-top control
   const asideRef = useRef<HTMLDivElement | null>(null);
 
@@ -70,6 +106,14 @@ export default function DocumentDetail() {
   const [isExpanded, setIsExpanded] = useState(false); // default to Split View (PDF + SAP panel)
 
   // Removed view sync with showSAP so PDF + data are visible by default and independent of the toggle.
+
+  // Prefetch heavy chunks on idle so the bundle is ready ASAP
+  useEffect(() => {
+    ric(() => {
+      import('@/components/PDFViewer');
+      import('@/components/DocumentFields');
+    });
+  }, []);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -837,14 +881,18 @@ export default function DocumentDetail() {
   const fetchDocument = async () => {
     try {
       setIsLoading(true);
+
+      // Fast, lean fetch first (avoid loading huge JSON columns initially)
       const { data, error } = await supabase
         .from('N8N Logs')
-        .select('*')
+        .select(
+          'id, "Bucket Name", path, object_path, bucket_name, file, filename, name, status, Status, state, State, created_at, createdAt, timestamp, title'
+        )
         .eq('id', documentId)
         .single();
 
       if (error) {
-        console.error('Supabase error:', error);
+        console.error('Supabase error (lean):', error);
         throw error;
       }
 
@@ -854,22 +902,18 @@ export default function DocumentDetail() {
         return;
       }
 
-      // Extract SAP output for viewer
-      const out = showSAP ? extractSapOutput(data) : undefined;
-      setSapOut(showSAP ? (out ?? null) : null);
-
-      // Build robust storage path from possible fields
-      const bucket = data?.['Bucket Name'] ?? data?.bucket_name ?? data?.bucket ?? '';
+      // Build storage path quickly
+      const bucket = data?.['Bucket Name'] ?? data?.bucket_name ?? '';
       const objectPathCandidates = [
         data?.path,
-        data?.['Path'],
         data?.object_path,
-        data?.['Object Path'],
         data?.file,
         data?.filename,
         data?.name,
       ];
-      const objectPath = objectPathCandidates.find((v: any) => typeof v === 'string' && v.trim().length > 0) as string | undefined;
+      const objectPath = objectPathCandidates.find(
+        (v: any) => typeof v === 'string' && v.trim().length > 0
+      ) as string | undefined;
 
       let path = '';
       if (bucket && objectPath) {
@@ -877,23 +921,11 @@ export default function DocumentDetail() {
       } else if (typeof data?.path === 'string') {
         path = String(data.path);
       } else if (typeof data?.['Bucket Name'] === 'string' && String(data['Bucket Name']).includes('/')) {
-        // Some rows may store full path in "Bucket Name"
         path = String(data['Bucket Name']);
       }
 
-      // Prefer a signed URL to avoid Chrome blocking and private bucket issues
       const signedUrl = path ? await createSignedUrlForPath(path, 60 * 10) : '';
       const pdf_url = signedUrl || (path ? publicUrlForPath(path) : '');
-
-      console.log('Document data:', {
-        id: data.id,
-        path,
-        signed: Boolean(signedUrl),
-        pdf_url,
-        bucket_name: data?.['Bucket Name'],
-        all_keys: Object.keys(data),
-        raw_data: data,
-      });
 
       if (!pdf_url) {
         console.error('No PDF URL could be constructed. Available data:', data);
@@ -901,39 +933,70 @@ export default function DocumentDetail() {
       }
 
       const status = data?.status ?? data?.Status ?? data?.state ?? data?.State;
-      const created_at = data?.created_at ?? data?.createdAt ?? data?.timestamp ?? new Date().toISOString();
-      const document_data = showSAP ? coerceDocumentData(data) : undefined;
+      const created_at =
+        data?.created_at ?? data?.createdAt ?? data?.timestamp ?? new Date().toISOString();
+
+      // Prefer fast title derivation from path/name; heavy JSON parse deferred
       const title =
-        document_data?.document?.pages?.[0]?.metadata?.document_title?.value ||
-        // fallback to new format (if conversion failed for some reason)
-        (typeof data?.pdf_ai_output === 'string'
-          ? (() => {
-              try {
-                const parsed = JSON.parse(data.pdf_ai_output);
-                const dt = parsed?.document?.metadata?.document_type?.[0];
-                return typeof dt === 'string' ? dt : undefined;
-              } catch {
-                return undefined;
-              }
-            })()
-          : undefined) ||
         (typeof data?.title === 'string' ? data.title : undefined) ||
         (typeof path === 'string' ? String(path).split('/').pop() : undefined) ||
         'Untitled Document';
 
+      // Render immediately with PDF and header
       setDoc({
         id: String(data.id),
         created_at: String(created_at),
         pdf_url,
         status: status ? String(status) : undefined,
-        document_data,
         title,
+        document_data: undefined,
+      });
+
+      setIsLoading(false);
+
+      // Defer heavy fields (SAP + Document Data) to idle time to avoid blocking navigation
+      setDetailsLoading(true);
+      ric(async () => {
+        try {
+          const { data: full, error: fullErr } = await supabase
+            .from('N8N Logs')
+            .select('*')
+            .eq('id', documentId)
+            .single();
+
+          if (fullErr || !full) {
+            if (fullErr) console.error('Supabase error (heavy):', fullErr);
+            setDetailsLoading(false);
+            return;
+          }
+
+          // Extract SAP data if enabled
+          const out = showSAP ? extractSapOutput(full) : undefined;
+          setSapOut(showSAP ? (out ?? null) : null);
+
+          // Parse structured document data (can be heavy)
+          const document_data = showSAP ? coerceDocumentData(full) : undefined;
+
+          // Update doc with structured data and possibly refine title
+          setDoc((prev) => {
+            if (!prev) return prev;
+            const refinedTitle =
+              document_data?.document?.pages?.[0]?.metadata?.document_title?.value || prev.title;
+            return { ...prev, document_data, title: refinedTitle };
+          });
+        } catch (e) {
+          console.error('Error in background load:', e);
+        } finally {
+          setDetailsLoading(false);
+        }
       });
     } catch (error) {
-      console.error('Error fetching document:', error);
-      toast.error(`Failed to load document: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Error fetching document (lean):', error);
+      toast.error(
+        `Failed to load document: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
       navigate('/dashboard');
-    } finally {
+      // Ensure we don't keep the page blocked
       setIsLoading(false);
     }
   };
@@ -1500,11 +1563,13 @@ export default function DocumentDetail() {
               </a>
             </Button>
           </div>
-          <PDFViewer
-            pdfUrl={doc.pdf_url}
-            highlightBox={highlightBox}
-            documentData={showSAP ? doc.document_data : undefined}
-          />
+          <Suspense fallback={<PDFSkeleton />}>
+            <PDFViewerLazy
+              pdfUrl={doc.pdf_url}
+              highlightBox={highlightBox}
+              documentData={showSAP ? doc.document_data : undefined}
+            />
+          </Suspense>
         </div>
 
         {/* Document Fields */}
@@ -1568,10 +1633,12 @@ export default function DocumentDetail() {
                     </AccordionTrigger>
                     <AccordionContent>
                       {doc.document_data && doc.document_data?.document?.pages?.length > 0 ? (
-                        <DocumentFields
-                          documentData={doc.document_data}
-                          onFieldHover={setHighlightBox}
-                        />
+                        <Suspense fallback={<RightPanelSkeleton />}>
+                          <DocumentFieldsLazy
+                            documentData={doc.document_data}
+                            onFieldHover={setHighlightBox}
+                          />
+                        </Suspense>
                       ) : (
                         <div className="text-sm text-muted-foreground">
                           No structured data available for this document.
