@@ -54,7 +54,7 @@ function extractDocName(input?: string) {
 
 function StatusBadge({ value }: { value?: string }) {
   const s = (value || "—").toLowerCase();
-  let cls = "bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-300";
+  let cls = "bg-slate-100 text-slate-700 dark:bg-slate-80/60 dark:text-slate-300";
   if (s.includes("success") || s.includes("done") || s.includes("complete") || s.includes("processed")) {
     cls = "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300";
   } else if (s.includes("pending") || s.includes("queue") || s.includes("progress") || s.includes("processing")) {
@@ -156,152 +156,155 @@ export function DocumentsTable({
         </div>
       </div>
 
-      {/* Desktop table */}
-      <div className="hidden md:block">
-        <Table className="text-sm md:text-[0.95rem]">
-          <TableHeader className="sticky top-0 z-10 bg-white/[0.06] supports-[backdrop-filter]:bg-white/10 backdrop-blur-xl border-b border-white/10 shadow-inner">
-            <TableRow className="hover:bg-transparent">
-              <TableHead className="w-12">
-                <Checkbox
-                  checked={selectedIds.size === docs.length && docs.length > 0}
-                  onCheckedChange={onToggleSelectAll}
-                  aria-label="Select all documents"
-                />
-              </TableHead>
-              <TableHead className="w-[160px]">ID</TableHead>
-              <TableHead className="w-[220px]">From Mail</TableHead>
-              <TableHead className="min-w-[220px]">Subject</TableHead>
-              <TableHead
-                className="min-w-[220px] cursor-pointer select-none"
-                onClick={() => toggleSort("name")}
-              >
-                <div className="flex items-center gap-2">
-                  Document
-                  <SortIcon active={sortBy === "name"} dir={sortDir} />
-                </div>
-              </TableHead>
-              <TableHead className="w-24">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody className="divide-y divide-white/10">
-            {visible.map((doc, idx) => {
-              const docName =
-                extractDocName(doc.bucket_name) ||
-                extractDocName(doc.title || "") ||
-                extractDocName(doc.subject || "") ||
-                doc.id;
-              const subject = truncateText(doc.subject || "—", 80);
-              return (
-                <MotionTableRow
-                  key={doc.id}
-                  className={`${
-                    selectedIds.has(doc.id)
-                      ? "bg-white/[0.12] ring-1 ring-white/20 shadow-inner"
-                      : "odd:bg-white/[0.02] even:bg-white/[0.04]"
-                  } hover:bg-white/[0.08] transition-colors border-b border-white/10 backdrop-blur-xl group`}
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.35, ease: "easeOut", delay: Math.min(idx * 0.03, 0.4) }}
-                  whileHover={{ y: -2 }}
-                  whileTap={{ scale: 0.995 }}
-                  layout
+      {/* Scrollable rows area */}
+      <div className="max-h-[60vh] overflow-auto relative">
+        {/* Desktop table */}
+        <div className="hidden md:block">
+          <Table className="text-sm md:text-[0.95rem]">
+            <TableHeader className="sticky top-0 z-10 bg-white/[0.06] supports-[backdrop-filter]:bg-white/10 backdrop-blur-xl border-b border-white/10 shadow-inner">
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="w-12">
+                  <Checkbox
+                    checked={selectedIds.size === docs.length && docs.length > 0}
+                    onCheckedChange={onToggleSelectAll}
+                    aria-label="Select all documents"
+                  />
+                </TableHead>
+                <TableHead className="w-[160px]">ID</TableHead>
+                <TableHead className="w-[220px]">From Mail</TableHead>
+                <TableHead className="min-w-[220px]">Subject</TableHead>
+                <TableHead
+                  className="min-w-[220px] cursor-pointer select-none"
+                  onClick={() => toggleSort("name")}
                 >
-                  <TableCell>
-                    <Checkbox
-                      checked={selectedIds.has(doc.id)}
-                      onCheckedChange={() => onToggleSelect(doc.id)}
-                      aria-label={`Select document ${doc.id}`}
-                    />
-                  </TableCell>
-                  {/* ID */}
-                  <TableCell className="whitespace-nowrap font-mono text-xs">
-                    {truncateText(doc.id, 24)}
-                  </TableCell>
-                  {/* From Mail */}
-                  <TableCell className="truncate max-w-[220px]" title={doc.from_email || "—"}>
-                    {doc.from_email || "—"}
-                  </TableCell>
-                  {/* Subject */}
-                  <TableCell className="truncate" title={doc.subject || "—"}>
-                    {subject}
-                  </TableCell>
-                  {/* Document (last segment) */}
-                  <TableCell className="truncate" title={docName}>
-                    {docName}
-                  </TableCell>
-                  {/* Actions: only display chevron (open) */}
-                  <TableCell>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur"
-                      onClick={() => onViewDetails(doc.id)}
-                      aria-label="Open details"
-                      title="Open"
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                </MotionTableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </div>
-
-      {/* Mobile card list */}
-      <div className="md:hidden p-3 space-y-3">
-        {visible.map((doc, idx) => {
-          const docName =
-            extractDocName(doc.bucket_name) ||
-            extractDocName(doc.title || "") ||
-            extractDocName(doc.subject || "") ||
-            doc.id;
-          return (
-            <motion.div
-              key={doc.id}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.25, ease: "easeOut", delay: Math.min(idx * 0.03, 0.3) }}
-              whileHover={{ y: -2 }}
-              className={`rounded-xl border border-white/10 bg-white/[0.06] supports-[backdrop-filter]:bg-white/10 backdrop-blur p-3 shadow-sm`}
-            >
-              <div className="flex items-start gap-3">
-                <Checkbox
-                  checked={selectedIds.has(doc.id)}
-                  onCheckedChange={() => onToggleSelect(doc.id)}
-                  aria-label={`Select ${doc.id}`}
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="font-medium truncate" title={docName}>
+                  <div className="flex items-center gap-2">
+                    Document
+                    <SortIcon active={sortBy === "name"} dir={sortDir} />
+                  </div>
+                </TableHead>
+                <TableHead className="w-24">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody className="divide-y divide-white/10">
+              {visible.map((doc, idx) => {
+                const docName =
+                  extractDocName(doc.bucket_name) ||
+                  extractDocName(doc.title || "") ||
+                  extractDocName(doc.subject || "") ||
+                  doc.id;
+                const subject = truncateText(doc.subject || "—", 80);
+                return (
+                  <MotionTableRow
+                    key={doc.id}
+                    className={`${
+                      selectedIds.has(doc.id)
+                        ? "bg-white/[0.12] ring-1 ring-white/20 shadow-inner"
+                        : "odd:bg-white/[0.02] even:bg-white/[0.04]"
+                    } hover:bg-white/[0.08] transition-colors border-b border-white/10 backdrop-blur-xl group`}
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.35, ease: "easeOut", delay: Math.min(idx * 0.03, 0.4) }}
+                    whileHover={{ y: -2 }}
+                    whileTap={{ scale: 0.995 }}
+                    layout
+                  >
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedIds.has(doc.id)}
+                        onCheckedChange={() => onToggleSelect(doc.id)}
+                        aria-label={`Select document ${doc.id}`}
+                      />
+                    </TableCell>
+                    {/* ID */}
+                    <TableCell className="whitespace-nowrap font-mono text-xs">
+                      {truncateText(doc.id, 24)}
+                    </TableCell>
+                    {/* From Mail */}
+                    <TableCell className="truncate max-w-[220px]" title={doc.from_email || "—"}>
+                      {doc.from_email || "—"}
+                    </TableCell>
+                    {/* Subject */}
+                    <TableCell className="truncate" title={doc.subject || "—"}>
+                      {subject}
+                    </TableCell>
+                    {/* Document (last segment) */}
+                    <TableCell className="truncate" title={docName}>
                       {docName}
+                    </TableCell>
+                    {/* Actions: only display chevron (open) */}
+                    <TableCell>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur"
+                        onClick={() => onViewDetails(doc.id)}
+                        aria-label="Open details"
+                        title="Open"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </MotionTableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+
+        {/* Mobile card list */}
+        <div className="md:hidden p-3 space-y-3">
+          {visible.map((doc, idx) => {
+            const docName =
+              extractDocName(doc.bucket_name) ||
+              extractDocName(doc.title || "") ||
+              extractDocName(doc.subject || "") ||
+              doc.id;
+            return (
+              <motion.div
+                key={doc.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25, ease: "easeOut", delay: Math.min(idx * 0.03, 0.3) }}
+                whileHover={{ y: -2 }}
+                className={`rounded-xl border border-white/10 bg-white/[0.06] supports-[backdrop-filter]:bg-white/10 backdrop-blur p-3 shadow-sm`}
+              >
+                <div className="flex items-start gap-3">
+                  <Checkbox
+                    checked={selectedIds.has(doc.id)}
+                    onCheckedChange={() => onToggleSelect(doc.id)}
+                    aria-label={`Select ${doc.id}`}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="font-medium truncate" title={docName}>
+                        {docName}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur"
+                        onClick={() => onViewDetails(doc.id)}
+                        aria-label="Open details"
+                        title="Open"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur"
-                      onClick={() => onViewDetails(doc.id)}
-                      aria-label="Open details"
-                      title="Open"
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <div className="mt-1 text-[11px] text-muted-foreground font-mono truncate" title={doc.id}>
-                    ID: {doc.id}
-                  </div>
-                  <div className="mt-1 text-xs text-muted-foreground truncate" title={doc.from_email || "—"}>
-                    From: {doc.from_email || "—"}
-                  </div>
-                  <div className="mt-1 text-xs text-muted-foreground truncate" title={doc.subject || "—"}>
-                    Subject: {truncateText(doc.subject || "—", 80)}
+                    <div className="mt-1 text-[11px] text-muted-foreground font-mono truncate" title={doc.id}>
+                      ID: {doc.id}
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground truncate" title={doc.from_email || "—"}>
+                      From: {doc.from_email || "—"}
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground truncate" title={doc.subject || "—"}>
+                      Subject: {truncateText(doc.subject || "—", 80)}
+                    </div>
                   </div>
                 </div>
-              </div>
-            </motion.div>
-          );
-        })}
+              </motion.div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Pagination */}
