@@ -21,6 +21,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ReactNode, useMemo, useState } from "react";
+import { Switch } from "@/components/ui/switch";
+import { useEffect } from "react";
 
 const MotionTableRow = motion(TableRow);
 
@@ -92,6 +94,22 @@ export function DocumentsTable({
 
   // Add: opening state to show instant feedback when navigating
   const [openingId, setOpeningId] = useState<string | null>(null);
+
+  // Add: "Document Only" toggle state, persisted to localStorage
+  const [docOnly, setDocOnly] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("openDocumentOnly") === "true";
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("openDocumentOnly", String(docOnly));
+    } catch {
+      // ignore
+    }
+  }, [docOnly]);
 
   // Update: allow toggling sort for all keys
   const toggleSort = (key: "id" | "from" | "subject" | "status" | "doc" | "created" | "cc") => {
@@ -180,9 +198,14 @@ export function DocumentsTable({
 
   // Add: central open handler with quick visual feedback
   const handleOpen = (id: string) => {
+    // Persist preference just before navigating, for reliability
+    try {
+      localStorage.setItem("openDocumentOnly", String(docOnly));
+    } catch {
+      // ignore
+    }
     setOpeningId(id);
     onViewDetails(id);
-    // Safety reset if navigation is slow
     setTimeout(() => setOpeningId((curr) => (curr === id ? null : curr)), 3000);
   };
 
@@ -209,6 +232,15 @@ export function DocumentsTable({
             className="bg-background/50"
             aria-label="Search documents"
           />
+          {/* Add: Document Only toggle (move from detail page into documents) */}
+          <div className="flex items-center gap-2 pl-2">
+            <Switch
+              checked={docOnly}
+              onCheckedChange={(v) => setDocOnly(!!v)}
+              aria-label="Open documents without SAP"
+            />
+            <span className="text-xs text-muted-foreground">Document Only</span>
+          </div>
           {/* Add: Columns menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

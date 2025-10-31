@@ -15,6 +15,7 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, FileText, Loader2, ExternalLink, ArrowUp } from 'lucide-react';
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router';
+import { useLocation } from 'react-router';
 import { toast } from 'sonner';
 import { useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -24,6 +25,7 @@ export default function DocumentDetail() {
   const navigate = useNavigate();
   const { documentId } = useParams<{ documentId: string }>();
   const sendWebhook = useAction(api.webhooks.sendWebhook);
+  const location = useLocation();
 
   type DocumentData = {
     id: string;
@@ -1221,6 +1223,32 @@ export default function DocumentDetail() {
     });
   };
 
+  // Add: Respect URL params and Documents-page toggle to open directly without SAP on top
+  useEffect(() => {
+    try {
+      const sp = new URLSearchParams(location.search);
+      const sapParam = sp.get('sap');
+      const viewParam = sp.get('view');
+      if (sapParam === '0') {
+        setShowSAP(false);
+      }
+      if (viewParam === 'document') {
+        setView('document');
+      }
+      if (!sapParam && !viewParam) {
+        const pref = localStorage.getItem('openDocumentOnly');
+        if (pref === 'true') {
+          setShowSAP(false);
+          setView('document');
+        }
+      }
+    } catch {
+      // ignore
+    }
+    // run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   if (authLoading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -1265,16 +1293,9 @@ export default function DocumentDetail() {
           {/* Buttons and User Menu on the right */}
           <div className="flex items-center gap-3 ml-auto">
             {/* Step controls */}
-            {showSAP && view === 'sap' && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setView('document')}
-                className="px-4 rounded-md"
-              >
-                Next Step
-              </Button>
-            )}
+            {/* Removed "Next Step" button from here per request.
+               This control now lives on the Documents page as "Document Only". */}
+            {/* End Step controls */}
 
             <Button
               variant="outline"
