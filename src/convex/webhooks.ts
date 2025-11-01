@@ -13,11 +13,9 @@ export const sendWebhook = action({
     source: v.optional(v.string()),
     // Optional per-call timeout override (defaults to 15s)
     timeoutMs: v.optional(v.number()),
-    // NEW: support GET or POST (default POST)
-    method: v.optional(v.union(v.literal("GET"), v.literal("POST"))),
   },
   handler: async (ctx, args) => {
-    const { url, body, timeoutMs, method } = args;
+    const { url, body, timeoutMs } = args;
 
     // Validate URL and enforce HTTPS, but allow http for localhost
     let parsed: URL;
@@ -39,46 +37,7 @@ export const sendWebhook = action({
     const timeout = setTimeout(() => controller.abort(), timeoutMs ?? 15000);
 
     try {
-      const methodToUse = (method ?? "POST") as "GET" | "POST";
-
-      if (methodToUse === "GET") {
-        // Build a URL with query params from the provided body
-        const target = new URL(url);
-        // Extract known fields if present
-        const candidate: any = body ?? {};
-        const docId = candidate?.docId ?? null;
-        const routeId = candidate?.routeId ?? null;
-        // If a nested payload exists, use it; otherwise use entire body as payload
-        const payload = "payload" in (candidate ?? {}) ? candidate.payload : candidate;
-
-        if (docId !== null && docId !== undefined) {
-          target.searchParams.set("docId", String(docId));
-        }
-        if (routeId !== null && routeId !== undefined) {
-          target.searchParams.set("routeId", String(routeId));
-        }
-        // Always include the payload as JSON string
-        target.searchParams.set("payload", JSON.stringify(payload ?? {}));
-
-        const res = await fetch(target.toString(), {
-          method: "GET",
-          signal: controller.signal,
-        });
-        clearTimeout(timeout);
-
-        const text = await res.text().catch(() => "");
-        if (!res.ok) {
-          return {
-            ok: false,
-            status: res.status,
-            error: text || `HTTP ${res.status}`,
-          };
-        }
-        return { ok: true, status: res.status, responseText: text || null };
-      }
-
-      // Default POST behavior
-      const res = await fetch(new URL(url).toString(), {
+      const res = await fetch(parsed.toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body ?? {}),
@@ -86,20 +45,54 @@ export const sendWebhook = action({
       });
       clearTimeout(timeout);
 
-      const text = await res.text().catch(() => "");
       if (!res.ok) {
+        const text = await res.text().catch(() => "");
         return {
           ok: false,
           status: res.status,
           error: text || `HTTP ${res.status}`,
         };
       }
-      return { ok: true, status: res.status, responseText: text || null };
+      return { ok: true, status: res.status };
     } catch (e: any) {
       if (e?.name === "AbortError") {
         return { ok: false, status: 0, error: "Request timed out (15s)" };
       }
       return { ok: false, status: 0, error: e?.message || "Network error" };
     }
+  },
+});
+
+export const sendWebhookGet = action({
+  // New GET webhook action that sends id and full sap JSON in the query string
+  args: {
+    url: v.string(),
+    id: v.string(),
+    sap: v.string(),
+    routeId: v.optional(v.string()),
+    userEmail: v.optional(v.string()),
+    source: v.optional(v.string()),
+  },
+  handler: async (_ctx, args) => {
+    const url = new URL(args.url);
+
+    url.searchParams.set("id", args.id);
+    url.searchParams.set("sap", args.sap);
+    if (args.routeId) url.searchParams.set("routeId", args.routeId);
+    if (args.userEmail) url.searchParams.set("userEmail", args.userEmail);
+    if (args.source) url.searchParams.set("source", args.source);
+
+    const res = await fetch(url.toString(), {
+      method: "GET",
+    });
+
+    const text = await res.text().catch(() => "");
+    return {
+      ok: res.ok,
+      status: res.status,
+      body: text,
+      url: url.toString(),
+      method: "GET" as const,
+    };
   },
 });

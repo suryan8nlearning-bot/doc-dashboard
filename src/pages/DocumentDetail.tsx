@@ -63,7 +63,7 @@ export default function DocumentDetail() {
   const { isLoading: authLoading, isAuthenticated, user, signOut } = useAuth();
   const navigate = useNavigate();
   const { documentId } = useParams<{ documentId: string }>();
-  const sendWebhook = useAction(api.webhooks.sendWebhook);
+  const sendWebhook = useAction(api.webhooks.sendWebhookGet);
   const location = useLocation();
   const { id: routeId } = useParams();
 
@@ -1367,33 +1367,33 @@ export default function DocumentDetail() {
       logDebug('Sending webhook', {
         url: url.toString(),
         userEmail: user?.email ?? null,
+        method: 'GET',
         bodyPreview: {
           docId: doc?.id ?? null,
           routeId: routeId ?? null,
-          currentId: documentId ?? (doc?.id ?? null),
-          payloadKeys: parsed && typeof parsed === 'object' ? Object.keys(parsed as any) : null,
+          payloadKeys:
+            parsed && typeof parsed === 'object' ? Object.keys(parsed as any) : null,
+          payloadLength: (() => {
+            try { return JSON.stringify(parsed)?.length ?? null; } catch { return null; }
+          })(),
         },
       });
 
       const webhookUrl = url.toString();
       const res = await sendWebhook({
         url: webhookUrl,
+        id: doc.id,
+        sap: JSON.stringify(parsed),
+        routeId: routeId ?? undefined,
         userEmail: user?.email ?? undefined,
         source: "DocumentDetailCreate",
-        method: "GET", // send as GET with query params
-        body: {
-          docId: doc.id,
-          routeId: routeId ?? null,
-          currentId: documentId ?? doc.id, // include current route/document id
-          payload: parsed,
-        },
       });
 
       // Log response from action
       logDebug('Webhook response', res);
 
       if (!res?.ok) {
-        throw new Error(res?.error || `HTTP ${res?.status ?? 'unknown'}`);
+        throw new Error(res?.body || `HTTP ${res?.status ?? 'unknown'}`);
       }
 
       toast.success('Create request sent successfully');
