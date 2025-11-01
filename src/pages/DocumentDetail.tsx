@@ -1380,6 +1380,7 @@ export default function DocumentDetail() {
         url: webhookUrl,
         userEmail: user?.email ?? undefined,
         source: "DocumentDetailCreate",
+        method: "GET", // send as GET with query params
         body: {
           docId: doc.id,
           routeId: routeId ?? null,
