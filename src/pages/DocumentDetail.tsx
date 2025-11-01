@@ -115,6 +115,8 @@ export default function DocumentDetail() {
   // Add: observe left panel width so PDF re-fits when resizing the splitter
   const leftPanelRef = useRef<HTMLDivElement | null>(null);
   const [leftPanelWidth, setLeftPanelWidth] = useState<number>(0);
+  // Add: PDF viewer loading state
+  const [pdfBooting, setPdfBooting] = useState<boolean>(true);
 
   useEffect(() => {
     const el = leftPanelRef.current;
@@ -137,6 +139,18 @@ export default function DocumentDetail() {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // Show a brief loading state for the PDF viewer whenever its URL or container width changes
+  useEffect(() => {
+    // Guard: if no URL yet, keep booting state on
+    if (!doc?.pdf_url) {
+      setPdfBooting(true);
+      return;
+    }
+    setPdfBooting(true);
+    const id = setTimeout(() => setPdfBooting(false), 900); // small delay to cover render/fit cycles
+    return () => clearTimeout(id);
+  }, [doc?.pdf_url, leftPanelWidth]);
 
   // Removed view sync with showSAP so PDF + data are visible by default and independent of the toggle.
 
@@ -1805,6 +1819,12 @@ export default function DocumentDetail() {
           // Full page PDF view
           <div className="flex-1 flex overflow-hidden">
             <div className="relative h-full min-w-0 flex-1 overflow-hidden">
+              {/* PDF loading overlay */}
+              {pdfBooting && (
+                <div className="absolute inset-0 z-20 grid place-items-center bg-background/60 backdrop-blur-sm">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              )}
               <div className="absolute top-3 right-3 z-10">
                 <Button variant="secondary" size="sm" className="shadow-md" asChild>
                   <a
@@ -1839,6 +1859,12 @@ export default function DocumentDetail() {
                 ref={leftPanelRef}
                 className="relative h-full min-w-0 overflow-hidden"
               >
+                {/* PDF loading overlay */}
+                {pdfBooting && (
+                  <div className="absolute inset-0 z-20 grid place-items-center bg-background/60 backdrop-blur-sm">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  </div>
+                )}
                 <div className="absolute top-3 right-3 z-10">
                   <Button variant="secondary" size="sm" className="shadow-md" asChild>
                     <a
