@@ -9,6 +9,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { User } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase, type BoundingBox, hasSupabaseEnv, publicUrlForPath } from '@/lib/supabase';
@@ -117,6 +118,17 @@ export default function DocumentDetail() {
   const [leftPanelWidth, setLeftPanelWidth] = useState<number>(0);
   // Add: PDF viewer loading state
   const [pdfBooting, setPdfBooting] = useState<boolean>(true);
+
+  // Debug logging for Create flow
+  const [debugOpen, setDebugOpen] = useState(false);
+  type DebugEvent = { label: string; payload: any; time: string };
+  const [debugEvents, setDebugEvents] = useState<Array<DebugEvent>>([]);
+  const logDebug = (label: string, payload: any) => {
+    setDebugEvents((prev) => [
+      ...prev,
+      { label, payload, time: new Date().toLocaleTimeString() },
+    ]);
+  };
 
   useEffect(() => {
     const el = leftPanelRef.current;
@@ -1274,17 +1286,27 @@ export default function DocumentDetail() {
   // Create button: POST id + current SAP JSON to webhook from env via Convex action
   const handleCreate = async () => {
     try {
+      // Open debug panel and record initial click context
+      setDebugOpen(true);
+      logDebug('Create clicked', {
+        docId: doc?.id ?? null,
+        hasSapEditorValue: Boolean(sapEditorValue?.trim()),
+      });
+
       if (!doc?.id) {
+        logDebug('Validation failed', 'Missing document id');
         toast.error('Missing document id');
         return;
       }
       if (!sapEditorValue?.trim()) {
+        logDebug('Validation failed', 'No SAP data to send');
         toast.error('No SAP data to send');
         return;
       }
 
       const rawUrl = import.meta.env.VITE_WEBHOOK_URL as string | undefined;
       if (!rawUrl) {
+        logDebug('Validation failed', 'Webhook URL is not configured');
         toast.error('Webhook URL is not configured');
         return;
       }
@@ -1293,15 +1315,16 @@ export default function DocumentDetail() {
       try {
         url = new URL(rawUrl);
       } catch {
+        logDebug('Validation failed', 'Invalid webhook URL');
         toast.error('Invalid webhook URL');
         return;
       }
-      // Allow HTTPS always; allow HTTP only for localhost
       if (url.protocol !== 'https:') {
         const isLocalhost =
           url.protocol === 'http:' &&
           (url.hostname === 'localhost' || url.hostname === '127.0.0.1');
         if (!isLocalhost) {
+          logDebug('Validation failed', 'Webhook must use HTTPS (or http on localhost)');
           toast.error('Webhook URL must use HTTPS (or http on localhost)');
           return;
         }
@@ -1311,26 +1334,41 @@ export default function DocumentDetail() {
       try {
         parsed = JSON.parse(sapEditorValue);
       } catch {
-        // Fallback to in-memory object if editor JSON is invalid
         if (sapObj && typeof sapObj === 'object') {
           parsed = sapObj;
+          logDebug('Using in-memory SAP object', { size: JSON.stringify(sapObj)?.length ?? 0 });
         } else {
+          logDebug('Validation failed', 'Edited SAP JSON is invalid');
           toast.error('Edited SAP JSON is invalid');
           return;
         }
       }
 
       if (!window.confirm(`Send SAP for document ${doc.id}?`)) {
+        logDebug('Cancelled', 'User cancelled the confirmation dialog');
         return;
       }
 
       setIsCreating(true);
+
+      // Log outgoing request
+      logDebug('Sending webhook', {
+        url: url.toString(),
+        timeoutMs: 30000,
+        payloadSample:
+          typeof parsed === 'string'
+            ? parsed.slice(0, 1000)
+            : JSON.stringify(parsed, null, 2)?.slice(0, 1000),
+      });
+
       const res = await sendWebhook({
         url: url.toString(),
         body: { docId: doc.id, payload: parsed },
-        // give slower endpoints more time
         timeoutMs: 30000,
       });
+
+      // Log response from action
+      logDebug('Webhook response', res);
 
       if (!res?.ok) {
         throw new Error(res?.error || `HTTP ${res?.status ?? 'unknown'}`);
@@ -1338,7 +1376,9 @@ export default function DocumentDetail() {
 
       toast.success('Create request sent successfully');
     } catch (e) {
-      toast.error(`Failed to send: ${e instanceof Error ? e.message : 'Unknown error'}`);
+      const msg = e instanceof Error ? e.message : 'Unknown error';
+      logDebug('Error', { message: msg });
+      toast.error(`Failed to send: ${msg}`);
     } finally {
       setIsCreating(false);
     }
@@ -1768,6 +1808,15 @@ export default function DocumentDetail() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setDebugOpen(true)}
+              className="px-3"
+              title="Open debug logs"
+            >
+              Logs
+            </Button>
           </div>
         </div>
       </header>
