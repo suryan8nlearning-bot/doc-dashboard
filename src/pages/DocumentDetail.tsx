@@ -65,6 +65,7 @@ export default function DocumentDetail() {
   const { documentId } = useParams<{ documentId: string }>();
   const sendWebhook = useAction(api.webhooks.sendWebhook);
   const location = useLocation();
+  const { id: routeId } = useParams();
 
   type DocumentData = {
     id: string;
@@ -1299,7 +1300,11 @@ export default function DocumentDetail() {
       setDebugOpen(true);
       logDebug('Create clicked', {
         docId: doc?.id ?? null,
-        hasSapEditorValue: Boolean(sapEditorValue?.trim()),
+        // Fix TS error: don't use `parsed` before it's declared
+        hasSapEditorValue: Boolean(sapEditorValue?.trim?.()),
+        routeId: routeId ?? null,
+        // Add current route param id for clarity
+        currentId: documentId ?? null,
       });
 
       if (!doc?.id) {
@@ -1353,27 +1358,34 @@ export default function DocumentDetail() {
         }
       }
 
-      if (!window.confirm(`Send SAP for document ${doc.id}?`)) {
-        logDebug('Cancelled', 'User cancelled the confirmation dialog');
-        return;
-      }
+      // Remove confirmation dialog entirely
+      // (previously had: if (!window.confirm(...)) { ... })
 
       setIsCreating(true);
 
       // Log outgoing request
       logDebug('Sending webhook', {
         url: url.toString(),
-        timeoutMs: 30000,
-        payloadSample:
-          typeof parsed === 'string'
-            ? parsed.slice(0, 1000)
-            : JSON.stringify(parsed, null, 2)?.slice(0, 1000),
+        userEmail: user?.email ?? null,
+        bodyPreview: {
+          docId: doc?.id ?? null,
+          routeId: routeId ?? null,
+          currentId: documentId ?? (doc?.id ?? null),
+          payloadKeys: parsed && typeof parsed === 'object' ? Object.keys(parsed as any) : null,
+        },
       });
 
+      const webhookUrl = url.toString();
       const res = await sendWebhook({
-        url: url.toString(),
-        body: { docId: doc.id, payload: parsed },
-        timeoutMs: 30000,
+        url: webhookUrl,
+        userEmail: user?.email ?? undefined,
+        source: "DocumentDetailCreate",
+        body: {
+          docId: doc.id,
+          routeId: routeId ?? null,
+          currentId: documentId ?? doc.id, // include current route/document id
+          payload: parsed,
+        },
       });
 
       // Log response from action
