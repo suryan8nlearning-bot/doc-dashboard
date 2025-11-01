@@ -131,6 +131,15 @@ export default function DocumentDetail() {
   };
 
   useEffect(() => {
+    // Remove any user confirmation dialogs globally on this page by auto-accepting confirm()
+    const originalConfirm = window.confirm;
+    window.confirm = () => true;
+    return () => {
+      window.confirm = originalConfirm;
+    };
+  }, []);
+
+  useEffect(() => {
     const el = leftPanelRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
 
