@@ -44,6 +44,9 @@ const baseViewportRef = useRef<{ width: number; height: number } | null>(null);
 // Track the source coordinate space of incoming boxes (auto-guessed per page)
 const sourceDimsRef = useRef<{ width: number; height: number } | null>(null);
 
+// Add: manual zoom mode — disables auto-fit on resize after user zooms
+const manualZoomRef = useRef(false);
+
 // Add: debugging and Y-axis handling state
 const [invertY, setInvertY] = useState(true);
 const [debugMode, setDebugMode] = useState(false);
@@ -183,6 +186,11 @@ const toPxBox = (box: WideBox): WideBox => {
     }
     const prevZoom = zoom;
     const targetZoom = clampZoom(nextZoom);
+
+    // Mark that the user has manually changed zoom unless it's a silent (programmatic) change
+    if (!silent) {
+      manualZoomRef.current = true;
+    }
 
     // Compute current center in PDF coordinates
     const centerX = (container.scrollLeft + container.clientWidth / 2) / (prevZoom || 1);
@@ -548,7 +556,14 @@ const toPxBox = (box: WideBox): WideBox => {
       const entry = entries[0];
       const width = entry?.contentRect?.width || 0;
       if (!width || width === lastWidth) return;
+
+      // Always update lastWidth for accurate next deltas
       lastWidth = width;
+
+      // If the user manually changed zoom, respect it and don't auto-fit
+      if (manualZoomRef.current) {
+        return;
+      }
 
       const base = getBaseDims();
       if (!base.width) return;
@@ -564,6 +579,9 @@ const toPxBox = (box: WideBox): WideBox => {
   useEffect(() => {
     if (!fitToWidthOnResize) return;
     const handler = () => {
+      // If the user manually changed zoom, respect it and don't auto-fit
+      if (manualZoomRef.current) return;
+
       const container = containerRef.current;
       if (!container) return;
       const base = getBaseDims();
@@ -622,6 +640,8 @@ const toPxBox = (box: WideBox): WideBox => {
   };
   
   const handleResetZoom = () => {
+    // Re-enable auto-fit behavior on future resizes after reset
+    manualZoomRef.current = false;
     setZoom(clampZoom(1));
     if (containerRef.current) {
       containerRef.current.scrollTo({ left: 0, top: 0, behavior: 'smooth' });
