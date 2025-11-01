@@ -541,8 +541,7 @@ const toPxBox = (box: WideBox): WideBox => {
   useEffect(() => {
     if (!fitToWidthOnResize) return;
     const container = containerRef.current;
-    const base = baseViewportRef.current;
-    if (!container || !base?.width) return;
+    if (!container) return;
 
     let lastWidth = 0;
     const ro = new ResizeObserver((entries) => {
@@ -551,21 +550,24 @@ const toPxBox = (box: WideBox): WideBox => {
       if (!width || width === lastWidth) return;
       lastWidth = width;
 
+      const base = getBaseDims();
+      if (!base.width) return;
       const targetScale = width / base.width;
       updateZoom(targetScale, true); // silent zoom HUD on resize
     });
 
     ro.observe(container);
     return () => ro.disconnect();
-  }, [fitToWidthOnResize, currentPage]);
+  }, [fitToWidthOnResize, currentPage, canvasSize.width]);
 
   // Also fit-to-width on window resize and orientation changes (mobile rotation)
   useEffect(() => {
     if (!fitToWidthOnResize) return;
     const handler = () => {
       const container = containerRef.current;
-      const base = baseViewportRef.current;
-      if (!container || !base?.width) return;
+      if (!container) return;
+      const base = getBaseDims();
+      if (!base.width) return;
       const width = container.clientWidth;
       if (!width) return;
       const targetScale = width / base.width;
@@ -577,7 +579,7 @@ const toPxBox = (box: WideBox): WideBox => {
       window.removeEventListener('resize', handler);
       window.removeEventListener('orientationchange', handler);
     };
-  }, [fitToWidthOnResize, currentPage]);
+  }, [fitToWidthOnResize, currentPage, canvasSize.width]);
 
   // Auto-focus/zoom into key region once after load if focusBox exists
   useEffect(() => {
@@ -845,7 +847,7 @@ const toPxBox = (box: WideBox): WideBox => {
 
       <div
         ref={containerRef}
-        className="h-full w-full overflow-auto relative"
+        className="h-full w-full min-w-0 overflow-auto relative"
         style={{ scrollBehavior: 'smooth' }}
       >
         {/* Canvas-based PDF rendering */}
