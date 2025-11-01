@@ -177,15 +177,25 @@ const toPxBox = (box: WideBox): WideBox => {
     return Math.max(0.25, Math.min(next, 4));
   };
 
+  // Add: rounding helpers to prevent flicker around threshold scales
+  const EPSILON = 0.005; // ~0.5% tolerance
+  const roundScale2 = (s: number) => Number(clampZoom(s).toFixed(2));
+
   // Helper: update zoom and keep the visual center stable while scrolling
   const updateZoom = (nextZoom: number, silent = false) => {
     const container = containerRef.current;
+    // Round target and compare with current rounded zoom to avoid micro reflows
+    const targetZoom = roundScale2(nextZoom);
+    const roundedCurrent = roundScale2(zoom);
+    if (Math.abs(targetZoom - roundedCurrent) <= EPSILON) {
+      return; // skip tiny changes to prevent flicker
+    }
+
     if (!container) {
-      setZoom(clampZoom(nextZoom));
+      setZoom(targetZoom);
       return;
     }
     const prevZoom = zoom;
-    const targetZoom = clampZoom(nextZoom);
 
     // Mark that the user has manually changed zoom unless it's a silent (programmatic) change
     if (!silent) {
@@ -545,7 +555,7 @@ const toPxBox = (box: WideBox): WideBox => {
     didFitToWidthRef.current = true;
   }, [pdfArrayBuffer]);
 
-  // Add: Automatically fit PDF to the container width when the panel is resized
+  // Add: Automatically fit PDF to the container width when the panel is resized (debounced + tolerant)
   useEffect(() => {
     if (!fitToWidthOnResize) return;
     const container = containerRef.current;
@@ -555,9 +565,8 @@ const toPxBox = (box: WideBox): WideBox => {
     const ro = new ResizeObserver((entries) => {
       const entry = entries[0];
       const width = entry?.contentRect?.width || 0;
-      if (!width || width === lastWidth) return;
-
-      // Always update lastWidth for accurate next deltas
+      // Ignore negligible width changes to avoid oscillation around scrollbars
+      if (!width || Math.abs(width - lastWidth) < 2) return;
       lastWidth = width;
 
       // If the user manually changed zoom, respect it and don't auto-fit
@@ -567,15 +576,18 @@ const toPxBox = (box: WideBox): WideBox => {
 
       const base = getBaseDims();
       if (!base.width) return;
-      const targetScale = width / base.width;
-      updateZoom(targetScale, true); // silent zoom HUD on resize
+      const rounded = roundScale2(width / base.width);
+      const currentRounded = roundScale2(zoom);
+      if (Math.abs(rounded - currentRounded) <= EPSILON) return;
+
+      updateZoom(rounded, true); // silent zoom HUD on resize
     });
 
     ro.observe(container);
     return () => ro.disconnect();
-  }, [fitToWidthOnResize, currentPage, canvasSize.width]);
+  }, [fitToWidthOnResize, currentPage, canvasSize.width, zoom]);
 
-  // Also fit-to-width on window resize and orientation changes (mobile rotation)
+  // Also fit-to-width on window resize and orientation changes (mobile rotation) with tolerance
   useEffect(() => {
     if (!fitToWidthOnResize) return;
     const handler = () => {
@@ -588,8 +600,11 @@ const toPxBox = (box: WideBox): WideBox => {
       if (!base.width) return;
       const width = container.clientWidth;
       if (!width) return;
-      const targetScale = width / base.width;
-      updateZoom(targetScale, true);
+      const rounded = roundScale2(width / base.width);
+      const currentRounded = roundScale2(zoom);
+      if (Math.abs(rounded - currentRounded) <= EPSILON) return;
+
+      updateZoom(rounded, true);
     };
     window.addEventListener('resize', handler);
     window.addEventListener('orientationchange', handler);
@@ -597,7 +612,7 @@ const toPxBox = (box: WideBox): WideBox => {
       window.removeEventListener('resize', handler);
       window.removeEventListener('orientationchange', handler);
     };
-  }, [fitToWidthOnResize, currentPage, canvasSize.width]);
+  }, [fitToWidthOnResize, currentPage, canvasSize.width, zoom]);
 
   // Auto-focus/zoom into key region once after load if focusBox exists
   useEffect(() => {
