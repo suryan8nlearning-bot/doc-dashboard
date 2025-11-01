@@ -2044,6 +2044,82 @@ export default function DocumentDetail() {
           </ResizablePanelGroup>
         )
       )}
+
+      {/* Debug Logs Dialog */}
+      <Dialog open={debugOpen} onOpenChange={setDebugOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Create Debug Logs</DialogTitle>
+            <DialogDescription>
+              Detailed events and payloads from the last Create action.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="text-xs text-muted-foreground">
+                {debugEvents.length} {debugEvents.length === 1 ? 'event' : 'events'}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(JSON.stringify(debugEvents, null, 2));
+                      toast.success('Logs copied to clipboard');
+                    } catch {
+                      toast.error('Failed to copy logs');
+                    }
+                  }}
+                >
+                  Copy all
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setDebugEvents([])}
+                >
+                  Clear
+                </Button>
+              </div>
+            </div>
+
+            <ScrollArea className="h-[50vh] rounded border">
+              <div className="p-3 space-y-3">
+                {debugEvents.length ? (
+                  debugEvents.map((e, i) => (
+                    <div key={i} className="rounded border bg-card/40 p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-medium">{e.label}</div>
+                        <div className="text-xs text-muted-foreground">{e.time}</div>
+                      </div>
+                      <pre className="mt-2 text-xs whitespace-pre-wrap break-all">
+                        {(() => {
+                          try {
+                            return JSON.stringify(e.payload, null, 2);
+                          } catch {
+                            return String(e.payload);
+                          }
+                        })()}
+                      </pre>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-6 text-sm text-muted-foreground">
+                    No logs yet. Click Create to generate logs.
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
+          </div>
+
+          <DialogFooter>
+            <Button onClick={() => setDebugOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* End Debug Logs Dialog */}
     </div>
   );
 }
