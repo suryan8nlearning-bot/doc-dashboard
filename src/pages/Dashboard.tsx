@@ -77,7 +77,10 @@ export default function Dashboard() {
   const [isNavToDocsLoading, setIsNavToDocsLoading] = useState(false);
   // Add: prefetch Documents page chunk for faster navigation
   const prefetchDocuments = () => {
-    import('@/pages/Documents').catch(() => {});
+    // Silently prefetch, ignore errors to prevent blocking navigation
+    import('@/pages/Documents').catch((err) => {
+      console.warn('Prefetch failed (non-blocking):', err);
+    });
   };
 
   // Add MotionTableRow for animating rows
@@ -105,11 +108,14 @@ export default function Dashboard() {
       const conn = (navigator as any)?.connection?.effectiveType as string | undefined;
       if (conn && (conn.includes("2g") || conn === "slow-2g")) return;
       if (!docsChunkPreload.current) {
-        docsChunkPreload.current = import("@/pages/Documents");
+        docsChunkPreload.current = import("@/pages/Documents").catch((err) => {
+          console.warn('Documents chunk prefetch failed:', err);
+          return null;
+        });
       }
       return docsChunkPreload.current;
-    } catch {
-      // ignore prefetch errors
+    } catch (err) {
+      console.warn('Prefetch error:', err);
       return null;
     }
   };
