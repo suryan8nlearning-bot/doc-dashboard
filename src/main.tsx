@@ -2,10 +2,10 @@ import { Toaster } from "@/components/ui/sonner";
 import { VlyToolbar } from "../vly-toolbar-readonly.tsx";
 import { InstrumentationProvider } from "@/instrumentation.tsx";
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
-import { ConvexReactClient } from "convex/react";
+import { ConvexReactClient, useConvexAuth } from "convex/react";
 import { StrictMode, useEffect, useState, lazy, Suspense, createContext, useContext, ReactNode } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Route, Routes, useLocation } from "react-router";
+import { BrowserRouter, Route, Routes, useLocation, Navigate } from "react-router";
 import "./index.css";
 import "./types/global.d.ts";
 
@@ -56,6 +56,17 @@ function RouteFallback() {
       Loading…
     </div>
   );
+}
+
+function ProtectedRoute({ children }: { children: ReactNode }) {
+  const { isLoading, isAuthenticated } = useConvexAuth();
+  const location = useLocation();
+
+  if (isLoading) return <RouteFallback />;
+  if (!isAuthenticated) {
+    return <Navigate to="/auth" state={{ from: location.pathname }} replace />;
+  }
+  return <>{children}</>;
 }
 
 function RouteSyncer() {
@@ -148,10 +159,31 @@ createRoot(document.getElementById("root")!).render(
               <Routes>
                 <Route path="/" element={<Landing />} />
                 <Route path="/auth" element={<AuthPage redirectAfterAuth="/dashboard" />} />
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/document/:documentId" element={<DocumentDetail />} />
-                <Route path="/documents" element={<Documents />} />
-                <Route path="/profile" element={<Profile />} />
+                <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                <Route
+                  path="/document/:documentId"
+                  element={
+                    <ProtectedRoute>
+                      <DocumentDetail />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/documents"
+                  element={
+                    <ProtectedRoute>
+                      <Documents />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/profile"
+                  element={
+                    <ProtectedRoute>
+                      <Profile />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </Suspense>

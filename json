@@ -1,0 +1,3 @@
+[
+  {"type": "tool_call", "tool_name": "readFilesToContextTool", "input_args": {"file_paths": ["src/hooks/use-auth.ts", "src/main.tsx"]}}
+]
