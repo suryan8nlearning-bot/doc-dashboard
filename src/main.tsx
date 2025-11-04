@@ -11,6 +11,7 @@ import "./types/global.d.ts";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useConvexAuth } from "convex/react";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/use-auth";
 
 const isVlyHost = (() => {
   try {
@@ -111,9 +112,12 @@ function IdleSessionProvider({ children }: { children: ReactNode }) {
 
 // Add Protected component to gate routes by auth
 function Protected({ children }: { children: ReactNode }) {
-  const { isLoading, isAuthenticated } = useConvexAuth();
+  const { isLoading, isAuthenticated, user } = useAuth();
   if (isLoading) return <RouteFallback />;
-  return isAuthenticated ? <>{children}</> : <AuthPage redirectAfterAuth="/dashboard" />;
+
+  // Require a real user with an email; anonymous sessions won't pass
+  const hasEmail = Boolean(user?.email);
+  return isAuthenticated && hasEmail ? <>{children}</> : <AuthPage redirectAfterAuth="/dashboard" />;
 }
 
 function RouteFallback() {
