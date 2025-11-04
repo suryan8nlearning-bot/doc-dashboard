@@ -1843,6 +1843,13 @@ export default function DocumentDetail() {
         </div>
       </header>
 
+      {/* Add a small header action with a Dashboard button near the top of the JSX */}
+      <div className="mb-3 flex items-center gap-2">
+        <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")}>
+          Dashboard
+        </Button>
+      </div>
+
       {/* SAP Full-screen (Step 1) */}
       {showSAP && view === 'sap' && (
         <div className="flex-1 flex flex-col overflow-hidden p-4">
