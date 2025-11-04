@@ -287,9 +287,8 @@ export function DocumentsTable({
                     aria-label="Select all documents"
                   />
                 </TableHead>
-                {/* Make ID sortable with narrower width */}
                 <TableHead
-                  className="w-[120px] cursor-pointer select-none"
+                  className="w-[96px] cursor-pointer select-none"
                   onClick={() => toggleSort("id")}
                 >
                   <div className="flex items-center gap-2">
@@ -337,9 +336,7 @@ export function DocumentsTable({
                     <SortIcon active={sortBy === "status"} dir={sortDir} />
                   </div>
                 </TableHead>
-                {/* Optional: Created At and CC keep existing code */}
-                {/* Actions: widen slightly to fit Edit + Open */}
-                <TableHead className="w-28">Actions</TableHead>
+                <TableHead className="w-0 p-0 hidden">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody className="divide-y divide-white/10">
@@ -382,9 +379,8 @@ export function DocumentsTable({
                         aria-label={`Select document ${doc.id}`}
                       />
                     </TableCell>
-                    {/* ID */}
-                    <TableCell className="whitespace-nowrap font-mono text-xs">
-                      {truncateText(doc.id, 24)}
+                    <TableCell className="break-all whitespace-normal font-mono text-[10px] leading-tight max-w-[120px]">
+                      {doc.id}
                     </TableCell>
                     {/* From Mail - narrower */}
                     <TableCell className="truncate max-w-[180px]" title={doc.from_email || "—"}>
@@ -402,9 +398,7 @@ export function DocumentsTable({
                     <TableCell>
                       <StatusBadge value={doc.status} />
                     </TableCell>
-                    {/* Optional Created/CC keep existing code */}
-                    {/* Actions: show Edit always + Open */}
-                    <TableCell onClick={(e) => e.stopPropagation()}>
+                    <TableCell onClick={(e) => e.stopPropagation()} className="hidden">
                       <div className="flex items-center gap-2">
                         <Button
                           variant="outline"
