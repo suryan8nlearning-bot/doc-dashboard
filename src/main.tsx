@@ -24,7 +24,7 @@ const isVlyHost = (() => {
   }
 })();
 
-const Landing = lazy(() => import("./pages/Landing.tsx"));
+ // Removed Landing: dashboard is now the root route
 const AuthPage = lazy(() => import("@/pages/Auth.tsx"));
 const Dashboard = lazy(() => import("./pages/Dashboard.tsx"));
 const DocumentDetail = lazy(() => import("./pages/DocumentDetail.tsx"));
@@ -107,6 +107,13 @@ function IdleSessionProvider({ children }: { children: ReactNode }) {
   }, [isAuthenticated, signOut]);
 
   return <>{children}</>;
+}
+
+// Add Protected component to gate routes by auth
+function Protected({ children }: { children: ReactNode }) {
+  const { isLoading, isAuthenticated } = useConvexAuth();
+  if (isLoading) return <RouteFallback />;
+  return isAuthenticated ? <>{children}</> : <AuthPage redirectAfterAuth="/dashboard" />;
 }
 
 function RouteFallback() {
@@ -217,12 +224,12 @@ createRoot(document.getElementById("root")!).render(
               <RouteSyncer />
               <Suspense fallback={<RouteFallback />}>
                 <Routes>
-                  <Route path="/" element={<Landing />} />
+                  <Route path="/" element={<Protected><Dashboard /></Protected>} />
                   <Route path="/auth" element={<AuthPage redirectAfterAuth="/dashboard" />} />
-                  <Route path="/dashboard" element={<Dashboard />} />
-                  <Route path="/document/:documentId" element={<DocumentDetail />} />
-                  <Route path="/documents" element={<Documents />} />
-                  <Route path="/profile" element={<Profile />} />
+                  <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
+                  <Route path="/document/:documentId" element={<Protected><DocumentDetail /></Protected>} />
+                  <Route path="/documents" element={<Protected><Documents /></Protected>} />
+                  <Route path="/profile" element={<Protected><Profile /></Protected>} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>
