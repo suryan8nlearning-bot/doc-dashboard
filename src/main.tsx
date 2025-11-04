@@ -2,12 +2,15 @@ import { Toaster } from "@/components/ui/sonner";
 import { VlyToolbar } from "../vly-toolbar-readonly.tsx";
 import { InstrumentationProvider } from "@/instrumentation.tsx";
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
-import { ConvexReactClient, useConvexAuth } from "convex/react";
+import { ConvexReactClient } from "convex/react";
 import { StrictMode, useEffect, useState, lazy, Suspense, createContext, useContext, ReactNode } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Route, Routes, useLocation, Navigate } from "react-router";
+import { BrowserRouter, Route, Routes, useLocation } from "react-router";
 import "./index.css";
 import "./types/global.d.ts";
+import { useAuthActions } from "@convex-dev/auth/react";
+import { useConvexAuth } from "convex/react";
+import { toast } from "sonner";
 
 const isVlyHost = (() => {
   try {
@@ -39,6 +42,73 @@ function PendingProvider({ children }: { children: ReactNode }) {
   return <PendingContext.Provider value={{ pending, setPending }}>{children}</PendingContext.Provider>;
 }
 
+// Add: IdleSessionProvider to handle inactivity sign-out across the app
+function IdleSessionProvider({ children }: { children: ReactNode }) {
+  const { isAuthenticated } = useConvexAuth();
+  const { signOut } = useAuthActions();
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const getTimeoutMs = () => {
+      try {
+        const v = Number(localStorage.getItem("sessionTimeoutMin") || "");
+        const minutes = Number.isFinite(v) && v >= 1 ? v : 15; // default 15 minutes
+        return minutes * 60_000;
+      } catch {
+        return 15 * 60_000;
+      }
+    };
+
+    let timer: number | null = null;
+    const TIMEOUT_MS = getTimeoutMs();
+
+    const startTimer = () => {
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(async () => {
+        try {
+          toast("Session timed out. Please sign in again.");
+        } catch {}
+        try {
+          await signOut();
+        } catch {}
+      }, TIMEOUT_MS);
+    };
+
+    const broadcastActivity = () => {
+      try {
+        localStorage.setItem("idle:lastActivity", String(Date.now()));
+      } catch {}
+    };
+
+    const reset = () => {
+      startTimer();
+      broadcastActivity();
+    };
+
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "idle:lastActivity") {
+        startTimer();
+      }
+    };
+
+    const events = ["mousemove", "keydown", "click", "scroll", "touchstart"] as const;
+    events.forEach((ev) => window.addEventListener(ev, reset, { passive: true }));
+    window.addEventListener("storage", onStorage);
+
+    // initialize
+    reset();
+
+    return () => {
+      if (timer) window.clearTimeout(timer);
+      events.forEach((ev) => window.removeEventListener(ev, reset as any));
+      window.removeEventListener("storage", onStorage);
+    };
+  }, [isAuthenticated, signOut]);
+
+  return <>{children}</>;
+}
+
 function RouteFallback() {
   const ctx = useContext(PendingContext);
   useEffect(() => {
@@ -56,17 +126,6 @@ function RouteFallback() {
       Loading…
     </div>
   );
-}
-
-function ProtectedRoute({ children }: { children: ReactNode }) {
-  const { isLoading, isAuthenticated } = useConvexAuth();
-  const location = useLocation();
-
-  if (isLoading) return <RouteFallback />;
-  if (!isAuthenticated) {
-    return <Navigate to="/auth" state={{ from: location.pathname }} replace />;
-  }
-  return <>{children}</>;
 }
 
 function RouteSyncer() {
@@ -151,45 +210,26 @@ createRoot(document.getElementById("root")!).render(
     {isVlyHost ? <VlyToolbar /> : null}
     <InstrumentationProvider>
       <ConvexAuthProvider client={convex}>
-        <PendingProvider>
-          <BrowserRouter>
-            <RouteProgressBar />
-            <RouteSyncer />
-            <Suspense fallback={<RouteFallback />}>
-              <Routes>
-                <Route path="/" element={<Landing />} />
-                <Route path="/auth" element={<AuthPage redirectAfterAuth="/dashboard" />} />
-                <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-                <Route
-                  path="/document/:documentId"
-                  element={
-                    <ProtectedRoute>
-                      <DocumentDetail />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/documents"
-                  element={
-                    <ProtectedRoute>
-                      <Documents />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/profile"
-                  element={
-                    <ProtectedRoute>
-                      <Profile />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </Suspense>
-          </BrowserRouter>
-          <Toaster />
-        </PendingProvider>
+        <IdleSessionProvider>
+          <PendingProvider>
+            <BrowserRouter>
+              <RouteProgressBar />
+              <RouteSyncer />
+              <Suspense fallback={<RouteFallback />}>
+                <Routes>
+                  <Route path="/" element={<Landing />} />
+                  <Route path="/auth" element={<AuthPage redirectAfterAuth="/dashboard" />} />
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/document/:documentId" element={<DocumentDetail />} />
+                  <Route path="/documents" element={<Documents />} />
+                  <Route path="/profile" element={<Profile />} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </Suspense>
+            </BrowserRouter>
+            <Toaster />
+          </PendingProvider>
+        </IdleSessionProvider>
       </ConvexAuthProvider>
     </InstrumentationProvider>
   </StrictMode>,
