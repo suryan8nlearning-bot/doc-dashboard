@@ -16,12 +16,11 @@ import type { BoundingBox, DocumentData as ExtractedDocumentData } from '@/lib/s
 
 interface PDFViewerProps {
   pdfUrl: string;
-  highlightBox: BoundingBox | null;
+  // Update: allow optional color for highlight
+  highlightBox: (BoundingBox & { page?: number; color?: string }) | null;
   onLoad?: () => void;
   documentData?: ExtractedDocumentData;
-  // Add: opt-in initial fit-to-width (default false to keep 100% zoom)
   fitToWidthInitially?: boolean;
-  // Add: fit PDF to container width whenever the panel is resized (default true)
   fitToWidthOnResize?: boolean;
 }
 
@@ -52,7 +51,7 @@ const [invertY, setInvertY] = useState(true);
 const [debugMode, setDebugMode] = useState(false);
 
 // Add: normalize/scale helpers and current page state
-type WideBox = BoundingBox & { page?: number };
+type WideBox = BoundingBox & { page?: number; color?: string };
 
 // Normalize incoming bounding boxes to a standard shape for rendering
 function normalizeBoxAny(input: any): (BoundingBox & { page?: number }) | null {
@@ -166,7 +165,7 @@ const toPxBox = (box: WideBox): WideBox => {
     pxY = base.height - (pxY + pxH);
   }
 
-  return { x: pxX, y: pxY, width: pxW, height: pxH, page: (box as any).page } as WideBox;
+  return { x: pxX, y: pxY, width: pxW, height: pxH, page: (box as any).page, color: (box as any).color } as WideBox;
 };
 
   const fetchPdfProxy = useAction(api.documents.fetchPdfProxy);
@@ -931,11 +930,26 @@ const toPxBox = (box: WideBox): WideBox => {
             </>
           )}
 
-          {/* Hover highlight overlay (normalized to base pixels) */}
+          {/* Hover highlight overlay (normalized to base pixels) with dynamic color */}
           {highlightBox && (() => {
             const hb = toPxBox(highlightBox as WideBox);
-            const pad = 8; // increase padding for clearer highlight
+            const pad = 8;
+
+            // Helper to add alpha to hex color like #RRGGBB
+            const withAlpha = (hex: string, alphaHex: string) => {
+              if (typeof hex === 'string' && /^#([0-9a-f]{6})$/i.test(hex)) {
+                return `${hex}${alphaHex}`;
+              }
+              // fallback for non-hex inputs: return raw color
+              return hex;
+            };
+
+            const baseColor = (highlightBox as any).color || '#3b82f6'; // tailwind blue-500
+            const ring = baseColor;
+            const glow = withAlpha(baseColor, '59');  // ~35% alpha
+            const fill = withAlpha(baseColor, '33');  // ~20% alpha
             const label = `x:${Math.round(hb.x)}, y:${Math.round(hb.y)}, w:${Math.round(hb.width)}, h:${Math.round(hb.height)}${(highlightBox as any).page ? `, p:${(highlightBox as any).page}` : ""}`;
+
             return (
               <>
                 <motion.div
@@ -948,14 +962,12 @@ const toPxBox = (box: WideBox): WideBox => {
                     top: `${(hb.y - pad) * zoom}px`,
                     width: `${(hb.width + pad * 2) * zoom}px`,
                     height: `${(hb.height + pad * 2) * zoom}px`,
-                    // Stronger, clearer highlight above the PDF
-                    boxShadow: "0 0 0 4px rgba(59,130,246,1), 0 0 0 8px rgba(59,130,246,0.35)",
-                    background: "radial-gradient(60% 60% at 50% 50%, rgba(59,130,246,0.3), transparent)",
+                    boxShadow: `0 0 0 4px ${ring}, 0 0 0 8px ${glow}`,
+                    background: fill,
                     filter: "drop-shadow(0 10px 28px rgba(0,0,0,0.30))",
                     willChange: "transform, opacity",
                   }}
                 />
-                {/* Tooltip label with bounding box values */}
                 <div
                   className="absolute z-[60] pointer-events-none px-2 py-1 rounded-md text-[10px] font-medium bg-background/85 border shadow-sm"
                   style={{
@@ -963,6 +975,7 @@ const toPxBox = (box: WideBox): WideBox => {
                     top: `${(hb.y - pad - 22) * zoom}px`,
                     transform: "translateY(-4px)",
                     whiteSpace: "nowrap",
+                    borderColor: ring,
                   }}
                 >
                   {label}
