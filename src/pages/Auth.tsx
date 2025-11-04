@@ -24,7 +24,7 @@ interface AuthProps {
 }
 
 export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
-  const { isLoading: authLoading, isAuthenticated, signIn } = useAuth();
+  const { isLoading: authLoading, isAuthenticated, signIn, user } = useAuth();
   const navigate = useNavigate();
   // Add a flag to avoid auto-redirect and require manual click when already signed in
   const alreadySignedIn = !authLoading && isAuthenticated;
@@ -32,6 +32,28 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
   const [otp, setOtp] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Apply theme: default to glass on Auth, switch to user preference when available
+  useEffect(() => {
+    const root = document.documentElement;
+    const apply = (theme?: string) => {
+      root.classList.remove("dark", "glass-theme");
+      if (theme === "dark") {
+        root.classList.add("dark");
+      } else if (theme === "glass") {
+        root.classList.add("glass-theme");
+      } else {
+        // Default to glass theme on Auth
+        root.classList.add("glass-theme");
+      }
+    };
+
+    if (isAuthenticated) {
+      apply(user?.theme as string | undefined);
+    } else {
+      apply("glass");
+    }
+  }, [isAuthenticated, user?.theme]);
 
   // Auto-redirect authenticated users away from the sign-in page
   useEffect(() => {
@@ -115,7 +137,7 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md border shadow-md">
+      <Card className="w-full max-w-md border border-white/10 bg-background/60 backdrop-blur-md shadow-md">
         {step === "login" ? (
           <>
             <CardHeader className="text-center">
