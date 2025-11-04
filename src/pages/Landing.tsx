@@ -902,6 +902,17 @@ export default function Landing() {
     }
   };
 
+  if (typeof window !== "undefined") {
+    try {
+      const p = window.location.pathname;
+      if (p === "/" || p.toLowerCase() === "/home" || p.toLowerCase() === "/landing") {
+        window.location.replace("/dashboard");
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
