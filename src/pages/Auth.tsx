@@ -136,7 +136,7 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
             </CardHeader>
             <form onSubmit={handleLoginSubmit}>
               <CardContent>
-                <div className="space-y-3">
+                <div className="flex flex-col gap-3">
                   <div className="relative">
                     <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -152,6 +152,7 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
                     name="password"
                     placeholder="••••••••"
                     type="password"
+                    className="w-full"
                     disabled={isLoading}
                     required
                   />
