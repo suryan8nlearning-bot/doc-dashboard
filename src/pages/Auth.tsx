@@ -221,6 +221,21 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
                   <p className="mt-2 text-sm text-red-500">{error}</p>
                 )}
               </CardContent>
+              <CardFooter className="flex-col gap-2">
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Signing in...
+                    </>
+                  ) : (
+                    <>
+                      Login
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+              </CardFooter>
             </form>
           </>
         ) : (
