@@ -163,42 +163,63 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
                   onClick={() => navigate("/")}
                 />
               </div>
-              <CardTitle className="text-xl">Create account with OTP</CardTitle>
+              <CardTitle className="text-xl">Sign in</CardTitle>
               <CardDescription>
-                Enter your email to receive a verification code
+                Enter your email (user ID) and password. A one-time code may be sent only for initial verification.
               </CardDescription>
             </CardHeader>
-            <form onSubmit={handleEmailSubmit}>
+            <form onSubmit={handleLoginSubmit}>
               <CardContent>
-                <div className="relative flex items-center gap-2">
-                  <div className="relative flex-1">
-                    <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      name="email"
-                      placeholder="name@example.com"
-                      type="email"
-                      className="pl-9"
+                <div className="space-y-3">
+                  <div className="relative flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        name="email"
+                        placeholder="name@example.com"
+                        type="email"
+                        className="pl-9"
+                        disabled={isLoading}
+                        required
+                        autoComplete="username"
+                      />
+                    </div>
+                    <Button
+                      type="submit"
+                      variant="outline"
+                      size="icon"
                       disabled={isLoading}
-                      required
-                    />
+                    >
+                      {isLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <ArrowRight className="h-4 w-4" />
+                      )}
+                    </Button>
                   </div>
-                  <Button
-                    type="submit"
-                    variant="outline"
-                    size="icon"
+
+                  <Input
+                    name="password"
+                    placeholder="Password"
+                    type="password"
                     disabled={isLoading}
-                  >
-                    {isLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <ArrowRight className="h-4 w-4" />
-                    )}
-                  </Button>
+                    required
+                    autoComplete="current-password"
+                  />
+
+                  <label className="flex items-center gap-2 text-sm text-muted-foreground select-none">
+                    <Checkbox
+                      checked={remember}
+                      onCheckedChange={(v) => setRemember(Boolean(v))}
+                      aria-label="Remember this device for 1 day"
+                    />
+                    Remember this device for 1 day
+                  </label>
                 </div>
+
                 {error && (
                   <p className="mt-2 text-sm text-red-500">{error}</p>
                 )}
-                {/* Removed legacy login link (OTP is the only flow) */}
               </CardContent>
             </form>
           </>
