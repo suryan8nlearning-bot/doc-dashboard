@@ -145,16 +145,14 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
                 />
               </div>
 
-              {!isSignUp && (
-                <label className="flex items-center gap-2 text-sm text-muted-foreground select-none">
-                  <Checkbox
-                    checked={remember}
-                    onCheckedChange={(v) => setRemember(Boolean(v))}
-                    aria-label="Remember this device for 1 day"
-                  />
-                  Remember this device for 1 day
-                </label>
-              )}
+              <label className="flex items-center gap-2 text-sm text-muted-foreground select-none">
+                <Checkbox
+                  checked={remember}
+                  onCheckedChange={(v) => setRemember(Boolean(v))}
+                  aria-label="Remember this device for 1 day"
+                />
+                Remember this device for 1 day
+              </label>
 
               {error && (
                 <p className="mt-2 text-sm text-red-500">{error}</p>
