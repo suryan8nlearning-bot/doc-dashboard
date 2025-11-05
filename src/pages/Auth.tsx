@@ -21,7 +21,7 @@ interface AuthProps {
 }
 
 export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
-  const { isLoading: authLoading, isAuthenticated, signIn, signUp, user } = useAuth();
+  const { isLoading: authLoading, isAuthenticated, signIn, user } = useAuth();
   const navigate = useNavigate();
   const alreadySignedIn = !authLoading && isAuthenticated;
   const [isLoading, setIsLoading] = useState(false);
@@ -29,7 +29,6 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
   const [remember, setRemember] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isSignUp, setIsSignUp] = useState(false);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -66,15 +65,6 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
     setIsLoading(true);
     setError(null);
     try {
-      if (isSignUp) {
-        await signUp(email, password);
-        setIsSignUp(false);
-        setError(null);
-        setPassword("");
-        setIsLoading(false);
-        return;
-      }
-
       await signIn(email, password);
 
       try {
@@ -85,16 +75,14 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
         }
       } catch {}
 
-      const redirect = redirectAfterAuth || "/";
+      const redirect = redirectAfterAuth || "/dashboard";
       navigate(redirect);
     } catch (err) {
       console.error("Authentication error:", err);
       setError(
         err instanceof Error
           ? err.message
-          : isSignUp
-            ? "Failed to create account. Please try again."
-            : "Failed to sign in. Please check your credentials."
+          : "Failed to sign in. Please check your credentials."
       );
       setIsLoading(false);
     }
@@ -115,12 +103,10 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
             />
           </div>
           <CardTitle className="text-xl">
-            {isSignUp ? "Create account" : "Sign in"}
+            Sign in
           </CardTitle>
           <CardDescription>
-            {isSignUp
-              ? "Enter your email and password to create a new account"
-              : "Enter your email and password to sign in"}
+            Enter your email and password to sign in
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
@@ -154,22 +140,20 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
                   type="password"
                   disabled={isLoading}
                   required
-                  autoComplete={isSignUp ? "new-password" : "current-password"}
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
               </div>
 
-              {!isSignUp && (
-                <label className="flex items-center gap-2 text-sm text-muted-foreground select-none">
-                  <Checkbox
-                    checked={remember}
-                    onCheckedChange={(v) => setRemember(Boolean(v))}
-                    aria-label="Remember this device for 1 day"
-                  />
-                  Remember this device for 1 day
-                </label>
-              )}
+              <label className="flex items-center gap-2 text-sm text-muted-foreground select-none">
+                <Checkbox
+                  checked={remember}
+                  onCheckedChange={(v) => setRemember(Boolean(v))}
+                  aria-label="Remember this device for 1 day"
+                />
+                Remember this device for 1 day
+              </label>
 
               {error && (
                 <p className="mt-2 text-sm text-red-500">{error}</p>
@@ -181,25 +165,15 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {isSignUp ? "Creating account..." : "Signing in..."}
+                  Signing in...
                 </>
               ) : (
                 <>
-                  {isSignUp ? "Create account" : "Sign in"}
+                  Sign in
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </>
               )}
             </Button>
-            <button
-              type="button"
-              className="text-sm text-primary hover:underline"
-              onClick={() => setIsSignUp(!isSignUp)}
-              disabled={isLoading}
-            >
-              {isSignUp
-                ? "Already have an account? Sign in"
-                : "Don't have an account? Create one"}
-            </button>
           </CardFooter>
         </form>
 
