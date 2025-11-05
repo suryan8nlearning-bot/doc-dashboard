@@ -29,11 +29,10 @@ export default function Profile() {
 
   useEffect(() => {
     if (user) {
-      setName(user.name || '');
+      setName('');
       setEmail(user.email || '');
       setTheme(user.theme || 'modern');
-      
-      // Apply theme to document
+
       applyTheme(user.theme || 'modern');
     }
   }, [user]);
@@ -156,10 +155,7 @@ export default function Profile() {
                     className="bg-muted cursor-not-allowed"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Email cannot be changed. Verified at{' '}
-                    {user?.emailVerificationTime
-                      ? new Date(user.emailVerificationTime).toLocaleString()
-                      : 'N/A'}
+                    Email cannot be changed
                   </p>
                 </div>
 
@@ -182,9 +178,9 @@ export default function Profile() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Account Role</Label>
+                  <Label>Account Type</Label>
                   <div className="px-3 py-2 bg-muted rounded-md text-sm">
-                    {user?.role || 'user'}
+                    User
                   </div>
                 </div>
 
@@ -194,7 +190,7 @@ export default function Profile() {
                       <User className="h-5 w-5 text-primary" />
                     </div>
                     <div className="text-sm">
-                      <div className="font-medium">{user?.name || 'User'}</div>
+                      <div className="font-medium">User Account</div>
                       <div className="text-muted-foreground text-xs">{user?.email}</div>
                     </div>
                   </div>

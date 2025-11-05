@@ -1,31 +1,13 @@
 import { Toaster } from "@/components/ui/sonner";
-import { VlyToolbar } from "../vly-toolbar-readonly.tsx";
 import { InstrumentationProvider } from "@/instrumentation.tsx";
-import { ConvexAuthProvider } from "@convex-dev/auth/react";
-import { ConvexReactClient } from "convex/react";
 import { StrictMode, useEffect, useState, lazy, Suspense, createContext, useContext, ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes, useLocation } from "react-router";
 import "./index.css";
 import "./types/global.d.ts";
-import { useAuthActions } from "@convex-dev/auth/react";
-import { useConvexAuth } from "convex/react";
-import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
+import { toast } from "sonner";
 
-const isVlyHost = (() => {
-  try {
-    if (typeof window === "undefined" || typeof document === "undefined") return false;
-    const ref = document.referrer || "";
-    const host = window.location.hostname || "";
-    const inIframe = window.top !== window.self;
-    return inIframe && (ref.includes("vly.ai") || ref.includes("vly.sh") || host.endsWith("vly.sh"));
-  } catch {
-    return false;
-  }
-})();
-
- // Removed Landing: dashboard is now the root route
 const AuthPage = lazy(() => import("@/pages/Auth.tsx"));
 const Dashboard = lazy(() => import("./pages/Dashboard.tsx"));
 const DocumentDetail = lazy(() => import("./pages/DocumentDetail.tsx"));
@@ -33,9 +15,6 @@ const Profile = lazy(() => import("@/pages/Profile.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 const Documents = lazy(() => import("./pages/Documents.tsx"));
 
-const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL as string);
-
-// Add pending context for coordinating route loading UI
 const PendingContext = createContext<{ pending: boolean; setPending: (p: boolean) => void } | null>(null);
 
 function PendingProvider({ children }: { children: ReactNode }) {
@@ -43,10 +22,8 @@ function PendingProvider({ children }: { children: ReactNode }) {
   return <PendingContext.Provider value={{ pending, setPending }}>{children}</PendingContext.Provider>;
 }
 
-// Add: IdleSessionProvider to handle inactivity sign-out across the app
 function IdleSessionProvider({ children }: { children: ReactNode }) {
-  const { isAuthenticated } = useConvexAuth();
-  const { signOut } = useAuthActions();
+  const { isAuthenticated, signOut } = useAuth();
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -54,7 +31,7 @@ function IdleSessionProvider({ children }: { children: ReactNode }) {
     const getTimeoutMs = () => {
       try {
         const v = Number(localStorage.getItem("sessionTimeoutMin") || "");
-        const minutes = Number.isFinite(v) && v >= 1 ? v : 15; // default 15 minutes
+        const minutes = Number.isFinite(v) && v >= 1 ? v : 15;
         return minutes * 60_000;
       } catch {
         return 15 * 60_000;
@@ -97,7 +74,6 @@ function IdleSessionProvider({ children }: { children: ReactNode }) {
     events.forEach((ev) => window.addEventListener(ev, reset, { passive: true }));
     window.addEventListener("storage", onStorage);
 
-    // initialize
     reset();
 
     return () => {
@@ -110,12 +86,10 @@ function IdleSessionProvider({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-// Add Protected component to gate routes by auth
 function Protected({ children }: { children: ReactNode }) {
   const { isLoading, isAuthenticated, user } = useAuth();
   if (isLoading) return <RouteFallback />;
 
-  // Require a real user with an email; anonymous sessions won't pass
   const hasEmail = Boolean(user?.email);
   return isAuthenticated && hasEmail ? <>{children}</> : <AuthPage redirectAfterAuth="/dashboard" />;
 }
@@ -141,25 +115,6 @@ function RouteFallback() {
 
 function RouteSyncer() {
   const location = useLocation();
-  useEffect(() => {
-    if (!isVlyHost) return; // Only talk to parent when inside vly iframe
-    window.parent.postMessage(
-      { type: "iframe-route-change", path: location.pathname },
-      "*",
-    );
-  }, [location.pathname]);
-
-  useEffect(() => {
-    if (!isVlyHost) return; // Only listen for parent navigation when inside vly iframe
-    function handleMessage(event: MessageEvent) {
-      if (event.data?.type === "navigate") {
-        if (event.data.direction === "back") window.history.back();
-        if (event.data.direction === "forward") window.history.forward();
-      }
-    }
-    window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
-  }, []);
 
   return null;
 }
@@ -218,30 +173,27 @@ function RouteProgressBar() {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    {isVlyHost ? <VlyToolbar /> : null}
     <InstrumentationProvider>
-      <ConvexAuthProvider client={convex}>
-        <IdleSessionProvider>
-          <PendingProvider>
-            <BrowserRouter>
-              <RouteProgressBar />
-              <RouteSyncer />
-              <Suspense fallback={<RouteFallback />}>
-                <Routes>
-                  <Route path="/" element={<Protected><Dashboard /></Protected>} />
-                  <Route path="/auth" element={<AuthPage redirectAfterAuth="/dashboard" />} />
-                  <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
-                  <Route path="/document/:documentId" element={<Protected><DocumentDetail /></Protected>} />
-                  <Route path="/documents" element={<Protected><Documents /></Protected>} />
-                  <Route path="/profile" element={<Protected><Profile /></Protected>} />
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </Suspense>
-            </BrowserRouter>
-            <Toaster />
-          </PendingProvider>
-        </IdleSessionProvider>
-      </ConvexAuthProvider>
+      <IdleSessionProvider>
+        <PendingProvider>
+          <BrowserRouter>
+            <RouteProgressBar />
+            <RouteSyncer />
+            <Suspense fallback={<RouteFallback />}>
+              <Routes>
+                <Route path="/" element={<Protected><Dashboard /></Protected>} />
+                <Route path="/auth" element={<AuthPage redirectAfterAuth="/dashboard" />} />
+                <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
+                <Route path="/document/:documentId" element={<Protected><DocumentDetail /></Protected>} />
+                <Route path="/documents" element={<Protected><Documents /></Protected>} />
+                <Route path="/profile" element={<Protected><Profile /></Protected>} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </Suspense>
+          </BrowserRouter>
+          <Toaster />
+        </PendingProvider>
+      </IdleSessionProvider>
     </InstrumentationProvider>
   </StrictMode>,
 );
