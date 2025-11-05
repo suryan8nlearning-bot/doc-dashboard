@@ -29,6 +29,8 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
   const [remember, setRemember] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  // Sign up disabled; enforce sign-in only
+  // const [isSignUp, setIsSignUp] = useState(false);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -79,11 +81,8 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
       navigate(redirect);
     } catch (err) {
       console.error("Authentication error:", err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to sign in. Please check your credentials."
-      );
+      setError(err instanceof Error ? err.message : "Failed to sign in. Please check your credentials.");
+    } finally {
       setIsLoading(false);
     }
   };
@@ -146,14 +145,16 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
                 />
               </div>
 
-              <label className="flex items-center gap-2 text-sm text-muted-foreground select-none">
-                <Checkbox
-                  checked={remember}
-                  onCheckedChange={(v) => setRemember(Boolean(v))}
-                  aria-label="Remember this device for 1 day"
-                />
-                Remember this device for 1 day
-              </label>
+              {!isSignUp && (
+                <label className="flex items-center gap-2 text-sm text-muted-foreground select-none">
+                  <Checkbox
+                    checked={remember}
+                    onCheckedChange={(v) => setRemember(Boolean(v))}
+                    aria-label="Remember this device for 1 day"
+                  />
+                  Remember this device for 1 day
+                </label>
+              )}
 
               {error && (
                 <p className="mt-2 text-sm text-red-500">{error}</p>
