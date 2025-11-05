@@ -14,9 +14,10 @@ import {
   InputOTPGroup,
   InputOTPSlot,
 } from "@/components/ui/input-otp";
+import { Checkbox } from "@/components/ui/checkbox";
 
 import { useAuth } from "@/hooks/use-auth";
-import { ArrowRight, Loader2, Mail, UserX } from "lucide-react";
+import { ArrowRight, Loader2, Mail } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 
@@ -29,10 +30,11 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
   const navigate = useNavigate();
   // Add a flag to avoid auto-redirect and require manual click when already signed in
   const alreadySignedIn = !authLoading && isAuthenticated;
-  const [step, setStep] = useState<"login" | "signIn" | { email: string }>("login");
+  const [step, setStep] = useState<"signIn" | { email: string }>("signIn");
   const [otp, setOtp] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [remember, setRemember] = useState(true); // remember device for 7 days
 
   // Apply theme: default to glass on Auth, switch to user preference when available
   useEffect(() => {
@@ -123,6 +125,15 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
       await signIn("email-otp", formData);
 
       // signed in successfully
+      try {
+        if (remember) {
+          // 7 days in minutes
+          localStorage.setItem("sessionTimeoutMin", String(60 * 24 * 7));
+        } else {
+          // fall back to default (15 minutes in IdleSessionProvider)
+          localStorage.removeItem("sessionTimeoutMin");
+        }
+      } catch {}
 
       const redirect = redirectAfterAuth || "/";
       navigate(redirect);
@@ -139,86 +150,7 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md border border-white/10 bg-background/60 backdrop-blur-md shadow-md">
-        {step === "login" ? (
-          <>
-            <CardHeader className="text-center">
-              <div className="flex justify-center">
-                <img
-                  src="/logo.svg"
-                  alt="Logo"
-                  width={64}
-                  height={64}
-                  className="rounded-lg mb-4 mt-4 cursor-pointer"
-                  onClick={() => navigate("/")}
-                />
-              </div>
-              <CardTitle className="text-xl">Sign in</CardTitle>
-              <CardDescription>
-                Enter your email and password to continue
-              </CardDescription>
-            </CardHeader>
-            <form onSubmit={handleLoginSubmit}>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="email"
-                      name="email"
-                      placeholder="name@example.com"
-                      type="email"
-                      className="pl-9 w-full"
-                      autoComplete="email"
-                      disabled={isLoading}
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <Input
-                    id="password"
-                    name="password"
-                    placeholder="••••••••"
-                    type="password"
-                    className="w-full"
-                    autoComplete="current-password"
-                    disabled={isLoading}
-                    required
-                  />
-                </div>
-                {error && (
-                  <p className="text-sm text-red-500">{error}</p>
-                )}
-              </CardContent>
-              <CardFooter className="flex flex-col gap-3 pt-0">
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Sending code…
-                    </>
-                  ) : (
-                    <>
-                      Continue
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </>
-                  )}
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="w-full"
-                  onClick={() => setStep("signIn")}
-                  disabled={isLoading}
-                >
-                  New user? Create account with OTP
-                </Button>
-              </CardFooter>
-            </form>
-          </>
-        ) : step === "signIn" ? (
+        {step === "signIn" ? (
           <>
             <CardHeader className="text-center">
               <div className="flex justify-center">
@@ -266,16 +198,7 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
                 {error && (
                   <p className="mt-2 text-sm text-red-500">{error}</p>
                 )}
-                <p className="text-sm text-muted-foreground text-center mt-4">
-                  Already have an account?{" "}
-                  <Button
-                    variant="link"
-                    className="p-0 h-auto"
-                    onClick={() => setStep("login")}
-                  >
-                    Sign in
-                  </Button>
-                </p>
+                {/* Removed legacy login link (OTP is the only flow) */}
               </CardContent>
             </form>
           </>
