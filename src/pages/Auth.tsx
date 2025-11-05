@@ -10,11 +10,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 import { useAuth } from "@/hooks/use-auth";
 import { ArrowRight, Loader2, Mail } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
+import { hasSupabaseEnv } from "@/lib/supabase";
 
 interface AuthProps {
   redirectAfterAuth?: string;
@@ -66,6 +68,12 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
     event.preventDefault();
     setIsLoading(true);
     setError(null);
+    // Guard when Supabase isn't configured
+    if (!hasSupabaseEnv) {
+      setError("Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in the Integrations tab, then refresh.");
+      setIsLoading(false);
+      return;
+    }
     try {
       await signIn(email, password);
 
@@ -81,7 +89,9 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
       navigate(redirect);
     } catch (err) {
       console.error("Authentication error:", err);
-      setError(err instanceof Error ? err.message : "Failed to sign in. Please check your credentials.");
+      const raw = err instanceof Error ? err.message : "Failed to sign in. Please check your credentials.";
+      const friendly = /invalid login credentials/i.test(raw) ? "Invalid email or password." : raw;
+      setError(friendly);
     } finally {
       setIsLoading(false);
     }
@@ -108,6 +118,19 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
             Enter your email and password to sign in
           </CardDescription>
         </CardHeader>
+
+        {/* Show configuration warning when Supabase isn't set up */}
+        {!hasSupabaseEnv && (
+          <div className="px-6">
+            <Alert variant="destructive">
+              <AlertTitle>Supabase not configured</AlertTitle>
+              <AlertDescription>
+                Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in the Integrations tab, then refresh the page.
+              </AlertDescription>
+            </Alert>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit}>
           <CardContent>
             <div className="space-y-4">
@@ -121,7 +144,7 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
                     placeholder="name@example.com"
                     type="email"
                     className="pl-9"
-                    disabled={isLoading}
+                    disabled={isLoading || !hasSupabaseEnv}
                     required
                     autoComplete="username"
                     value={email}
@@ -137,7 +160,7 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
                   name="password"
                   placeholder="Password"
                   type="password"
-                  disabled={isLoading}
+                  disabled={isLoading || !hasSupabaseEnv}
                   required
                   autoComplete="current-password"
                   value={password}
@@ -150,6 +173,7 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
                   checked={remember}
                   onCheckedChange={(v) => setRemember(Boolean(v))}
                   aria-label="Remember this device for 1 day"
+                  disabled={isLoading || !hasSupabaseEnv}
                 />
                 Remember this device for 1 day
               </label>
@@ -160,7 +184,7 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
             </div>
           </CardContent>
           <CardFooter className="flex-col gap-3">
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button type="submit" className="w-full" disabled={isLoading || !hasSupabaseEnv}>
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
