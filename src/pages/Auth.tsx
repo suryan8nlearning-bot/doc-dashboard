@@ -127,8 +127,8 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
       // signed in successfully
       try {
         if (remember) {
-          // 7 days in minutes
-          localStorage.setItem("sessionTimeoutMin", String(60 * 24 * 7));
+          // 1 day in minutes
+          localStorage.setItem("sessionTimeoutMin", String(60 * 24));
         } else {
           // fall back to default (15 minutes in IdleSessionProvider)
           localStorage.removeItem("sessionTimeoutMin");
