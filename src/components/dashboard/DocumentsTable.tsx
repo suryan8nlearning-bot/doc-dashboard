@@ -90,7 +90,8 @@ export function DocumentsTable({
   const pageSize = 10;
 
   const [showCreatedAt, setShowCreatedAt] = useState(false);
-  const [showCC, setShowCC] = useState(false);
+  // Default: show CC column
+  const [showCC, setShowCC] = useState(true);
 
   // Add: opening state to show instant feedback when navigating
   const [openingId, setOpeningId] = useState<string | null>(null);
@@ -336,6 +337,25 @@ export function DocumentsTable({
                     <SortIcon active={sortBy === "status"} dir={sortDir} />
                   </div>
                 </TableHead>
+                {/* Insert: CC Emails header (visible when toggled on) */}
+                {showCC && (
+                  <TableHead
+                    className="min-w-[220px] cursor-pointer select-none"
+                    onClick={() => toggleSort("cc")}
+                  >
+                    <div className="flex items-center gap-2">
+                      CC Emails
+                      <SortIcon active={sortBy === "cc"} dir={sortDir} />
+                    </div>
+                  </TableHead>
+                )}
+                {/* Insert: Mail Data header */}
+                <TableHead className="min-w-[220px]">
+                  <div className="flex items-center gap-2">
+                    Mail
+                    {/* purely label, no sorting for mail content */}
+                  </div>
+                </TableHead>
                 <TableHead className="w-0 p-0 hidden">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -347,6 +367,11 @@ export function DocumentsTable({
                   extractDocName(doc.subject || "") ||
                   doc.id;
                 const subject = truncateText(doc.subject || "—", 80);
+                const ccDisplay = Array.isArray(doc.cc_emails) && doc.cc_emails.length
+                  ? doc.cc_emails.join(", ")
+                  : "—";
+                const mailSnippet = truncateText(doc.mail_content || "—", 120);
+
                 return (
                   <MotionTableRow
                     key={doc.id}
@@ -397,6 +422,23 @@ export function DocumentsTable({
                     {/* Status */}
                     <TableCell>
                       <StatusBadge value={doc.status} />
+                    </TableCell>
+                    {/* Insert: CC Emails cell (conditional) */}
+                    {showCC && (
+                      <TableCell className="truncate max-w-[260px]" title={ccDisplay}>
+                        {ccDisplay}
+                      </TableCell>
+                    )}
+                    {/* Insert: Mail Data cell (truncated, clickable to open) */}
+                    <TableCell
+                      className="truncate max-w-[280px] text-muted-foreground"
+                      title={mailSnippet}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onViewMailContent(doc.mail_content || "");
+                      }}
+                    >
+                      {mailSnippet}
                     </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()} className="hidden">
                       <div className="flex items-center gap-2">
@@ -450,6 +492,11 @@ export function DocumentsTable({
               extractDocName(doc.title || "") ||
               extractDocName(doc.subject || "") ||
               doc.id;
+            const ccDisplay = Array.isArray(doc.cc_emails) && doc.cc_emails.length
+              ? doc.cc_emails.join(", ")
+              : "—";
+            const mailSnippet = truncateText(doc.mail_content || "—", 160);
+
             return (
               <motion.div
                 key={doc.id}
@@ -524,6 +571,20 @@ export function DocumentsTable({
                     </div>
                     <div className="mt-1 text-xs text-muted-foreground truncate" title={doc.subject || "—"}>
                       Subject: {truncateText(doc.subject || "—", 80)}
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground truncate" title={ccDisplay}>
+                      CC: {ccDisplay}
+                    </div>
+                    <div
+                      className="mt-1 text-xs text-muted-foreground truncate"
+                      title={mailSnippet}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onViewMailContent(doc.mail_content || "");
+                      }}
+                      role="button"
+                    >
+                      Mail: {mailSnippet}
                     </div>
                     {/* Add: Status (mobile) */}
                     <div className="mt-1 text-xs text-muted-foreground flex items-center gap-2">

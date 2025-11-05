@@ -42,6 +42,12 @@ import * as SalesSchema from "@/schemas/salesOrderCreate";
 import { DocumentsTable } from "@/components/dashboard/DocumentsTable";
 
 export default function Dashboard() {
+  // Redirect to Documents page immediately (no initial dashboard screen)
+  if (typeof window !== "undefined") {
+    window.location.replace("/documents");
+    return null;
+  }
+
   const { isLoading: authLoading, isAuthenticated, user, signOut } = useAuth();
   const navigate = useNavigate();
   const sendWebhook = useAction(api.webhooks.sendWebhook);
