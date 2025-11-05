@@ -1,5 +1,6 @@
 import { useConvexAuth } from "convex/react";
-import { useAuthActions } from "@convex-dev/auth/react";
+import { useAction } from "convex/react";
+import { api } from "@/convex/_generated/api";
 
 /**
  * Convex Auth hook: email OTP
@@ -8,7 +9,7 @@ import { useAuthActions } from "@convex-dev/auth/react";
  */
 export function useAuth() {
   const { isLoading, isAuthenticated } = useConvexAuth();
-  const { signOut: signOutAction } = useAuthActions();
+  const signOutAction = useAction(api.auth.signOut);
 
   // For Convex Auth, we don't have direct user data in the hook
   // You'll need to fetch it separately if needed

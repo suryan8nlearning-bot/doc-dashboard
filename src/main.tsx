@@ -199,6 +199,6 @@ createRoot(document.getElementById("root")!).render(
           </PendingProvider>
         </IdleSessionProvider>
       </InstrumentationProvider>
-    </ConvexProviderWithAuth>
+    </ConvexAuthProvider>
   </StrictMode>,
 );
