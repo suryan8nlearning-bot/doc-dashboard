@@ -39,6 +39,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import * as SalesSchema from "@/schemas/salesOrderCreate";
+import { DocumentsTable } from "@/components/dashboard/DocumentsTable";
 
 export default function Dashboard() {
   const { isLoading: authLoading, isAuthenticated, user, signOut } = useAuth();
@@ -71,6 +72,8 @@ export default function Dashboard() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   // Add: navigation loading state for "View Documents"
   const [isNavToDocsLoading, setIsNavToDocsLoading] = useState(false);
+  // Add: inline documents panel visibility
+  const [showDocsInline, setShowDocsInline] = useState(false);
   // Add: prefetch Documents page chunk for faster navigation
   const prefetchDocuments = () => {
     // Silently prefetch, ignore errors to prevent blocking navigation
@@ -82,11 +85,22 @@ export default function Dashboard() {
   // Add MotionTableRow for animating rows
   const MotionTableRow = motion(TableRow);
 
-  // Add: openTable navigate handler for 'View Documents' to set loading and navigate
+  // Replace: openTable navigate handler to toggle inline docs panel instead of route navigation
   const openTable = () => {
     if (isNavToDocsLoading) return;
-    setIsNavToDocsLoading(true);
-    navigate('/documents');
+    // When opening inline, show a brief loading spinner for smoothness
+    if (!showDocsInline) {
+      setIsNavToDocsLoading(true);
+      // warm up chunk/data as before (non-blocking)
+      prefetchDocuments();
+      prefetchDocumentsChunk();
+      setTimeout(() => {
+        setIsNavToDocsLoading(false);
+        setShowDocsInline(true);
+      }, 200);
+    } else {
+      setShowDocsInline(false);
+    }
   };
 
   // Add: idle-callback helper to safely prefetch without blocking
@@ -1107,6 +1121,67 @@ export default function Dashboard() {
                     onClearSelection={() => setSelectedDocuments(new Set())}
                   />
                 </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Inline Documents view */}
+            <AnimatePresence>
+              {showDocsInline && (
+                <motion.section
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -12 }}
+                  transition={{ duration: 0.25, ease: 'easeOut' }}
+                  className="mt-4 rounded-2xl border border-white/10 bg-background/60 backdrop-blur-md p-4"
+                >
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-primary" />
+                      <h3 className="text-base font-semibold">Documents</h3>
+                      <span className="text-xs text-muted-foreground">({documents.length})</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        className="bg-white/5 hover:bg-white/10 border-white/10"
+                        onClick={() => navigate('/documents')}
+                      >
+                        Open full page
+                      </Button>
+                      <Button variant="ghost" onClick={() => setShowDocsInline(false)}>
+                        Hide
+                      </Button>
+                    </div>
+                  </div>
+
+                  {!hasSupabaseEnv ? (
+                    <div className="text-center py-10 space-y-2">
+                      <FileText className="h-10 w-10 mx-auto text-muted-foreground opacity-30" />
+                      <div className="text-sm font-medium">Supabase is not configured</div>
+                      <p className="text-xs text-muted-foreground">Add SUPABASE_URL and SUPABASE_ANON_KEY in the Integrations tab, then refresh.</p>
+                    </div>
+                  ) : isLoadingDocs ? (
+                    <div className="flex items-center justify-center py-10">
+                      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    </div>
+                  ) : documents.length === 0 ? (
+                    <div className="text-center py-10 space-y-2">
+                      <FileText className="h-10 w-10 mx-auto text-muted-foreground opacity-30" />
+                      <div className="text-sm font-medium">No documents found</div>
+                      <p className="text-xs text-muted-foreground">Documents will appear here once added.</p>
+                    </div>
+                  ) : (
+                    <DocumentsTable
+                      docs={documents}
+                      selectedIds={selectedDocuments}
+                      onToggleSelectAll={handleSelectAll}
+                      onToggleSelect={handleSelectDocument}
+                      onViewMailContent={(content) => handleViewMailContent(content)}
+                      onViewDetails={(id) => handleEditDocument(id)}
+                      onEdit={handleEditDocument}
+                    />
+                  )}
+                </motion.section>
               )}
             </AnimatePresence>
           </div>
