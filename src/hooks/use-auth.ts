@@ -1,23 +1,51 @@
-import { api } from "@/convex/_generated/api";
-import { useAuthActions } from "@convex-dev/auth/react";
-import { useConvexAuth, useQuery } from "convex/react";
-
+import { supabase } from "@/lib/supabase";
 import { useEffect, useState } from "react";
 
+/**
+ * Supabase-based auth hook: email + password
+ * - isAuthenticated is driven by Supabase session
+ * - user exposes minimal info needed by the app (email + optional theme)
+ */
 export function useAuth() {
-  const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
-  const user = useQuery(api.users.currentUser);
-  const { signIn, signOut } = useAuthActions();
-
   const [isLoading, setIsLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState<{ email?: string; theme?: string | null } | undefined>(undefined);
 
-  // This effect updates the loading state once auth is loaded and user data is available
-  // It ensures we only show content when both authentication state and user data are ready
   useEffect(() => {
-    if (!isAuthLoading && user !== undefined) {
+    let mounted = true;
+
+    // Initial session load
+    supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      const session = data?.session ?? null;
+      setIsAuthenticated(Boolean(session));
+      setUser(session?.user ? { email: session.user.email ?? undefined, theme: null } : undefined);
       setIsLoading(false);
-    }
-  }, [isAuthLoading, user]);
+    });
+
+    // Subscribe to auth state changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthenticated(Boolean(session));
+      setUser(session?.user ? { email: session.user.email ?? undefined, theme: null } : undefined);
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const signIn = async (email: string, password: string) => {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    return data;
+  };
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
+  };
 
   return {
     isLoading,

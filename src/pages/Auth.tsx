@@ -8,14 +8,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  InputOTP,
-  InputOTPGroup,
-  InputOTPSlot,
-} from "@/components/ui/input-otp";
 import { Checkbox } from "@/components/ui/checkbox";
-
 import { useAuth } from "@/hooks/use-auth";
 import { ArrowRight, Loader2, Mail } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -28,13 +21,11 @@ interface AuthProps {
 export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
   const { isLoading: authLoading, isAuthenticated, signIn, user } = useAuth();
   const navigate = useNavigate();
-  // Add a flag to avoid auto-redirect and require manual click when already signed in
+
   const alreadySignedIn = !authLoading && isAuthenticated;
-  const [step, setStep] = useState<"signIn" | { email: string }>("signIn");
-  const [otp, setOtp] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [remember, setRemember] = useState(true); // remember device for 7 days
+  const [remember, setRemember] = useState(true); // 1 day
 
   // Apply theme: default to glass on Auth, switch to user preference when available
   useEffect(() => {
@@ -46,7 +37,6 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
       } else if (theme === "glass") {
         root.classList.add("glass-theme");
       } else {
-        // Default to glass theme on Auth
         root.classList.add("glass-theme");
       }
     };
@@ -65,12 +55,8 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
     }
   }, [alreadySignedIn, navigate, redirectAfterAuth]);
 
-  // If already signed in, do not show the sign in UI
-  if (alreadySignedIn) {
-    return null;
-  }
+  if (alreadySignedIn) return null;
 
-  // New: Handle email+password login submit (triggers OTP flow under the hood)
   const handleLoginSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsLoading(true);
@@ -78,248 +64,111 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
     try {
       const formData = new FormData(event.currentTarget);
       const email = (formData.get("email") as string) || "";
-      // We only support OTP provider; password is collected for UX but not used for verification.
-      const otpFormData = new FormData();
-      otpFormData.set("email", email);
+      const password = (formData.get("password") as string) || "";
 
-      await signIn("email-otp", otpFormData);
-      setStep({ email });
-      setIsLoading(false);
-    } catch (error) {
-      console.error("Login submit error:", error);
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Failed to send verification code. Please try again."
-      );
-      setIsLoading(false);
-    }
-  };
+      await signIn(email, password);
 
-  const handleEmailSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setIsLoading(true);
-    setError(null);
-    try {
-      const formData = new FormData(event.currentTarget);
-      await signIn("email-otp", formData);
-      setStep({ email: formData.get("email") as string });
-      setIsLoading(false);
-    } catch (error) {
-      console.error("Email sign-in error:", error);
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Failed to send verification code. Please try again.",
-      );
-      setIsLoading(false);
-    }
-  };
-
-  const handleOtpSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setIsLoading(true);
-    setError(null);
-    try {
-      const formData = new FormData(event.currentTarget);
-      await signIn("email-otp", formData);
-
-      // signed in successfully
       try {
         if (remember) {
           // 1 day in minutes
           localStorage.setItem("sessionTimeoutMin", String(60 * 24));
         } else {
-          // fall back to default (15 minutes in IdleSessionProvider)
           localStorage.removeItem("sessionTimeoutMin");
         }
       } catch {}
 
-      const redirect = redirectAfterAuth || "/";
-      navigate(redirect);
+      navigate(redirectAfterAuth || "/dashboard");
     } catch (error) {
-      console.error("OTP verification error:", error);
-
-      setError("The verification code you entered is incorrect.");
+      console.error("Login error:", error);
+      setError(
+        error instanceof Error ? error.message : "Login failed. Check your credentials."
+      );
+    } finally {
       setIsLoading(false);
-
-      setOtp("");
     }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md border border-white/10 bg-background/60 backdrop-blur-md shadow-md">
-        {step === "signIn" ? (
-          <>
-            <CardHeader className="text-center">
-              <div className="flex justify-center">
-                <img
-                  src="/logo.svg"
-                  alt="Logo"
-                  width={64}
-                  height={64}
-                  className="rounded-lg mb-4 mt-4 cursor-pointer"
-                  onClick={() => navigate("/")}
-                />
-              </div>
-              <CardTitle className="text-xl">Sign in</CardTitle>
-              <CardDescription>
-                Enter your email (user ID) and password. A one-time code may be sent only for initial verification.
-              </CardDescription>
-            </CardHeader>
-            <form onSubmit={handleLoginSubmit}>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="relative flex items-center gap-2">
-                    <div className="relative flex-1">
-                      <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        name="email"
-                        placeholder="name@example.com"
-                        type="email"
-                        className="pl-9"
-                        disabled={isLoading}
-                        required
-                        autoComplete="username"
-                      />
-                    </div>
-                    <Button
-                      type="submit"
-                      variant="outline"
-                      size="icon"
-                      disabled={isLoading}
-                    >
-                      {isLoading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <ArrowRight className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
+        <CardHeader className="text-center">
+          <div className="flex justify-center">
+            <img
+              src="/logo.svg"
+              alt="Logo"
+              width={64}
+              height={64}
+              className="rounded-lg mb-4 mt-4 cursor-pointer"
+              onClick={() => navigate("/")}
+            />
+          </div>
+          <CardTitle className="text-xl">Sign in</CardTitle>
+          <CardDescription>Enter your email (user ID) and password.</CardDescription>
+        </CardHeader>
 
+        <form onSubmit={handleLoginSubmit}>
+          <CardContent>
+            <div className="space-y-3">
+              <div className="relative flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
-                    name="password"
-                    placeholder="Password"
-                    type="password"
+                    name="email"
+                    placeholder="name@example.com"
+                    type="email"
+                    className="pl-9"
                     disabled={isLoading}
                     required
-                    autoComplete="current-password"
+                    autoComplete="username"
                   />
-
-                  <label className="flex items-center gap-2 text-sm text-muted-foreground select-none">
-                    <Checkbox
-                      checked={remember}
-                      onCheckedChange={(v) => setRemember(Boolean(v))}
-                      aria-label="Remember this device for 1 day"
-                    />
-                    Remember this device for 1 day
-                  </label>
                 </div>
-
-                {error && (
-                  <p className="mt-2 text-sm text-red-500">{error}</p>
-                )}
-              </CardContent>
-              <CardFooter className="flex-col gap-2">
-                <Button type="submit" className="w-full" disabled={isLoading}>
+                <Button type="submit" variant="outline" size="icon" disabled={isLoading}>
                   {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Signing in...
-                    </>
+                    <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
-                    <>
-                      Login
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </>
+                    <ArrowRight className="h-4 w-4" />
                   )}
                 </Button>
-              </CardFooter>
-            </form>
-          </>
-        ) : (
-          <>
-            <CardHeader className="text-center mt-4">
-              <CardTitle>Check your email</CardTitle>
-              <CardDescription>
-                We've sent a code to {step.email}
-              </CardDescription>
-            </CardHeader>
-            <form onSubmit={handleOtpSubmit}>
-              <CardContent className="pb-4">
-                <input type="hidden" name="email" value={step.email} />
-                <input type="hidden" name="code" value={otp} />
+              </div>
 
-                <div className="flex justify-center">
-                  <InputOTP
-                    value={otp}
-                    onChange={setOtp}
-                    maxLength={6}
-                    disabled={isLoading}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && otp.length === 6 && !isLoading) {
-                        const form = (e.target as HTMLElement).closest("form");
-                        if (form) {
-                          form.requestSubmit();
-                        }
-                      }
-                    }}
-                  >
-                    <InputOTPGroup>
-                      {Array.from({ length: 6 }).map((_, index) => (
-                        <InputOTPSlot key={index} index={index} />
-                      ))}
-                    </InputOTPGroup>
-                  </InputOTP>
-                </div>
-                {error && (
-                  <p className="mt-2 text-sm text-red-500 text-center">
-                    {error}
-                  </p>
-                )}
-                <p className="text-sm text-muted-foreground text-center mt-4">
-                  Didn't receive a code?{" "}
-                  <Button
-                    variant="link"
-                    className="p-0 h-auto"
-                    onClick={() => setStep("signIn")}
-                  >
-                    Try again
-                  </Button>
-                </p>
-              </CardContent>
-              <CardFooter className="flex-col gap-2">
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={isLoading || otp.length !== 6}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Verifying...
-                    </>
-                  ) : (
-                    <>
-                      Verify code
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </>
-                  )}
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setStep("signIn")}
-                  disabled={isLoading}
-                  className="w-full"
-                >
-                  Use different email
-                </Button>
-              </CardFooter>
-            </form>
-          </>
-        )}
+              <Input
+                name="password"
+                placeholder="Password"
+                type="password"
+                disabled={isLoading}
+                required
+                autoComplete="current-password"
+              />
+
+              <label className="flex items-center gap-2 text-sm text-muted-foreground select-none">
+                <Checkbox
+                  checked={remember}
+                  onCheckedChange={(v) => setRemember(Boolean(v))}
+                  aria-label="Remember this device for 1 day"
+                />
+                Remember this device for 1 day
+              </label>
+            </div>
+
+            {error && <p className="mt-2 text-sm text-red-500">{error}</p>}
+          </CardContent>
+
+          <CardFooter className="flex-col gap-2">
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                <>
+                  Login
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </>
+              )}
+            </Button>
+          </CardFooter>
+        </form>
 
         <div className="py-4 px-6 text-xs text-center text-muted-foreground bg-muted border-t rounded-b-lg">
           Secured by{" "}
