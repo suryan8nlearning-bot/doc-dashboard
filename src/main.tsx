@@ -7,6 +7,9 @@ import "./index.css";
 import "./types/global.d.ts";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
+import { ConvexProvider, ConvexReactClient } from "convex/react";
+
+const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL as string);
 
 const AuthPage = lazy(() => import("@/pages/Auth.tsx"));
 const Dashboard = lazy(() => import("./pages/Dashboard.tsx"));
@@ -173,27 +176,29 @@ function RouteProgressBar() {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <InstrumentationProvider>
-      <IdleSessionProvider>
-        <PendingProvider>
-          <BrowserRouter>
-            <RouteProgressBar />
-            <RouteSyncer />
-            <Suspense fallback={<RouteFallback />}>
-              <Routes>
-                <Route path="/" element={<Protected><Dashboard /></Protected>} />
-                <Route path="/auth" element={<AuthPage redirectAfterAuth="/dashboard" />} />
-                <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
-                <Route path="/document/:documentId" element={<Protected><DocumentDetail /></Protected>} />
-                <Route path="/documents" element={<Protected><Documents /></Protected>} />
-                <Route path="/profile" element={<Protected><Profile /></Protected>} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </Suspense>
-          </BrowserRouter>
-          <Toaster />
-        </PendingProvider>
-      </IdleSessionProvider>
-    </InstrumentationProvider>
+    <ConvexProvider client={convex}>
+      <InstrumentationProvider>
+        <IdleSessionProvider>
+          <PendingProvider>
+            <BrowserRouter>
+              <RouteProgressBar />
+              <RouteSyncer />
+              <Suspense fallback={<RouteFallback />}>
+                <Routes>
+                  <Route path="/" element={<Protected><Dashboard /></Protected>} />
+                  <Route path="/auth" element={<AuthPage redirectAfterAuth="/dashboard" />} />
+                  <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
+                  <Route path="/document/:documentId" element={<Protected><DocumentDetail /></Protected>} />
+                  <Route path="/documents" element={<Protected><Documents /></Protected>} />
+                  <Route path="/profile" element={<Protected><Profile /></Protected>} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </Suspense>
+            </BrowserRouter>
+            <Toaster />
+          </PendingProvider>
+        </IdleSessionProvider>
+      </InstrumentationProvider>
+    </ConvexProvider>
   </StrictMode>,
 );

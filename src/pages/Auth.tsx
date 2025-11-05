@@ -11,28 +11,32 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+} from "@/components/ui/input-otp";
 
 import { useAuth } from "@/hooks/use-auth";
 import { ArrowRight, Loader2, Mail } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import { hasSupabaseEnv } from "@/lib/supabase";
+import { useAuthActions } from "@convex-dev/auth/react";
 
 interface AuthProps {
   redirectAfterAuth?: string;
 }
 
 export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
-  const { isLoading: authLoading, isAuthenticated, signIn, user } = useAuth();
+  const { isLoading: authLoading, isAuthenticated, user } = useAuth();
+  const { signIn } = useAuthActions();
   const navigate = useNavigate();
   const alreadySignedIn = !authLoading && isAuthenticated;
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [remember, setRemember] = useState(true);
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  // Sign up disabled; enforce sign-in only
-  // const [isSignUp, setIsSignUp] = useState(false);
+  const [step, setStep] = useState<"signIn" | { email: string }>("signIn");
 
   useEffect(() => {
     const root = document.documentElement;
@@ -64,18 +68,26 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
     return null;
   }
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleEmailSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsLoading(true);
     setError(null);
-    // Guard when Supabase isn't configured
-    if (!hasSupabaseEnv) {
-      setError("Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in the Integrations tab, then refresh.");
-      setIsLoading(false);
-      return;
-    }
     try {
-      await signIn(email, password);
+      await signIn("email-otp", { email });
+      setStep({ email });
+    } catch (err) {
+      console.error("Authentication error:", err);
+      setError(err instanceof Error ? err.message : "Failed to send code. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleOtpSubmit = async (code: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      await signIn("email-otp", { email: typeof step === "object" ? step.email : "", code });
 
       try {
         if (remember) {
@@ -89,9 +101,7 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
       navigate(redirect);
     } catch (err) {
       console.error("Authentication error:", err);
-      const raw = err instanceof Error ? err.message : "Failed to sign in. Please check your credentials.";
-      const friendly = /invalid login credentials/i.test(raw) ? "Invalid email or password." : raw;
-      setError(friendly);
+      setError(err instanceof Error ? err.message : "Invalid code. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -112,126 +122,108 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
             />
           </div>
           <CardTitle className="text-xl">
-            Sign in
+            {step === "signIn" ? "Sign in" : "Enter verification code"}
           </CardTitle>
           <CardDescription>
-            Enter your email and password to sign in
+            {step === "signIn"
+              ? "Enter your email to receive a verification code"
+              : `We sent a code to ${typeof step === "object" ? step.email : ""}`}
           </CardDescription>
         </CardHeader>
 
-        {/* Show configuration warning when Supabase isn't set up */}
-        {!hasSupabaseEnv && (
-          <div className="px-6">
-            <Alert variant="destructive">
-              <AlertTitle>Supabase not configured</AlertTitle>
-              <AlertDescription>
-                Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in the Integrations tab, then refresh the page.
-              </AlertDescription>
-            </Alert>
-          </div>
-        )}
+        {step === "signIn" ? (
+          <form onSubmit={handleEmailSubmit}>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <div className="relative flex items-center">
+                    <Mail className="absolute left-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="email"
+                      name="email"
+                      placeholder="name@example.com"
+                      type="email"
+                      className="pl-9"
+                      disabled={isLoading}
+                      required
+                      autoComplete="username"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                    />
+                  </div>
+                </div>
 
-        <form onSubmit={handleSubmit}>
+                <label className="flex items-center gap-2 text-sm text-muted-foreground select-none">
+                  <Checkbox
+                    checked={remember}
+                    onCheckedChange={(v) => setRemember(Boolean(v))}
+                    aria-label="Remember this device for 1 day"
+                    disabled={isLoading}
+                  />
+                  Remember this device for 1 day
+                </label>
+
+                {error && <p className="mt-2 text-sm text-red-500">{error}</p>}
+              </div>
+            </CardContent>
+            <CardFooter className="flex-col gap-3">
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Sending code...
+                  </>
+                ) : (
+                  <>
+                    Continue
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </>
+                )}
+              </Button>
+            </CardFooter>
+          </form>
+        ) : (
           <CardContent>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <div className="relative flex items-center">
-                  <Mail className="absolute left-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="email"
-                    name="email"
-                    placeholder="name@example.com"
-                    type="email"
-                    className="pl-9"
-                    disabled={isLoading || !hasSupabaseEnv}
-                    required
-                    autoComplete="username"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                </div>
+                <Label htmlFor="code">Verification Code</Label>
+                <InputOTP
+                  maxLength={6}
+                  disabled={isLoading}
+                  onComplete={handleOtpSubmit}
+                  autoFocus
+                >
+                  <InputOTPGroup>
+                    <InputOTPSlot index={0} />
+                    <InputOTPSlot index={1} />
+                    <InputOTPSlot index={2} />
+                    <InputOTPSlot index={3} />
+                    <InputOTPSlot index={4} />
+                    <InputOTPSlot index={5} />
+                  </InputOTPGroup>
+                </InputOTP>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  name="password"
-                  placeholder="Password"
-                  type="password"
-                  disabled={isLoading || !hasSupabaseEnv}
-                  required
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
+              {error && <p className="mt-2 text-sm text-red-500">{error}</p>}
 
-              <label className="flex items-center gap-2 text-sm text-muted-foreground select-none">
-                <Checkbox
-                  checked={remember}
-                  onCheckedChange={(v) => setRemember(Boolean(v))}
-                  aria-label="Remember this device for 1 day"
-                  disabled={isLoading || !hasSupabaseEnv}
-                />
-                Remember this device for 1 day
-              </label>
-
-              {error && (
-                <p className="mt-2 text-sm text-red-500">{error}</p>
-              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setStep("signIn")}
+                disabled={isLoading}
+                className="w-full"
+              >
+                Use a different email
+              </Button>
             </div>
           </CardContent>
-          <CardFooter className="flex-col gap-3">
-            <Button type="submit" className="w-full" disabled={isLoading || !hasSupabaseEnv}>
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Signing in...
-                </>
-              ) : (
-                <>
-                  Sign in
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </>
-              )}
-            </Button>
-          </CardFooter>
-        </form>
+        )}
 
         <div className="py-4 px-6 text-xs text-center text-muted-foreground bg-muted border-t rounded-b-lg">
-          Secured by{" "}
-          <a
-            href="https://supabase.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline hover:text-primary transition-colors"
-          >
-            Supabase
-          </a>
+          Secured by Convex Auth
         </div>
       </Card>
     </div>
   );
 }
-
-/*
-  DEPRECATED OTP AUTHENTICATION CODE (kept for reference)
-
-  The app previously used email OTP authentication.
-  To re-enable OTP, you would need to:
-  1. Restore the emailOtp provider in convex/auth.ts
-  2. Add back the step state: const [step, setStep] = useState<"signIn" | { email: string }>("signIn")
-  3. Implement handleEmailSubmit and handleOtpSubmit functions
-  4. Import InputOTP, InputOTPGroup, InputOTPSlot from @/components/ui/input-otp
-  5. Restore the OTP verification UI in the return statement
-
-  Previous implementation used:
-  - @convex-dev/auth/providers/Email
-  - 6-digit OTP tokens
-  - 15-minute token expiration
-  - Email sending via vly.ai service
-
-  This has been replaced with Supabase email/password authentication.
-*/
