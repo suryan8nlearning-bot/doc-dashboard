@@ -271,217 +271,138 @@ export function DocumentsTable({
               </DropdownMenuCheckboxItem>
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* Add: Select all (moved out of table header) */}
+          <div className="hidden md:flex items-center gap-2 pl-2">
+            <Checkbox
+              checked={selectedIds.size === docs.length && docs.length > 0}
+              onCheckedChange={onToggleSelectAll}
+              aria-label="Select all documents"
+            />
+            <span className="text-xs text-muted-foreground">Select all</span>
+          </div>
         </div>
       </div>
 
       {/* Scrollable rows area */}
       <div className="max-h-[60vh] overflow-auto relative">
-        {/* Desktop table */}
-        <div className="hidden md:block">
-          <Table className="text-sm md:text-[0.95rem] table-auto">
-            <TableHeader className="sticky top-0 z-10 bg-white/[0.06] supports-[backdrop-filter]:bg-white/10 backdrop-blur-xl border-b border-white/10 shadow-inner">
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="w-12">
-                  <Checkbox
-                    checked={selectedIds.size === docs.length && docs.length > 0}
-                    onCheckedChange={onToggleSelectAll}
-                    aria-label="Select all documents"
-                  />
-                </TableHead>
-                <TableHead
-                  className="w-[96px] cursor-pointer select-none"
-                  onClick={() => toggleSort("id")}
-                >
-                  <div className="flex items-center gap-2">
-                    ID
-                    <SortIcon active={sortBy === "id"} dir={sortDir} />
-                  </div>
-                </TableHead>
-                {/* From Mail sortable - narrower */}
-                <TableHead
-                  className="w-[180px] cursor-pointer select-none"
-                  onClick={() => toggleSort("from")}
-                >
-                  <div className="flex items-center gap-2">
-                    From Mail
-                    <SortIcon active={sortBy === "from"} dir={sortDir} />
-                  </div>
-                </TableHead>
-                {/* Subject sortable - narrower min */}
-                <TableHead
-                  className="min-w-[180px] cursor-pointer select-none"
-                  onClick={() => toggleSort("subject")}
-                >
-                  <div className="flex items-center gap-2">
-                    Subject
-                    <SortIcon active={sortBy === "subject"} dir={sortDir} />
-                  </div>
-                </TableHead>
-                {/* Document sortable - narrower min */}
-                <TableHead
-                  className="min-w-[180px] cursor-pointer select-none"
-                  onClick={() => toggleSort("doc")}
-                >
-                  <div className="flex items-center gap-2">
-                    Document
-                    <SortIcon active={sortBy === "doc"} dir={sortDir} />
-                  </div>
-                </TableHead>
-                {/* Status sortable - narrower */}
-                <TableHead
-                  className="w-[120px] cursor-pointer select-none"
-                  onClick={() => toggleSort("status")}
-                >
-                  <div className="flex items-center gap-2">
-                    Status
-                    <SortIcon active={sortBy === "status"} dir={sortDir} />
-                  </div>
-                </TableHead>
-                {/* Insert: CC Emails header (visible when toggled on) */}
-                {showCC && (
-                  <TableHead
-                    className="min-w-[220px] cursor-pointer select-none"
-                    onClick={() => toggleSort("cc")}
-                  >
-                    <div className="flex items-center gap-2">
-                      CC Emails
-                      <SortIcon active={sortBy === "cc"} dir={sortDir} />
-                    </div>
-                  </TableHead>
-                )}
-                {/* Insert: Mail Data header */}
-                <TableHead className="min-w-[220px]">
-                  <div className="flex items-center gap-2">
-                    Mail
-                    {/* purely label, no sorting for mail content */}
-                  </div>
-                </TableHead>
-                <TableHead className="w-0 p-0 hidden">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody className="divide-y divide-white/10">
-              {visible.map((doc, idx) => {
-                const docName =
-                  extractDocName(doc.bucket_name) ||
-                  extractDocName(doc.title || "") ||
-                  extractDocName(doc.subject || "") ||
-                  doc.id;
-                const subject = truncateText(doc.subject || "—", 80);
-                const ccDisplay = Array.isArray(doc.cc_emails) && doc.cc_emails.length
-                  ? doc.cc_emails.join(", ")
-                  : "—";
-                const mailSnippet = truncateText(doc.mail_content || "—", 120);
+        {/* Desktop roomy card list */}
+        <div className="hidden md:block p-3 space-y-3">
+          {visible.map((doc, idx) => {
+            const docName =
+              extractDocName(doc.bucket_name) ||
+              extractDocName(doc.title || "") ||
+              extractDocName(doc.subject || "") ||
+              doc.id;
+            const subject = truncateText(doc.subject || "—", 120);
+            const ccDisplay =
+              Array.isArray(doc.cc_emails) && doc.cc_emails.length
+                ? doc.cc_emails.join(", ")
+                : "—";
+            const mailSnippet = truncateText(doc.mail_content || "—", 220);
 
-                return (
-                  <MotionTableRow
-                    key={doc.id}
-                    className={`${
-                      selectedIds.has(doc.id)
-                        ? "bg-white/[0.12] ring-1 ring-white/20 shadow-inner"
-                        : "odd:bg-white/[0.02] even:bg-white/[0.04]"
-                    } hover:bg-white/[0.08] transition-colors border-b border-white/10 backdrop-blur-xl group cursor-pointer`}
-                    initial={{ opacity: 0, y: 16 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.35, ease: "easeOut", delay: Math.min(idx * 0.03, 0.4) }}
-                    whileHover={{ y: -2 }}
-                    whileTap={{ scale: 0.995 }}
-                    layout
-                    // Make the entire row navigable
-                    onClick={() => handleOpen(doc.id)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        handleOpen(doc.id);
-                      }
-                    }}
-                  >
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <Checkbox
-                        checked={selectedIds.has(doc.id)}
-                        onCheckedChange={() => onToggleSelect(doc.id)}
-                        aria-label={`Select document ${doc.id}`}
-                      />
-                    </TableCell>
-                    <TableCell className="break-all whitespace-normal font-mono text-[10px] leading-tight max-w-[120px]">
-                      {doc.id}
-                    </TableCell>
-                    {/* From Mail - narrower */}
-                    <TableCell className="truncate max-w-[180px]" title={doc.from_email || "—"}>
-                      {doc.from_email || "—"}
-                    </TableCell>
-                    {/* Subject - narrower */}
-                    <TableCell className="truncate max-w-[220px]" title={doc.subject || "—"}>
-                      {subject}
-                    </TableCell>
-                    {/* Document - narrower */}
-                    <TableCell className="truncate max-w-[220px]" title={docName}>
-                      {docName}
-                    </TableCell>
-                    {/* Status */}
-                    <TableCell>
-                      <StatusBadge value={doc.status} />
-                    </TableCell>
-                    {/* Insert: CC Emails cell (conditional) */}
-                    {showCC && (
-                      <TableCell className="truncate max-w-[260px]" title={ccDisplay}>
-                        {ccDisplay}
-                      </TableCell>
-                    )}
-                    {/* Insert: Mail Data cell (truncated, clickable to open) */}
-                    <TableCell
-                      className="truncate max-w-[280px] text-muted-foreground"
-                      title={mailSnippet}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onViewMailContent(doc.mail_content || "");
-                      }}
-                    >
-                      {mailSnippet}
-                    </TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()} className="hidden">
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur transition-transform active:scale-95"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (onEdit) onEdit(doc.id);
-                            else onViewDetails(doc.id);
-                          }}
-                          aria-label="Edit document"
-                          title="Edit"
+            return (
+              <motion.div
+                key={doc.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{
+                  duration: 0.3,
+                  ease: "easeOut",
+                  delay: Math.min(idx * 0.03, 0.35),
+                }}
+                whileHover={{ y: -2 }}
+                whileTap={{ scale: 0.995 }}
+                onClick={() => handleOpen(doc.id)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    handleOpen(doc.id);
+                  }
+                }}
+                className={`group rounded-2xl border border-white/10 ${
+                  selectedIds.has(doc.id)
+                    ? "bg-white/[0.14] ring-1 ring-white/20"
+                    : "bg-white/[0.06]"
+                } supports-[backdrop-filter]:bg-white/10 backdrop-blur px-5 py-4 shadow-sm cursor-pointer`}
+              >
+                {/* Top row: checkbox, title, status */}
+                <div className="flex items-start gap-3">
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                      checked={selectedIds.has(doc.id)}
+                      onCheckedChange={() => onToggleSelect(doc.id)}
+                      aria-label={`Select ${doc.id}`}
+                    />
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div
+                          className="text-base font-semibold truncate"
+                          title={docName}
                         >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur transition-transform active:scale-95"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpen(doc.id);
-                          }}
-                          aria-label="Open details"
-                          title="Open"
-                          disabled={openingId === doc.id}
-                          aria-busy={openingId === doc.id}
-                        >
-                          {openingId === doc.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <ChevronRight className="h-4 w-4" />
-                          )}
-                        </Button>
+                          {docName}
+                        </div>
+                        <div className="mt-1 text-sm text-muted-foreground truncate" title={subject}>
+                          {subject}
+                        </div>
                       </div>
-                    </TableCell>
-                  </MotionTableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+
+                      <div className="shrink-0">
+                        <StatusBadge value={doc.status} />
+                      </div>
+                    </div>
+
+                    {/* Meta rows */}
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-[11px] uppercase tracking-wide text-muted-foreground">ID</span>
+                        <span className="font-mono text-xs truncate" title={doc.id}>
+                          {doc.id}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-[11px] uppercase tracking-wide text-muted-foreground">From</span>
+                        <span className="text-xs truncate" title={doc.from_email || "—"}>
+                          {doc.from_email || "—"}
+                        </span>
+                      </div>
+
+                      {showCC && (
+                        <div className="flex items-center gap-2 min-w-0 sm:col-span-2">
+                          <span className="text-[11px] uppercase tracking-wide text-muted-foreground">CC</span>
+                          <span className="text-xs truncate" title={ccDisplay}>
+                            {ccDisplay}
+                          </span>
+                        </div>
+                      )}
+
+                      <div
+                        className="flex items-start gap-2 min-w-0 sm:col-span-2"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onViewMailContent(doc.mail_content || "");
+                        }}
+                        role="button"
+                        title="Click to view full mail content"
+                      >
+                        <span className="text-[11px] uppercase tracking-wide text-muted-foreground mt-0.5">
+                          Mail
+                        </span>
+                        <span className="text-xs text-muted-foreground truncate max-w-full">
+                          {mailSnippet}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })}
         </div>
 
         {/* Mobile card list */}
