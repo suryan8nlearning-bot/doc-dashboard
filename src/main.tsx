@@ -7,7 +7,8 @@ import "./index.css";
 import "./types/global.d.ts";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
-import { ConvexProvider, ConvexReactClient } from "convex/react";
+import { ConvexProviderWithAuth } from "@convex-dev/auth/react";
+import { ConvexReactClient } from "convex/react";
 
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL as string);
 
@@ -176,7 +177,7 @@ function RouteProgressBar() {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <ConvexProvider client={convex}>
+    <ConvexProviderWithAuth client={convex}>
       <InstrumentationProvider>
         <IdleSessionProvider>
           <PendingProvider>
@@ -199,6 +200,6 @@ createRoot(document.getElementById("root")!).render(
           </PendingProvider>
         </IdleSessionProvider>
       </InstrumentationProvider>
-    </ConvexProvider>
+    </ConvexProviderWithAuth>
   </StrictMode>,
 );
