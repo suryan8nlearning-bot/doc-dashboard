@@ -380,8 +380,7 @@ export function DocumentsTable({
       {/* Scrollable rows area */}
       <div className="max-h-[60vh] md:max-h-[60vh] overflow-auto relative">
         {/* Desktop compact card list */}
-        <TooltipProvider>
-          <div className="hidden md:block p-3 space-y-2.5">
+        <div className="hidden md:block p-3 space-y-2.5">
             {visible.map((doc) => {
               const docName =
                 extractDocName(doc.bucket_name) ||
@@ -532,8 +531,7 @@ export function DocumentsTable({
                 </motion.div>
               );
             })}
-          </div>
-        </TooltipProvider>
+        </div>
 
         {/* Mobile card list (smaller paddings) */}
         <div className="md:hidden p-3 space-y-2.5">
