@@ -6,6 +6,7 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/
 import { Copy, Download, ChevronDown, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import * as SalesSchema from "@/schemas/salesOrderCreate";
+import { motion } from "framer-motion";
 
 type SAPJsonCardProps = {
   data: unknown;
@@ -325,6 +326,9 @@ export function SAPJsonCard({
 
     const open = expanded.has(path);
 
+    // NEW: determine when immediate children are all leaves to layout as an auto-fit grid
+    const allImmediateLeaves = entries.every(([_, v]) => !isObjectLike(v));
+
     return (
       <Accordion
         type="single"
@@ -358,16 +362,27 @@ export function SAPJsonCard({
             )}
           </AccordionTrigger>
           <AccordionContent className="mt-0.5 pl-0">
-            {entries.map(([k, v]) => (
-              <TreeNode
-                key={`${path}.${k}`}
-                label={k}
-                value={v}
-                path={`${path}.${k}`}
-                depth={depth + 1}
-                sectionColor={sectionColor}
-              />
-            ))}
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              transition={{ duration: 0.18, ease: "easeOut" }}
+              className={
+                allImmediateLeaves
+                  ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-1 pt-1"
+                  : "space-y-1 pt-1"
+              }
+            >
+              {entries.map(([k, v]) => (
+                <TreeNode
+                  key={`${path}.${k}`}
+                  label={k}
+                  value={v}
+                  path={`${path}.${k}`}
+                  depth={depth + 1}
+                  sectionColor={sectionColor}
+                />
+              ))}
+            </motion.div>
           </AccordionContent>
         </AccordionItem>
       </Accordion>
@@ -484,6 +499,14 @@ export function SAPJsonCard({
                   Object.entries(ordered as Record<string, any>).map(([k, v]) => {
                     const color = colorForKey(k);
                     const open = rootExpanded.has(k);
+                    // NEW: compute grid layout for immediate children if they are leaves
+                    const objectEntries = isObjectLike(v) && !Array.isArray(v)
+                      ? Object.entries(v as Record<string, any>)
+                      : [];
+                    const rootAllLeaves =
+                      objectEntries.length > 0 &&
+                      objectEntries.every(([_, sv]) => !isObjectLike(sv));
+
                     return (
                       <div
                         key={k}
@@ -498,21 +521,34 @@ export function SAPJsonCard({
                           onToggle={toggleRoot}
                         />
                         {open && (
-                          <div className="pt-1">
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            transition={{ duration: 0.18, ease: "easeOut" }}
+                            className="pt-1"
+                          >
                             {isObjectLike(v) ? (
                               Array.isArray(v) ? (
                                 <TreeNode label="[]" value={v} path={`$.${k}`} depth={0} sectionColor={color} />
                               ) : (
-                                Object.entries(v as Record<string, any>).map(([sk, sv]) => (
-                                  <TreeNode
-                                    key={`$.${k}.${sk}`}
-                                    label={sk}
-                                    value={sv}
-                                    path={`$.${k}.${sk}`}
-                                    depth={0}
-                                    sectionColor={color}
-                                  />
-                                ))
+                                <div
+                                  className={
+                                    rootAllLeaves
+                                      ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-1"
+                                      : "space-y-1"
+                                  }
+                                >
+                                  {Object.entries(v as Record<string, any>).map(([sk, sv]) => (
+                                    <TreeNode
+                                      key={`$.${k}.${sk}`}
+                                      label={sk}
+                                      value={sv}
+                                      path={`$.${k}.${sk}`}
+                                      depth={0}
+                                      sectionColor={color}
+                                    />
+                                  ))}
+                                </div>
                               )
                             ) : (
                               <div className="flex items-start gap-2 py-1.5 px-2 rounded-md">
@@ -523,7 +559,7 @@ export function SAPJsonCard({
                                 </span>
                               </div>
                             )}
-                          </div>
+                          </motion.div>
                         )}
                       </div>
                     );

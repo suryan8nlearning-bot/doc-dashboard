@@ -57,7 +57,15 @@ export function DashboardHeader({
       {/* Right: Actions */}
       <div className="flex items-center gap-2">
         <Button asChild variant="outline" size="sm" aria-label="Go to Dashboard" className="rounded-full">
-          <Link to="/dashboard">Dashboard</Link>
+          <Link
+            to="/dashboard"
+            onClick={() => {
+              (window as any).__routePendingStart?.();
+              window.setTimeout(() => (window as any).__routePendingStop?.(), 7000);
+            }}
+          >
+            Dashboard
+          </Link>
         </Button>
 
         <Button
