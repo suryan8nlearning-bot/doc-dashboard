@@ -181,4 +181,9 @@
   [role="button"]:not([disabled]) {
     cursor: pointer;
   }
+  
+  /* Full viewport height for layout containers */
+  html, body, #root {
+    height: 100dvh;
+  }
 }

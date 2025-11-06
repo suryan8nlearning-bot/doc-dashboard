@@ -24,7 +24,7 @@ interface PDFViewerProps {
   fitToWidthOnResize?: boolean;
 }
 
-export function PDFViewer({ pdfUrl, highlightBox, onLoad, documentData, fitToWidthInitially = false, fitToWidthOnResize = true }: PDFViewerProps) {
+export default function PDFViewer({ pdfUrl, highlightBox, onLoad, documentData, fitToWidthInitially = false, fitToWidthOnResize = true }: PDFViewerProps) {
   const [zoom, setZoom] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -761,7 +761,7 @@ const toPxBox = (box: WideBox): WideBox => {
   }
 
   return (
-    <div className="relative h-full bg-background">
+    <div className="h-full w-full overflow-auto">
       {/* Zoom HUD */}
       {showZoomHud && (
         <motion.div
@@ -988,3 +988,6 @@ const toPxBox = (box: WideBox): WideBox => {
     </div>
   );
 }
+
+// Add a named export for compatibility with namespace imports like `PDFViewer.PDFViewer`
+export { PDFViewer };

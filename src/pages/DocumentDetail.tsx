@@ -23,9 +23,11 @@ import { toast } from 'sonner';
 import { useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 
-const PDFViewerLazy = lazy(() =>
-  import('@/components/PDFViewer').then((m) => ({ default: m.PDFViewer }))
-);
+import PDFViewer from '@/components/PDFViewer'; // Add: correct default import for the PDF viewer
+
+// Add: alias to support any lingering <PDFViewer /> usages in JSX
+const PDFViewerComponent = PDFViewer;
+
 const DocumentFieldsLazy = lazy(() =>
   import('@/components/DocumentFields').then((m) => ({ default: m.DocumentFields }))
 );
@@ -1786,7 +1788,7 @@ export default function DocumentDetail() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-background overflow-hidden">
+    <div className="h-[100dvh] w-full overflow-hidden">
       {/* Header */}
       <header className="border-b bg-background sticky top-0 z-10">
         <div className="flex items-center justify-between px-8 py-4">
@@ -2016,7 +2018,7 @@ export default function DocumentDetail() {
                 </Button>
               </div>
               <Suspense fallback={<PDFSkeleton />}>
-                <PDFViewerLazy
+                <PDFViewerComponent
                   pdfUrl={doc.pdf_url}
                   highlightBox={highlightBox}
                   documentData={showSAP ? doc.document_data : undefined}
@@ -2056,7 +2058,7 @@ export default function DocumentDetail() {
                   </Button>
                 </div>
                 <Suspense fallback={<PDFSkeleton />}>
-                  <PDFViewerLazy
+                  <PDFViewerComponent
                     key={leftPanelWidth ? `pdf-${leftPanelWidth}` : 'pdf'}
                     pdfUrl={doc.pdf_url}
                     highlightBox={highlightBox}
