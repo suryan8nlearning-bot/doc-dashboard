@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { useAction } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import type { BoundingBox, DocumentData as ExtractedDocumentData } from '@/lib/supabase';
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 interface PDFViewerProps {
   pdfUrl: string;
@@ -1011,17 +1012,28 @@ const toPxBox = (box: WideBox): WideBox => {
                       }}
                     />
                     {text && (
-                      <div
-                        key={`label-${idx}`}
-                        className="absolute z-[12] pointer-events-none px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-background/85 border shadow-sm max-w-[50%] truncate"
-                        style={{
-                          left: `${(bb.x) * zoom}px`,
-                          top: `${(bb.y) * zoom}px`,
-                        }}
-                        title={String(text)}
-                      >
-                        {String(text)}
-                      </div>
+                      <Tooltip key={`label-wrap-${idx}`}>
+                        <TooltipTrigger asChild>
+                          <div
+                            className="absolute z-[12] px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-background/85 border shadow-sm max-w-[50%] truncate pointer-events-auto cursor-help"
+                            style={{
+                              left: `${bb.x * zoom}px`,
+                              top: `${bb.y * zoom}px`,
+                            }}
+                          >
+                            {String(text)}
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent sideOffset={6}>
+                          <div className="text-xs space-y-1">
+                            <div className="font-medium">{String(text)}</div>
+                            <div className="text-muted-foreground">
+                              x:{Math.round(bb.x)}, y:{Math.round(bb.y)}, w:{Math.round(bb.width)}, h:{Math.round(bb.height)}
+                              {(box as any)?.page ? `, p:${(box as any).page}` : ""}
+                            </div>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
                     )}
                   </>
                 );
@@ -1074,18 +1086,31 @@ const toPxBox = (box: WideBox): WideBox => {
                     willChange: "transform, opacity",
                   }}
                 />
-                <div
-                  className="absolute z-[60] pointer-events-none px-2 py-1 rounded-md text-[10px] font-medium bg-background/85 border shadow-sm"
-                  style={{
-                    left: `${(hb.x - pad) * zoom}px`,
-                    top: `${(hb.y - pad - 22) * zoom}px`,
-                    transform: "translateY(-4px)",
-                    whiteSpace: "nowrap",
-                    borderColor: ring,
-                  }}
-                >
-                  {label}
-                </div>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div
+                      className="absolute z-[60] px-2 py-1 rounded-md text-[10px] font-medium bg-background/85 border shadow-sm pointer-events-auto cursor-help"
+                      style={{
+                        left: `${(hb.x - pad) * zoom}px`,
+                        top: `${(hb.y - pad - 22) * zoom}px`,
+                        transform: "translateY(-4px)",
+                        whiteSpace: "nowrap",
+                        borderColor: ring,
+                      }}
+                    >
+                      {label}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent sideOffset={6}>
+                    <div className="text-xs space-y-1">
+                      <div className="font-medium">{label}</div>
+                      <div className="text-muted-foreground">
+                        x:{Math.round(hb.x)}, y:{Math.round(hb.y)}, w:{Math.round(hb.width)}, h:{Math.round(hb.height)}
+                        {(hbNorm as any)?.page ? `, p:${(hbNorm as any).page}` : ""}
+                      </div>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
               </>
             );
           })()}
