@@ -192,18 +192,50 @@ const toPxBox = (box: WideBox): WideBox => {
   const srcW = src?.width && src.width > 0 ? src.width : base.width;
   const srcH = src?.height && src.height > 0 ? src.height : base.height;
 
-  // Map source -> canvas base pixels
-  let pxX = isNormalized ? box.x * base.width : (box.x / srcW) * base.width;
-  let pxY = isNormalized ? box.y * base.height : (box.y / srcH) * base.height;
-  let pxW = isNormalized ? box.width * base.width : (box.width / srcW) * base.width;
-  let pxH = isNormalized ? box.height * base.height : (box.height / srcH) * base.height;
+  // Project with a configurable invertY
+  const project = (invert: boolean) => {
+    let pxX = isNormalized ? box.x * base.width : (box.x / srcW) * base.width;
+    let pxY = isNormalized ? box.y * base.height : (box.y / srcH) * base.height;
+    let pxW = isNormalized ? box.width * base.width : (box.width / srcW) * base.width;
+    let pxH = isNormalized ? box.height * base.height : (box.height / srcH) * base.height;
 
-  // Optional bottom-left → top-left conversion
-  if (invertY) {
-    pxY = base.height - (pxY + pxH);
-  }
+    if (invert) {
+      pxY = base.height - (pxY + pxH);
+    }
 
-  return { x: pxX, y: pxY, width: pxW, height: pxH, page: (box as any).page, color: (box as any).color } as WideBox;
+    return { x: pxX, y: pxY, width: pxW, height: pxH };
+  };
+
+  // Score a projection by how "inside" the canvas it is
+  const score = (p: { x: number; y: number; width: number; height: number }) => {
+    const pad = 0; // strict containment
+    const inX = p.x >= -pad && p.x + p.width <= base.width + pad;
+    const inY = p.y >= -pad && p.y + p.height <= base.height + pad;
+    // Prefer fully in-bounds; if both or neither, prefer the one with less overflow
+    if (inX && inY) return 1000; // perfect
+    const overflowX =
+      (p.x < 0 ? -p.x : 0) + (p.x + p.width > base.width ? p.x + p.width - base.width : 0);
+    const overflowY =
+      (p.y < 0 ? -p.y : 0) + (p.y + p.height > base.height ? p.y + p.height - base.height : 0);
+    return Math.max(0, 1000 - (overflowX + overflowY)); // lower overflow => higher score
+  };
+
+  const primary = project(invertY);
+  const fallback = project(!invertY);
+
+  const primaryScore = score(primary);
+  const fallbackScore = score(fallback);
+
+  const chosen = fallbackScore > primaryScore ? fallback : primary;
+
+  return {
+    x: chosen.x,
+    y: chosen.y,
+    width: chosen.width,
+    height: chosen.height,
+    page: (box as any).page,
+    color: (box as any).color,
+  } as WideBox;
 };
 
   const fetchPdfProxy = useAction(api.documents.fetchPdfProxy);
