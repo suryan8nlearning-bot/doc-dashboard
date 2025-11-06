@@ -202,11 +202,9 @@ export function SAPJsonCard({
   useEffect(() => {
     if (!initExpandedApplied && allExpandablePaths.length > 0) {
       setExpanded(new Set(allExpandablePaths));
-      // Also expand all root sections initially so the UI is visible immediately
-      setRootExpanded(new Set(rootKeys));
       setInitExpandedApplied(true);
     }
-  }, [allExpandablePaths, rootKeys, initExpandedApplied]);
+  }, [allExpandablePaths, initExpandedApplied]);
 
   // Add: derive root keys for expand/collapse all at the section level
   const rootKeys = useMemo<Array<string>>(() => {
@@ -217,6 +215,13 @@ export function SAPJsonCard({
       return [];
     }
   }, [ordered]);
+
+  // Add: auto-expand top-level sections once (so hierarchy is visible)
+  useEffect(() => {
+    if (!initExpandedApplied && rootKeys.length > 0) {
+      setRootExpanded(new Set(rootKeys));
+    }
+  }, [rootKeys, initExpandedApplied]);
 
   const handleCopy = async () => {
     try {
@@ -407,7 +412,16 @@ export function SAPJsonCard({
   }) => {
     return (
       <button
+        type="button"
         onClick={() => onToggle(id)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onToggle(id);
+          }
+        }}
+        aria-expanded={isOpen}
+        aria-controls={`section-${id}`}
         className="flex items-center justify-between w-full py-2.5 px-3 hover:bg-muted/50 transition-colors rounded-lg group"
       >
         <div className="flex items-center gap-2">
