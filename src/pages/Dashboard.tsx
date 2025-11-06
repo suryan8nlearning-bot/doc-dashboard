@@ -399,30 +399,129 @@ export default function Dashboard() {
     return "";
   };
 
+  // Add helpers to detect and find SAP-like objects anywhere in a nested JSON payload
+  // SAP-like if it contains any of the common keys or looks like a Sales Order payload
+  const hasSAPShape = (obj: any): boolean => {
+    if (!obj || typeof obj !== "object") return false;
+    const keys = new Set(Object.keys(obj));
+    const hasKnownArrays =
+      keys.has("to_Item") ||
+      keys.has("to_Partner") ||
+      keys.has("to_PricingElement");
+    const hasHeaderHints =
+      keys.has("SalesOrderType") ||
+      keys.has("SalesOrganization") ||
+      keys.has("SoldToParty");
+    // Consider it SAP-like if it has known arrays, or typical header hints
+    return hasKnownArrays || hasHeaderHints;
+  };
+
+  const deepFindSAP = (obj: any, maxDepth: number = 6): any | null => {
+    if (!obj || typeof obj !== "object" || maxDepth < 0) return null;
+    if (hasSAPShape(obj)) return obj;
+
+    // breadth-first over own enumerable properties
+    for (const k of Object.keys(obj)) {
+      try {
+        const v = (obj as any)[k];
+        if (!v) continue;
+        if (typeof v === "string") {
+          // try parsing strings that might contain JSON
+          const s = v.trim();
+          if (
+            (s.startsWith("{") && s.endsWith("}")) ||
+            (s.startsWith("[") && s.endsWith("]"))
+          ) {
+            try {
+              const parsed = JSON.parse(s);
+              const found = deepFindSAP(parsed, maxDepth - 1);
+              if (found) return found;
+            } catch {
+              // ignore parse errors
+            }
+          }
+        } else if (typeof v === "object") {
+          if (hasSAPShape(v)) return v;
+          const found = deepFindSAP(v, maxDepth - 1);
+          if (found) return found;
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return null;
+  };
+
   /**
    * Extracts SAP output object from a row. Accepts multiple field name variants and string/object inputs.
    * Returns the "output" object if present, otherwise the parsed object itself.
    */
   const extractSapOutput = (row: any): any | undefined => {
     if (!row) return undefined;
+
+    const tryParse = (cand: any): any | null => {
+      if (!cand) return null;
+      try {
+        const obj = typeof cand === "string" ? JSON.parse(cand) : cand;
+        return obj ?? null;
+      } catch {
+        return null;
+      }
+    };
+
+    // Common candidate fields across variations
     const candidates: Array<any> = [
       row?.SAP_AI_OUTPUT,
       row?.sap_ai_output,
-      row?.['SAP_AI_OUTPUT'],
+      row?.["SAP_AI_OUTPUT"],
       row?.sap_payload,
+      row?.sap_output,
+      row?.SAP_output,
+      row?.SAP_Output,
       row?.SAP,
       row?.sap,
+      row?.output,
+      row?.Output,
+      row?.json,
+      row?.data,
+      row?.payload,
+      row?.body,
+      // nested common containers
+      row?.data?.output,
+      row?.payload?.output,
+      row?.json?.output,
+      row?.SAP?.output,
+      row?.sap?.output,
     ];
+
+    // 1) Direct candidates
     for (const cand of candidates) {
-      if (!cand) continue;
-      try {
-        const obj = typeof cand === 'string' ? JSON.parse(cand) : cand;
-        const out = obj?.output ?? obj;
-        if (out && typeof out === 'object') return out;
-      } catch {
-        // ignore parse errors
+      const obj = tryParse(cand);
+      if (!obj) continue;
+      const out = obj?.output ?? obj?.Output ?? obj;
+      if (out && typeof out === "object") {
+        if (hasSAPShape(out)) return out;
+        const deep = deepFindSAP(out);
+        if (deep) return deep;
       }
     }
+
+    // 2) If still not found, try the entire row deeply
+    const deep = deepFindSAP(row);
+    if (deep) return deep;
+
+    // 3) As a last resort, try parsing a few known stringified containers in row
+    for (const key of ["SAP", "sap", "output", "json", "data", "payload", "body"]) {
+      const val = row?.[key];
+      const obj = tryParse(val);
+      if (obj && typeof obj === "object") {
+        const out = obj?.output ?? obj?.Output ?? obj;
+        if (hasSAPShape(out)) return out;
+        const found = deepFindSAP(out);
+        if (found) return found;
+      }
+    }
+
     return undefined;
   };
 
@@ -526,6 +625,61 @@ export default function Dashboard() {
   // Memoize schema order tree once
   const orderTree = useMemo(() => deriveOrderTreeFromSchema(SalesSchema), []);
 
+  // Add a generic JSON tree renderer fallback that mirrors the provided JSON hierarchy
+  const renderJsonTree = (value: any, keyLabel?: string, depth: number = 0) => {
+    const pad = Math.min(depth, 10);
+    const indentCls = `pl-${Math.min(8, pad * 2)}`;
+    const label = keyLabel ?? "";
+
+    if (value === null || typeof value !== "object") {
+      return (
+        <div className={`text-sm ${indentCls}`}>
+          {label ? <span className="text-muted-foreground mr-1">{label}:</span> : null}
+          <span className="font-medium">{String(value)}</span>
+        </div>
+      );
+    }
+
+    if (Array.isArray(value)) {
+      return (
+        <div className={`space-y-1 ${indentCls}`}>
+          {label ? <div className="text-xs uppercase tracking-wide text-muted-foreground">{label} [ ]</div> : null}
+          <div className="space-y-2">
+            {value.map((item, i) => (
+              <div key={`${label ?? "arr"}-${i}`} className="rounded-sm border border-white/10 p-2">
+                {renderJsonTree(item, `${i}`, depth + 1)}
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // Object
+    const entries = Object.entries(value);
+    return (
+      <div className={`space-y-1 ${indentCls}`}>
+        {label ? <div className="text-xs uppercase tracking-wide text-muted-foreground">{label} {'{ }'}</div> : null}
+        <div className="space-y-1">
+          {entries.length === 0 ? (
+            <div className="text-sm text-muted-foreground">Empty object</div>
+          ) : (
+            entries.map(([k, v]) => (
+              <details key={`${k}-${depth}`} open={depth <= 1} className="rounded-sm border border-white/10">
+                <summary className="cursor-pointer select-none text-sm px-2 py-1 bg-card/40">
+                  <span className="font-medium">{k}</span>
+                </summary>
+                <div className="p-2">
+                  {renderJsonTree(v, undefined, depth + 1)}
+                </div>
+              </details>
+            ))
+          )}
+        </div>
+      </div>
+    );
+  };
+
   // Shrink and wrap SAP KV rows for denser display
   function KV({ label, value }: { label: string; value: any }) {
     return (
@@ -538,10 +692,21 @@ export default function Dashboard() {
     );
   }
 
-  // Render grouped SAP payload
+  // Replace renderSap to fallback to hierarchical JSON view when shape is unknown
   const renderSap = (out: any) => {
     if (!out || typeof out !== 'object') {
       return <div className="text-sm text-muted-foreground">No SAP data.</div>;
+    }
+
+    // If it doesn't have recognizable SAP shape, render raw hierarchy from provided JSON
+    const looksSAP = hasSAPShape(out);
+    if (!looksSAP) {
+      return (
+        <div className="space-y-2">
+          <div className="font-semibold">SAP Payload (Hierarchical)</div>
+          {renderJsonTree(out)}
+        </div>
+      );
     }
 
     // Use schema order for the output object (use output-level if present)
