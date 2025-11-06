@@ -302,15 +302,19 @@ export function SAPJsonCard({
     const indentStyle = { paddingLeft: `${depth * 16}px` };
 
     if (!isComplex) {
+      // Replace simple leaf rendering to match DocumentFields FieldItem style
       return (
-        <div className="flex items-start gap-2 py-1.5 px-2 hover:bg-muted/40 rounded-md" style={indentStyle}>
-          {sectionColor && (
-            <span className="inline-block h-2 w-2 rounded-full mt-1" style={{ backgroundColor: sectionColor }} />
-          )}
-          <span className="text-xs font-medium text-foreground">{label}:</span>
-          <span className="text-xs font-mono text-muted-foreground break-all">
+        <div
+          className="py-2.5 px-3 rounded-lg transition-all border bg-card/50 hover:bg-primary/5 hover:border-primary/30 hover:shadow-sm border-l-2"
+          style={{ ...indentStyle, borderLeftColor: sectionColor || 'transparent' }}
+        >
+          <div className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-2">
+            {sectionColor && <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: sectionColor }} />}
+            {label}
+          </div>
+          <div className="text-sm font-medium text-foreground break-words whitespace-pre-wrap">
             {value === null ? "null" : typeof value === "string" ? `"${value}"` : String(value)}
-          </span>
+          </div>
         </div>
       );
     }
@@ -319,11 +323,13 @@ export function SAPJsonCard({
       ? (value as any[]).map((v, i) => [`[${i}]`, v] as const)
       : Object.entries(value as Record<string, any>);
 
+    const open = expanded.has(path);
+
     return (
       <Accordion
         type="single"
         collapsible
-        value={expanded.has(path) ? path : ""}
+        value={open ? path : ""}
         onValueChange={(val) =>
           setExpanded((prev) => {
             const next = new Set(prev);
@@ -334,17 +340,22 @@ export function SAPJsonCard({
         }
       >
         <AccordionItem value={path} className="border-none">
+          {/* Update trigger to match DocumentFields SectionHeader style */}
           <AccordionTrigger
-            className="w-full flex items-center gap-2 py-1.5 px-2 hover:bg-muted/50 rounded-md"
+            className="w-full flex items-center justify-between py-2.5 px-3 hover:bg-muted/50 transition-colors rounded-lg group"
             style={indentStyle}
           >
-            {sectionColor && (
-              <span className="inline-block h-3 w-1.5 rounded-sm" style={{ backgroundColor: sectionColor }} />
+            <div className="flex items-center gap-2">
+              {sectionColor && <span className="inline-block h-3 w-1.5 rounded-sm" style={{ backgroundColor: sectionColor }} />}
+              <span className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
+                {label}
+              </span>
+            </div>
+            {open ? (
+              <ChevronDown className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
             )}
-            <span className="text-xs font-semibold text-foreground">{label}</span>
-            <span className="ml-2 text-[10px] text-muted-foreground">
-              {isArr(value) ? `[${(value as any[]).length}]` : `{${Object.keys(value as any).length}}`}
-            </span>
           </AccordionTrigger>
           <AccordionContent className="mt-0.5 pl-0">
             {entries.map(([k, v]) => (
