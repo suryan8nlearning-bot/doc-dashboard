@@ -323,13 +323,14 @@ const toPxBox = (box: WideBox): WideBox => {
     const page = pages.find((p: any) => p?.page_number === currentPage) ?? pages[0];
 
     // Boxes container should include optional page
-    const boxes: Array<(BoundingBox & { page?: number; label?: string })> = [];
+    const boxes: Array<(BoundingBox & { page?: number; label?: string; value?: string })> = [];
 
+    // Collect a field with its label and value so we can display value on the overlay
     const pushField = (label: string, field?: { value?: string; bounding_box?: any[] }) => {
       if (!field?.bounding_box?.length) return;
       field.bounding_box.forEach((b) => {
         const nb = normalizeBoxAny(b);
-        if (nb) boxes.push({ ...nb, label });
+        if (nb) boxes.push({ ...nb, label, value: field.value });
       });
     };
 
@@ -353,7 +354,10 @@ const toPxBox = (box: WideBox): WideBox => {
         if (item?.bounding_box?.length) {
           item.bounding_box.forEach((b: any) => {
             const nb = normalizeBoxAny(b);
-            if (nb) boxes.push({ ...nb, label: `Item ${idx + 1}` });
+            // Include a brief value if available (item.description is a string in your schema)
+            const desc: string = typeof item?.description === 'string' ? item.description : '';
+            const value = desc ? `Item ${idx + 1}: ${desc}` : `Item ${idx + 1}`;
+            if (nb) boxes.push({ ...nb, label: `Item ${idx + 1}`, value });
           });
         }
       });
@@ -436,7 +440,10 @@ const toPxBox = (box: WideBox): WideBox => {
 
     result.mergedBoxes = merged;
     result.focusBox = keyBox ? { x: keyBox.x, y: keyBox.y, width: keyBox.width, height: keyBox.height } : null;
-    result.allBoxes = boxes.map(({ x, y, width, height, page }) => ({ x, y, width, height, page } as any));
+    // Preserve label/value for overlays
+    result.allBoxes = boxes.map(({ x, y, width, height, page, label, value }) => (
+      { x, y, width, height, page, label, value } as any
+    ));
     result.sourceDims = { width: maxRight, height: maxBottom };
     return result;
   }, [documentData, currentPage]);
@@ -981,25 +988,42 @@ const toPxBox = (box: WideBox): WideBox => {
               {allBoxes.map((box, idx) => {
                 const bb = toPxBox(box as any);
                 const pad = 2;
+                const text: string | undefined =
+                  (box as any)?.value || (box as any)?.label || undefined;
                 // Optional: only render when debugMode OR always – we keep them always visible for now
                 if (debugMode) {
                   console.debug('PDFViewer: box', idx, { bb, zoom, canvasSize });
                 }
                 return (
-                  <div
-                    key={idx}
-                    className="absolute pointer-events-none rounded-sm"
-                    style={{
-                      left: `${(bb.x - pad) * zoom}px`,
-                      top: `${(bb.y - pad) * zoom}px`,
-                      width: `${(bb.width + pad * 2) * zoom}px`,
-                      height: `${(bb.height + pad * 2) * zoom}px`,
-                      // Lighter visuals so overlaps don't flood the page
-                      boxShadow: "0 0 0 1px rgba(59,130,246,0.8), 0 0 0 6px rgba(59,130,246,0.18)",
-                      background: "rgba(59,130,246,0.05)",
-                      zIndex: 10,
-                    }}
-                  />
+                  <>
+                    <div
+                      key={`box-${idx}`}
+                      className="absolute pointer-events-none rounded-sm"
+                      style={{
+                        left: `${(bb.x - pad) * zoom}px`,
+                        top: `${(bb.y - pad) * zoom}px`,
+                        width: `${(bb.width + pad * 2) * zoom}px`,
+                        height: `${(bb.height + pad * 2) * zoom}px`,
+                        // Lighter visuals so overlaps don't flood the page
+                        boxShadow: "0 0 0 1px rgba(59,130,246,0.8), 0 0 0 6px rgba(59,130,246,0.18)",
+                        background: "rgba(59,130,246,0.05)",
+                        zIndex: 10,
+                      }}
+                    />
+                    {text && (
+                      <div
+                        key={`label-${idx}`}
+                        className="absolute z-[12] pointer-events-none px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-background/85 border shadow-sm max-w-[50%] truncate"
+                        style={{
+                          left: `${(bb.x) * zoom}px`,
+                          top: `${(bb.y) * zoom}px`,
+                        }}
+                        title={String(text)}
+                      >
+                        {String(text)}
+                      </div>
+                    )}
+                  </>
                 );
               })}
             </>
@@ -1024,7 +1048,13 @@ const toPxBox = (box: WideBox): WideBox => {
             const ring = baseColor;
             const glow = withAlpha(baseColor, '59');
             const fill = withAlpha(baseColor, '33');
-            const label = `x:${Math.round(hb.x)}, y:${Math.round(hb.y)}, w:${Math.round(hb.width)}, h:${Math.round(hb.height)}${(hbNorm as any).page ? `, p:${(hbNorm as any).page}` : ""}`;
+            const fieldText =
+              (highlightBox as any)?.value ||
+              (highlightBox as any)?.label ||
+              (highlightBox as any)?.text;
+            const label = fieldText
+              ? String(fieldText)
+              : `x:${Math.round(hb.x)}, y:${Math.round(hb.y)}, w:${Math.round(hb.width)}, h:${Math.round(hb.height)}${(hbNorm as any).page ? `, p:${(hbNorm as any).page}` : ""}`;
 
             return (
               <>
