@@ -108,8 +108,10 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md border border-white/10 bg-background/60 backdrop-blur-md shadow-md">
+    <div className="relative min-h-screen flex items-center justify-center bg-background p-6 overflow-hidden">
+      <div className="pointer-events-none absolute -z-10 top-[-10%] left-[-10%] h-80 w-80 rounded-full bg-primary/20 blur-3xl" />
+      <div className="pointer-events-none absolute -z-10 bottom-[-10%] right-[-10%] h-80 w-80 rounded-full bg-accent/20 blur-3xl" />
+      <Card className="w-full max-w-md border border-white/20 bg-background/50 backdrop-blur-xl shadow-xl shadow-black/10 rounded-2xl">
         <CardHeader className="text-center">
           <div className="flex justify-center">
             <img
@@ -154,8 +156,10 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
                   </div>
                 </div>
 
-                <label className="flex items-center gap-2 text-sm text-muted-foreground select-none">
+                <label className="flex items-center gap-3 text-base text-muted-foreground select-none">
                   <Checkbox
+                    size="lg"
+                    className="rounded-md"
                     checked={remember}
                     onCheckedChange={(v) => setRemember(Boolean(v))}
                     aria-label="Remember this device for 1 day"
