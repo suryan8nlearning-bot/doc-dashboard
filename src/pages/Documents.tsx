@@ -16,7 +16,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { TooltipProvider } from '@/components/ui/tooltip';
 
 export default function Documents() {
   const { isLoading: authLoading, isAuthenticated, user, signOut } = useAuth();
@@ -394,8 +393,7 @@ export default function Documents() {
   if (!isAuthenticated) return null;
 
   return (
-    <TooltipProvider>
-      <div className="min-h-screen flex flex-col bg-background">
+    <div className="min-h-screen flex flex-col bg-background">
       <motion.header
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -489,7 +487,6 @@ export default function Documents() {
           />
         </DialogContent>
       </Dialog>
-      </div>
-    </TooltipProvider>
+    </div>
   );
 }

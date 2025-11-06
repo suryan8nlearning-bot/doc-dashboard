@@ -1,19 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { motion, AnimatePresence } from "framer-motion";
-import { Mail } from "lucide-react";
+import { motion } from "framer-motion";
+import { ChevronDown, ChevronUp, ArrowUpDown, ChevronRight, SlidersHorizontal } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { ChevronDown, ChevronUp, ArrowUpDown, ChevronRight, Loader2, Pencil } from "lucide-react";
-import { SlidersHorizontal } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,9 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ReactNode, useMemo, useState, useDeferredValue, useRef, useEffect } from "react";
 import { Switch } from "@/components/ui/switch";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-
-const MotionTableRow = motion(TableRow);
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 type DocsRow = {
   id: string;
