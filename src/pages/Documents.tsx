@@ -48,16 +48,18 @@ export default function Documents() {
   }, [authLoading, isAuthenticated, navigate]);
 
   useEffect(() => {
-    if (user?.theme) {
-      const root = document.documentElement;
-      root.classList.remove('dark', 'glass-theme');
-      if (user.theme === 'glass') root.classList.add('glass-theme');
-      else if (user.theme === 'dark') {
-        root.classList.add('dark');
-        setIsDarkMode(true);
-      }
+    const root = document.documentElement;
+    root.classList.remove('dark', 'glass-theme');
+    // Safely read a potential theme string without type errors
+    const theme = (user as any)?.theme as string | undefined;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+      setIsDarkMode(true);
+    } else {
+      root.classList.add('glass-theme');
+      setIsDarkMode(false);
     }
-  }, [user?.theme]);
+  }, [user]);
 
   useEffect(() => {
     if (isAuthenticated) {

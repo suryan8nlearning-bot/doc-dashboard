@@ -23,7 +23,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { ReactNode, useMemo, useState } from "react";
+import { ReactNode, useMemo, useState, useDeferredValue } from "react";
 import { Switch } from "@/components/ui/switch";
 import { useEffect } from "react";
 
@@ -60,15 +60,13 @@ function truncateText(text: string, maxLength = 50) {
 // Add: strip HTML and decode HTML entities for better mail snippets
 function stripTagsAndDecode(input: string) {
   if (!input) return "";
-  // Decode entities
-  let decoded = input;
-  try {
-    const ta = document.createElement("textarea");
-    ta.innerHTML = input;
-    decoded = ta.value || input;
-  } catch {
-    // ignore
-  }
+  // Very lightweight entity decode to avoid DOM usage
+  const decoded = input
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
   // Strip tags
   return decoded.replace(/<[^>]*>/g, "");
 }
@@ -130,6 +128,22 @@ export function DocumentsTable({
     }
   }, [docOnly]);
 
+  // ADD: Debounced search for smoother filtering under load
+  const deferredSearch = useDeferredValue(search.trim().toLowerCase());
+
+  // ADD: Precompute derived fields to avoid repeated heavy work
+  const derivedDocs = useMemo(() => {
+    return docs.map((d) => {
+      const docName =
+        extractDocName(d.bucket_name) ||
+        extractDocName(d.title || "") ||
+        extractDocName(d.subject || "") ||
+        d.id;
+      const mailPlain = stripTagsAndDecode(d.mail_content || "");
+      return { ...d, _docName: docName, _mailPlain: mailPlain };
+    });
+  }, [docs]);
+
   // Update: allow toggling sort for all keys
   const toggleSort = (key: "id" | "from" | "subject" | "status" | "doc" | "created" | "cc") => {
     if (sortBy === key) {
@@ -153,23 +167,24 @@ export function DocumentsTable({
   };
 
   const processed = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    const filtered = term.length
-      ? docs.filter((d) => {
+    const filtered = deferredSearch.length
+      ? derivedDocs.filter((d) => {
           const name = (d.subject || d.title || d.bucket_name || d.id || "").toLowerCase();
           const from = (d.from_email || "").toLowerCase();
           const status = (d.status || "").toLowerCase();
           const cc = (Array.isArray(d.cc_emails) ? d.cc_emails.join(",") : "").toLowerCase();
-          const mail = stripTagsAndDecode(d.mail_content || "").toLowerCase();
+          const mail = (d._mailPlain || "").toLowerCase();
+          const docName = (d._docName || "").toLowerCase();
           return (
-            name.includes(term) ||
-            from.includes(term) ||
-            status.includes(term) ||
-            cc.includes(term) ||
-            mail.includes(term)
+            name.includes(deferredSearch) ||
+            from.includes(deferredSearch) ||
+            status.includes(deferredSearch) ||
+            cc.includes(deferredSearch) ||
+            mail.includes(deferredSearch) ||
+            docName.includes(deferredSearch)
           );
         })
-      : docs;
+      : derivedDocs;
 
     const sorted = [...filtered].sort((a, b) => {
       // ID
@@ -197,10 +212,10 @@ export function DocumentsTable({
         const bsub = ((b.subject || "").replace(/<[^>]*>/g, "")).toLowerCase();
         return sortDir === "asc" ? asub.localeCompare(bsub) : bsub.localeCompare(asub);
       }
-      // Document (last path segment)
+      // Document (last path segment / derived)
       if (sortBy === "doc") {
-        const an = (extractDocName(a.bucket_name) || extractDocName(a.title || "") || extractDocName(a.subject || "") || a.id || "").toLowerCase();
-        const bn = (extractDocName(b.bucket_name) || extractDocName(b.title || "") || extractDocName(b.subject || "") || b.id || "").toLowerCase();
+        const an = (a._docName || a.id || "").toLowerCase();
+        const bn = (b._docName || b.id || "").toLowerCase();
         return sortDir === "asc" ? an.localeCompare(bn) : bn.localeCompare(an);
       }
       // Status
@@ -225,14 +240,14 @@ export function DocumentsTable({
     });
 
     return sorted;
-  }, [docs, search, sortBy, sortDir]);
+  }, [derivedDocs, deferredSearch, sortBy, sortDir]);
 
   const total = processed.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const currentPage = Math.min(page, totalPages);
   const start = (currentPage - 1) * pageSize;
   const end = Math.min(start + pageSize, total);
-  const visible = processed;
+  const visible = processed.slice(start, end);
 
   // Open immediately (no spinner state)
   const handleOpen = (id: string) => {
@@ -388,7 +403,7 @@ export function DocumentsTable({
                   selectedIds.has(doc.id)
                     ? "bg-white/[0.14] ring-1 ring-white/20"
                     : "bg-white/[0.06]"
-                } supports-[backdrop-filter]:bg-white/10 backdrop-blur px-4 py-3 shadow-sm cursor-pointer`}
+                } supports-[backdrop-filter]:bg-white/10 backdrop-blur px-4 py-2 shadow-sm cursor-pointer`}
               >
                 {/* Top row: checkbox, ID first, title, status */}
                 <div className="flex items-start gap-3">
@@ -490,7 +505,7 @@ export function DocumentsTable({
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.18, ease: "easeOut" }}
-                className="rounded-xl border border-white/10 bg-white/[0.06] supports-[backdrop-filter]:bg-white/10 backdrop-blur p-3 shadow-sm cursor-pointer"
+                className="rounded-xl border border-white/10 bg-white/[0.06] supports-[backdrop-filter]:bg-white/10 backdrop-blur p-2 shadow-sm cursor-pointer"
                 onClick={() => handleOpen(doc.id)}
                 role="button"
                 tabIndex={0}
@@ -548,8 +563,35 @@ export function DocumentsTable({
         </div>
       </div>
 
-      {/* Pagination (unused) */}
-      <div className="hidden" />
+      {/* Pagination */}
+      <div className="flex items-center justify-between p-3 border-t border-white/10 bg-white/[0.06] supports-[backdrop-filter]:bg-white/10 backdrop-blur">
+        <div className="text-xs text-muted-foreground">
+          Showing {start + 1}-{end} of {total}
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={currentPage <= 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            className="bg-white/5 hover:bg-white/10 border-white/10"
+          >
+            Prev
+          </Button>
+          <span className="text-xs text-muted-foreground">
+            Page {currentPage} / {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={currentPage >= totalPages}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            className="bg-white/5 hover:bg-white/10 border-white/10"
+          >
+            Next
+          </Button>
+        </div>
+      </div>
     </motion.div>
   );
 }
