@@ -22,7 +22,6 @@ import { useLocation } from 'react-router';
 import { toast } from 'sonner';
 import { useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { SAPJsonCard } from "@/components/SAPJsonCard";
 
 const PDFViewerLazy = lazy(() =>
   import('@/components/PDFViewer').then((m) => ({ default: m.PDFViewer }))
@@ -724,17 +723,224 @@ export default function DocumentDetail() {
     }
   };
 
-  const renderSapEditable = (out: any, collapseKey?: number, expandAll?: boolean) => {
+  const renderSapEditable = () => {
+    const out = sapObj;
     if (!out || (typeof out === "object" && out !== null && Object.keys(out).length === 0)) {
       return <div className="text-base text-muted-foreground">No SAP data.</div>;
     }
+
+    // Helper to safely update object and keep editor JSON in sync
+    const setSap = (updater: (prev: any) => any) => {
+      setSapObj((prev: any) => {
+        const next = updater(prev);
+        syncEditorFromObj(next);
+        return next;
+      });
+    };
+
+    // Editable input for primitives
+    const Field = ({
+      sectionKey,
+      fieldKey,
+      value,
+    }: {
+      sectionKey?: string;
+      fieldKey: string;
+      value: any;
+    }) => {
+      const id = `${sectionKey ? sectionKey + "." : ""}${fieldKey}`;
+      const onChangePrimitive = (raw: string | boolean) => {
+        setSap((prev) => {
+          const next = { ...prev };
+          const target = sectionKey ? { ...(next[sectionKey] || {}) } : next;
+          const original = sectionKey ? target[fieldKey] : next[fieldKey];
+          const typed =
+            typeof original === "boolean"
+              ? Boolean(raw)
+              : typeof original === "number"
+              ? Number(raw)
+              : coerceValue(String(raw), original);
+          if (sectionKey) {
+            target[fieldKey] = typed;
+            next[sectionKey] = target;
+          } else {
+            next[fieldKey] = typed;
+          }
+          return next;
+        });
+      };
+
+      const isBool = typeof value === "boolean";
+      const isNum = typeof value === "number";
+      return (
+        <div className="flex flex-col gap-1 rounded-lg border p-3">
+          <label htmlFor={id} className="text-xs text-muted-foreground">
+            {fieldKey}
+          </label>
+          {isBool ? (
+            <div className="flex items-center gap-2">
+              <Switch
+                id={id}
+                checked={Boolean(value)}
+                onCheckedChange={(v) => onChangePrimitive(v)}
+                aria-label={fieldKey}
+              />
+              <span className="text-sm">{Boolean(value) ? "True" : "False"}</span>
+            </div>
+          ) : (
+            <Input
+              id={id}
+              type={isNum ? "number" : "text"}
+              value={value ?? ""}
+              onChange={(e) => onChangePrimitive(e.target.value)}
+            />
+          )}
+        </div>
+      );
+    };
+
+    // Render object section with 3-col responsive grid of editable fields
+    const ObjectSection = ({ title, objKey, obj }: { title: string; objKey: string; obj: any }) => {
+      const entries = Object.entries(obj || {}).filter(
+        ([, v]) => typeof v !== "object" || v === null
+      );
+      if (!entries.length) return null;
+      return (
+        <div className="rounded-lg border p-3">
+          <div className="text-sm font-semibold mb-2">{title}</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {entries.map(([k, v]) => (
+              <Field key={`${objKey}.${k}`} sectionKey={objKey} fieldKey={k} value={v} />
+            ))}
+          </div>
+        </div>
+      );
+    };
+
+    // Editable table for arrays of objects
+    const ArrayTable = ({
+      title,
+      arrKey,
+      rows,
+    }: {
+      title: string;
+      arrKey: string;
+      rows: any[];
+    }) => {
+      const isObjArray = Array.isArray(rows) && rows.some((r) => r && typeof r === "object" && !Array.isArray(r));
+      if (!isObjArray) return null;
+      // derive columns from union of keys (limit to reasonable keys)
+      const colsSet = new Set<string>();
+      rows.forEach((r) => {
+        if (r && typeof r === "object" && !Array.isArray(r)) {
+          Object.keys(r).forEach((k) => colsSet.add(k));
+        }
+      });
+      const cols = Array.from(colsSet);
+      if (!cols.length) return null;
+
+      const onCellChange = (rowIdx: number, col: string, raw: string | boolean) => {
+        setSap((prev) => {
+          const next = { ...prev };
+          const arr = Array.isArray(next[arrKey]) ? [...next[arrKey]] : [];
+          const row = { ...(arr[rowIdx] || {}) };
+          const original = row[col];
+          const typed =
+            typeof original === "boolean"
+              ? Boolean(raw)
+              : typeof original === "number"
+              ? Number(raw)
+              : coerceValue(String(raw), original);
+          row[col] = typed;
+          arr[rowIdx] = row;
+          next[arrKey] = arr;
+          return next;
+        });
+      };
+
+      return (
+        <div className="rounded-lg border p-3">
+          <div className="text-sm font-semibold mb-2">{title}</div>
+          <div className="w-full overflow-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  {cols.map((c) => (
+                    <TableHead key={c} className="whitespace-nowrap">{c}</TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((r, i) => (
+                  <TableRow key={i}>
+                    {cols.map((c) => {
+                      const v = r?.[c];
+                      const isBool = typeof v === "boolean";
+                      const isNum = typeof v === "number";
+                      return (
+                        <TableCell key={c} className="min-w-[10rem] align-top">
+                          {isBool ? (
+                            <div className="flex items-center gap-2">
+                              <Switch
+                                checked={Boolean(v)}
+                                onCheckedChange={(checked) => onCellChange(i, c, checked)}
+                                aria-label={`${c}-${i}`}
+                              />
+                              <span className="text-xs">{Boolean(v) ? "True" : "False"}</span>
+                            </div>
+                          ) : (
+                            <Input
+                              type={isNum ? "number" : "text"}
+                              value={v ?? ""}
+                              onChange={(e) => onCellChange(i, c, e.target.value)}
+                            />
+                          )}
+                        </TableCell>
+                      );
+                    })}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      );
+    };
+
+    // Top-level primitives => "Header" grid
+    const headerEntries = Object.entries(out).filter(
+      ([, v]) => typeof v !== "object" || v === null
+    );
+    // Top-level objects => render each as section
+    const objectEntries = Object.entries(out).filter(
+      ([, v]) => v && typeof v === "object" && !Array.isArray(v)
+    );
+    // Top-level arrays of objects => tables (e.g., to_Item, to_Partner)
+    const arrayEntries = Object.entries(out).filter(
+      ([, v]) => Array.isArray(v) && v.some((row) => row && typeof row === "object" && !Array.isArray(row))
+    );
+
     return (
-      <SAPJsonCard
-        data={out}
-        title="SAP Data"
-        className="mt-2"
-        defaultCollapsed={false}
-      />
+      <div className="space-y-4">
+        {headerEntries.length > 0 && (
+          <div className="rounded-lg border p-3">
+            <div className="text-sm font-semibold mb-2">Header</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {headerEntries.map(([k, v]) => (
+                <Field key={k} fieldKey={k} value={v} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {objectEntries.map(([key, val]) => (
+          <ObjectSection key={key} title={key} objKey={key} obj={val} />
+        ))}
+
+        {arrayEntries.map(([key, arr]) => (
+          <ArrayTable key={key} title={key} arrKey={key} rows={Array.isArray(arr) ? arr : []} />
+        ))}
+      </div>
     );
   };
 
@@ -1469,16 +1675,7 @@ export default function DocumentDetail() {
               </div>
               {showSAP ? (
                 <ScrollArea className="h-full pr-1 overflow-y-auto no-scrollbar">
-                  {
-                    (() => {
-                      try {
-                        const parsed = JSON.parse(sapEditorValue || '{}');
-                        return renderSapEditable(parsed, sapCollapseNonce, sapExpandAll);
-                      } catch {
-                        return <div className="text-sm text-muted-foreground">Invalid JSON in editor. Fix to preview.</div>;
-                      }
-                    })()
-                  }
+                  {renderSapEditable()}
                 </ScrollArea>
               ) : (
                 <div className="text-sm text-muted-foreground">
@@ -1582,14 +1779,7 @@ export default function DocumentDetail() {
                     <CardHeader>
                       <div className="flex items-center justify-between">
                         <h3 className="text-sm font-semibold tracking-tight">SAP and Document Data</h3>
-                        <button
-                          type="button"
-                          onClick={collapseAllHierarchy}
-                          className="text-xs px-2 py-1 rounded-md border hover:bg-muted transition-colors"
-                          title={sapExpandAll ? "Collapse both SAP and Document Data" : "Expand both SAP and Document Data"}
-                        >
-                          {sapExpandAll ? 'Collapse All' : 'Expand All'}
-                        </button>
+                        {/* Removed duplicate Expand/Collapse button per request */}
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-3">
@@ -1605,18 +1795,7 @@ export default function DocumentDetail() {
                           <AccordionContent>
                             {showSAP ? (
                               <div className="pr-1">
-                                {(() => {
-                                  try {
-                                    const parsed = JSON.parse(sapEditorValue || '{}');
-                                    return renderSapEditable(parsed, sapCollapseNonce, sapExpandAll);
-                                  } catch {
-                                    return (
-                                      <div className="text-sm text-muted-foreground">
-                                        Invalid JSON in editor. Fix to preview.
-                                      </div>
-                                    );
-                                  }
-                                })()}
+                                {renderSapEditable()}
                               </div>
                             ) : (
                               <div className="text-sm text-muted-foreground">
