@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -411,38 +412,116 @@ export function SAPJsonCard({
             >
               {isArrayOfObjects ? (
                 <div className="p-1">
-                  <Table>
+                  <Table className="table-fixed">
                     <TableHeader>
                       <TableRow>
                         {tableColumns.map((col) => (
-                          <TableHead key={col} className="text-xs font-medium text-muted-foreground">
+                          <TableHead
+                            key={col}
+                            className="text-xs font-medium text-muted-foreground whitespace-normal break-words"
+                          >
                             {col}
                           </TableHead>
                         ))}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {(value as Array<Record<string, any>>).map((row, idx) => (
-                        <TableRow key={`${path}-row-${idx}`}>
-                          {tableColumns.map((col) => {
+                      {(value as Array<Record<string, any>>).map((row, idx) => {
+                        const mainRow = (
+                          <TableRow key={`${path}-row-${idx}`}>
+                            {tableColumns.map((col) => {
+                              const cell = row?.[col];
+                              const t = typeof cell;
+                              const isObjCell =
+                                cell !== null && t === "object" && !Array.isArray(cell);
+                              const cellKey = `${path}-row-${idx}-col-${col}`;
+
+                              return (
+                                <TableCell key={`${path}-row-${idx}-col-${col}`} className="align-top truncate">
+                                  {t === "boolean" ? (
+                                    <input type="checkbox" defaultChecked={Boolean(cell)} className="h-4 w-4" />
+                                  ) : isObjCell ? (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setExpanded((prev) => {
+                                          const next = new Set(prev);
+                                          if (next.has(cellKey)) next.delete(cellKey);
+                                          else next.add(cellKey);
+                                          return next;
+                                        })
+                                      }
+                                      className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                                      aria-expanded={expanded.has(cellKey)}
+                                      aria-controls={`${cellKey}-expanded`}
+                                      title={`View ${col} details`}
+                                    >
+                                      {expanded.has(cellKey) ? (
+                                        <ChevronDown className="h-4 w-4" />
+                                      ) : (
+                                        <ChevronRight className="h-4 w-4" />
+                                      )}
+                                      <span className="truncate">{col}</span>
+                                    </button>
+                                  ) : (
+                                    <input
+                                      type={t === "number" ? "number" : "text"}
+                                      defaultValue={cell == null ? "" : String(cell)}
+                                      className="w-full rounded-md border bg-background px-2 py-1 text-sm"
+                                    />
+                                  )}
+                                </TableCell>
+                              );
+                            })}
+                          </TableRow>
+                        );
+
+                        const extraRows = tableColumns
+                          .map((col) => {
                             const cell = row?.[col];
-                            const t = typeof cell;
+                            const isObjCell =
+                              cell !== null && typeof cell === "object" && !Array.isArray(cell);
+                            const cellKey = `${path}-row-${idx}-col-${col}`;
+                            if (!isObjCell || !expanded.has(cellKey)) return null;
+
                             return (
-                              <TableCell key={`${path}-row-${idx}-col-${col}`} className="align-top">
-                                {t === "boolean" ? (
-                                  <input type="checkbox" defaultChecked={Boolean(cell)} className="h-4 w-4" />
-                                ) : (
-                                  <input
-                                    type={t === "number" ? "number" : "text"}
-                                    defaultValue={cell === null || cell === undefined ? "" : String(cell)}
-                                    className="w-full rounded-md border bg-background px-2 py-1 text-sm"
-                                  />
-                                )}
-                              </TableCell>
+                              <TableRow key={`${cellKey}-expanded`}>
+                                <TableCell
+                                  id={`${cellKey}-expanded`}
+                                  colSpan={tableColumns.length}
+                                  className="bg-muted/30"
+                                >
+                                  <div className="p-2 space-y-2">
+                                    <div className="text-xs font-semibold text-muted-foreground">
+                                      {col} details
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                                      {Object.entries(cell as Record<string, any>).map(([sk, sv]) => (
+                                        <div key={`${cellKey}-${sk}`} className="rounded-md border bg-card p-2">
+                                          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                                            {sk}
+                                          </div>
+                                          {sv !== null && typeof sv === "object" ? (
+                                            <pre className="m-0 mt-1 max-h-48 overflow-auto rounded bg-muted p-2 text-[11px] leading-relaxed">
+                                              {JSON.stringify(sv, null, 2)}
+                                            </pre>
+                                          ) : (
+                                            <div className="mt-1 text-sm break-words">
+                                              {sv == null ? "" : String(sv)}
+                                            </div>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
                             );
-                          })}
-                        </TableRow>
-                      ))}
+                          })
+                          .filter(Boolean) as React.ReactElement[];
+
+                        return [mainRow, ...extraRows];
+                      })}
                     </TableBody>
                   </Table>
                 </div>
