@@ -23,9 +23,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { ReactNode, useMemo, useState, useDeferredValue } from "react";
+import { ReactNode, useMemo, useState, useDeferredValue, useRef, useEffect } from "react";
 import { Switch } from "@/components/ui/switch";
-import { useEffect } from "react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const MotionTableRow = motion(TableRow);
@@ -92,11 +91,6 @@ function StatusBadge({ value }: { value?: string }) {
   return <Badge className={cls}>{value || "—"}</Badge>;
 }
 
-// Add: toggleExpand helper to fold/unfold a single row
-const toggleExpand = (_id: string) => {
-  // Moved into DocumentsTable to access setExpandedIds
-};
-
 export function DocumentsTable({
   docs,
   selectedIds,
@@ -118,6 +112,9 @@ export function DocumentsTable({
   // Remove spinner delay to open immediately
   const [openingId, setOpeningId] = useState<string | null>(null);
 
+  // debounce guard to prevent double clicks per-row
+  const lastClickRef = useRef<Record<string, number>>({});
+
   // Add: per-row expand/collapse (default expanded)
   const [expandedIds, setExpandedIds] = useState<Set<string>>(
     // Default all rows to expanded on first render
@@ -132,6 +129,16 @@ export function DocumentsTable({
       return next;
     });
   }, [docs]);
+
+  // Add: toggleExpand helper inside component (fold/unfold a single row)
+  const toggleExpand = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   // Add: "Document Only" toggle state, persisted to localStorage
   const [docOnly, setDocOnly] = useState<boolean>(() => {
@@ -272,13 +279,26 @@ export function DocumentsTable({
 
   // Open immediately (no spinner state)
   const handleOpen = (id: string) => {
+    const now = Date.now();
+    const last = lastClickRef.current[id] || 0;
+    // ignore rapid repeated clicks within 600ms
+    if (now - last < 600) return;
+    lastClickRef.current[id] = now;
+
     try {
       localStorage.setItem("openDocumentOnly", String(docOnly));
     } catch {
       // ignore
     }
-    setOpeningId(null);
-    onViewDetails(id);
+
+    // show a small per-row loading state to indicate navigation
+    setOpeningId(id);
+    // tiny delay so UI updates (then navigate). clear openingId a little later.
+    setTimeout(() => {
+      onViewDetails(id);
+      // allow some time for route change to start, then clear local indication
+      setTimeout(() => setOpeningId(null), 700);
+    }, 50);
   };
 
   const SortIcon = ({ active, dir }: { active: boolean; dir: "asc" | "desc" }) =>
@@ -422,12 +442,19 @@ export function DocumentsTable({
                       handleOpen(doc.id);
                     }
                   }}
-                  className={`group rounded-2xl border border-white/10 ${
+                  className={`relative group rounded-2xl border border-white/10 ${
                     selectedIds.has(doc.id)
                       ? "bg-white/[0.14] ring-1 ring-white/20"
                       : "bg-white/[0.06]"
                   } supports-[backdrop-filter]:bg-white/10 backdrop-blur px-4 py-2 shadow-sm cursor-pointer`}
                 >
+                  {/* per-row overlay while navigating to detail */}
+                  {openingId === doc.id && (
+                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 supports-[backdrop-filter]:bg-background/40 backdrop-blur rounded-2xl">
+                      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    </div>
+                  )}
+
                   <div className="flex items-start gap-3">
                     <div onClick={(e) => e.stopPropagation()}>
                       <Checkbox
@@ -523,7 +550,11 @@ export function DocumentsTable({
                                     <span
                                       className="text-xs text-muted-foreground truncate max-w-full hover:text-foreground"
                                       title="Hover to preview full mail. Click to open."
-                                      onClick={() => onViewMailContent(doc.mail_content || "")}
+                                      onClick={(e) => {
+                                        // prevent row navigation when opening mail preview
+                                        e.stopPropagation();
+                                        onViewMailContent(doc.mail_content || "");
+                                      }}
                                       role="button"
                                     >
                                       {mailSnippet}
