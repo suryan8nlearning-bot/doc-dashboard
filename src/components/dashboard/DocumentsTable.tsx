@@ -92,6 +92,11 @@ function StatusBadge({ value }: { value?: string }) {
   return <Badge className={cls}>{value || "—"}</Badge>;
 }
 
+// Add: toggleExpand helper to fold/unfold a single row
+const toggleExpand = (_id: string) => {
+  // Moved into DocumentsTable to access setExpandedIds
+};
+
 export function DocumentsTable({
   docs,
   selectedIds,
@@ -113,16 +118,20 @@ export function DocumentsTable({
   // Remove spinner delay to open immediately
   const [openingId, setOpeningId] = useState<string | null>(null);
 
-  // Add: per-row expand/collapse
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const toggleExpand = (id: string) => {
+  // Add: per-row expand/collapse (default expanded)
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(
+    // Default all rows to expanded on first render
+    new Set(docs.map((d) => d.id))
+  );
+
+  // Ensure any newly loaded docs default to expanded without collapsing user-toggled rows
+  useEffect(() => {
     setExpandedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      for (const d of docs) next.add(d.id);
       return next;
     });
-  };
+  }, [docs]);
 
   // Add: "Document Only" toggle state, persisted to localStorage
   const [docOnly, setDocOnly] = useState<boolean>(() => {
@@ -429,7 +438,7 @@ export function DocumentsTable({
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      {/* Top line: PDF name on left, ID + Status + Chevron on right. Click top row to fold/expand */}
+                      {/* Top line: make ID + Subject primary; clicking here toggles expand */}
                       <div
                         className="flex items-center justify-between gap-3"
                         onClick={(e) => {
@@ -441,21 +450,24 @@ export function DocumentsTable({
                         title="Click to expand/collapse"
                       >
                         <div className="min-w-0">
-                          <div className="text-sm font-semibold truncate" title={docName}>
-                            {docName}
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span
+                              className="px-2 py-0.5 rounded bg-white/5 border border-white/10 font-mono text-[11px] font-semibold"
+                              title={doc.id}
+                            >
+                              {doc.id}
+                            </span>
+                            <div className="text-sm font-semibold truncate" title={subject || "—"}>
+                              {subject || "—"}
+                            </div>
                           </div>
-                          <div className="mt-0.5 text-sm text-muted-foreground truncate" title={subject}>
-                            {subject}
+                          {/* PDF/Document name as secondary info */}
+                          <div className="mt-0.5 text-xs text-muted-foreground truncate" title={docName}>
+                            {docName}
                           </div>
                         </div>
 
                         <div className="shrink-0 flex items-center gap-2">
-                          <span
-                            className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 font-mono text-xs"
-                            title={doc.id}
-                          >
-                            {doc.id}
-                          </span>
                           <StatusBadge value={doc.status} />
                           <motion.span
                             initial={false}
