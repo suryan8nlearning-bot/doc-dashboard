@@ -170,26 +170,54 @@ export default function Documents() {
   };
 
   const getMailContent = (row: any): string => {
-    const keys: Array<string> = [
+    // Prefer these keys if present directly
+    const directKeys: Array<string> = [
       "mail_content", "Mail Content", "mail content", "mailContent",
       "html", "HTML", "body", "Body", "content", "Content", "message", "Message",
       "text", "Text", "email_body", "Email Body", "emailBody",
     ];
-    const readFromObject = (obj: any): string | undefined => {
+
+    // Helper to read from an object with common fields
+    const readFlat = (obj: any): string | undefined => {
       if (!obj || typeof obj !== "object") return undefined;
       for (const k of ["html", "HTML", "body", "Body", "text", "Text", "content", "Content", "message", "Message"]) {
         const v = obj[k];
         if (typeof v === "string" && v.trim().length) return v;
       }
-      if (obj.data && typeof obj.data === "object") {
-        for (const k of ["html", "HTML", "body", "Body", "text", "Text", "content", "Content", "message", "Message"]) {
-          const v = obj.data[k];
-          if (typeof v === "string" && v.trim().length) return v;
+      return undefined;
+    };
+
+    // Helper: try nested containers commonly seen in logs
+    const readNested = (obj: any): string | undefined => {
+      if (!obj || typeof obj !== "object") return undefined;
+      const containers = ["data", "payload", "mail", "email", "message"];
+      for (const c of containers) {
+        const nested = obj[c];
+        if (!nested) continue;
+
+        // Direct fields
+        const flat = readFlat(nested);
+        if (flat) return flat;
+
+        // Some providers wrap again one level deep
+        for (const k of Object.keys(nested)) {
+          const maybe = nested[k];
+          if (typeof maybe === "string" && maybe.trim().length) {
+            if (["html", "HTML", "body", "Body", "text", "Text", "content", "Content", "message", "Message"].includes(k)) {
+              return maybe;
+            }
+          }
+          if (maybe && typeof maybe === "object") {
+            const deep = readFlat(maybe) || readNested(maybe);
+            if (deep) return deep;
+          }
         }
       }
       return undefined;
     };
-    for (const k of keys) {
+
+    // 1) Try direct keys on row
+    for (const k of directKeys) {
       const candidate = row?.[k];
       if (candidate == null) continue;
       if (typeof candidate === "string") {
@@ -197,17 +225,22 @@ export default function Documents() {
         if ((s.startsWith("{") && s.endsWith("}")) || (s.startsWith("[") && s.endsWith("]"))) {
           try {
             const parsed = JSON.parse(s);
-            const fromParsed = readFromObject(parsed);
+            const fromParsed = readFlat(parsed) || readNested(parsed);
             if (fromParsed) return fromParsed;
           } catch {}
         }
         if (s.length) return s;
       }
       if (typeof candidate === "object") {
-        const fromObj = readFromObject(candidate);
+        const fromObj = readFlat(candidate) || readNested(candidate);
         if (fromObj) return fromObj;
       }
     }
+
+    // 2) Try common nested containers on the whole row
+    const nested = readNested(row);
+    if (nested) return nested;
+
     return "";
   };
 

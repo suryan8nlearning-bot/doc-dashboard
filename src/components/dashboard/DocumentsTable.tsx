@@ -277,12 +277,12 @@ export function DocumentsTable({
   const end = Math.min(start + pageSize, total);
   const visible = processed.slice(start, end);
 
-  // Open immediately (no spinner state)
+  // Open immediately and navigate; keep debounce guard to prevent double clicks
   const handleOpen = (id: string) => {
     const now = Date.now();
     const last = lastClickRef.current[id] || 0;
-    // ignore rapid repeated clicks within 600ms
-    if (now - last < 600) return;
+    // ignore rapid repeated clicks within 400ms
+    if (now - last < 400) return;
     lastClickRef.current[id] = now;
 
     try {
@@ -291,14 +291,8 @@ export function DocumentsTable({
       // ignore
     }
 
-    // show a small per-row loading state to indicate navigation
     setOpeningId(id);
-    // tiny delay so UI updates (then navigate). clear openingId a little later.
-    setTimeout(() => {
-      onViewDetails(id);
-      // allow some time for route change to start, then clear local indication
-      setTimeout(() => setOpeningId(null), 700);
-    }, 50);
+    onViewDetails(id);
   };
 
   const SortIcon = ({ active, dir }: { active: boolean; dir: "asc" | "desc" }) =>
