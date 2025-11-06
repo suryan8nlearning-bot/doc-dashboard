@@ -23,6 +23,7 @@ export function SAPJsonCard({
   const [collapsed, setCollapsed] = useState<boolean>(defaultCollapsed);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set<string>());
   const [initExpandedApplied, setInitExpandedApplied] = useState<boolean>(false);
+  const [rootExpanded, setRootExpanded] = useState<Set<string>>(() => new Set<string>());
 
   // Insert: derive order tree from backend schema and reordering helpers
   const deriveOrderTreeFromSchema = (schemaMod: any): any => {
@@ -204,6 +205,16 @@ export function SAPJsonCard({
     }
   }, [allExpandablePaths, initExpandedApplied]);
 
+  // Add: derive root keys for expand/collapse all at the section level
+  const rootKeys = useMemo<Array<string>>(() => {
+    if (!ordered || typeof ordered !== "object" || Array.isArray(ordered)) return [];
+    try {
+      return Object.keys(ordered as Record<string, any>);
+    } catch {
+      return [];
+    }
+  }, [ordered]);
+
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(pretty);
@@ -241,6 +252,38 @@ export function SAPJsonCard({
 
   const isObjectLike = (v: unknown) => v !== null && typeof v === "object";
   const isArr = (v: unknown): v is Array<any> => Array.isArray(v);
+
+  // Add: stable section colors + fallback palette for unknown keys
+  const SAP_SECTION_COLORS: Record<string, string> = {
+    metadata: "#10b981",
+    header: "#10b981",
+    vendor: "#8b5cf6",
+    partner: "#8b5cf6",
+    parties: "#8b5cf6",
+    customer: "#f59e0b",
+    items: "#0ea5e9",
+    lines: "#0ea5e9",
+    addresses: "#06b6d4",
+    totals: "#f43f5e",
+  };
+  const FALLBACK_COLORS: Array<string> = [
+    "#22c55e",
+    "#8b5cf6",
+    "#f59e0b",
+    "#0ea5e9",
+    "#f43f5e",
+    "#06b6d4",
+    "#a3e635",
+    "#e879f9",
+  ];
+  function hashKeyToIndex(key: string): number {
+    let h = 0;
+    for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) | 0;
+    return Math.abs(h) % FALLBACK_COLORS.length;
+  }
+  function colorForKey(key: string): string {
+    return SAP_SECTION_COLORS[key] ?? FALLBACK_COLORS[hashKeyToIndex(key)];
+  }
 
   const TreeNode = ({
     label,
@@ -305,6 +348,50 @@ export function SAPJsonCard({
     );
   };
 
+  // Add: Root SectionHeader matching DocumentFields style
+  const RootSectionHeader = ({
+    title,
+    id,
+    color,
+    isOpen,
+    onToggle,
+  }: {
+    title: string;
+    id: string;
+    color: string;
+    isOpen: boolean;
+    onToggle: (id: string) => void;
+  }) => {
+    return (
+      <button
+        onClick={() => onToggle(id)}
+        className="flex items-center justify-between w-full py-2.5 px-3 hover:bg-muted/50 transition-colors rounded-lg group"
+      >
+        <div className="flex items-center gap-2">
+          <span className="inline-block h-3 w-1.5 rounded-sm" style={{ backgroundColor: color }} />
+          <h3 className="font-semibold text-sm text-foreground group-hover:text-primary transition-colors">
+            {title}
+          </h3>
+        </div>
+        {isOpen ? (
+          <ChevronDown className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+        ) : (
+          <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+        )}
+      </button>
+    );
+  };
+
+  // Toggle a root section
+  const toggleRoot = (id: string) => {
+    setRootExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   return (
     <Card className={className}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
@@ -326,7 +413,10 @@ export function SAPJsonCard({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setExpanded(new Set(allExpandablePaths))}
+            onClick={() => {
+              setExpanded(new Set(allExpandablePaths));
+              setRootExpanded(new Set(rootKeys));
+            }}
             aria-label="Expand all"
             title="Expand all"
           >
@@ -335,7 +425,10 @@ export function SAPJsonCard({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setExpanded(new Set())}
+            onClick={() => {
+              setExpanded(new Set());
+              setRootExpanded(new Set());
+            }}
             aria-label="Collapse all"
             title="Collapse all"
           >
@@ -351,17 +444,62 @@ export function SAPJsonCard({
           </Button>
         </div>
       </CardHeader>
+
       {!collapsed && (
         <CardContent id="sap-json-content" className="pt-0">
           <ScrollArea className="h-64 w-full rounded-md border">
             {ordered && typeof ordered === "object" ? (
-              <div className="p-2">
+              <div className="p-2 space-y-2">
                 {Array.isArray(ordered) ? (
+                  // Root is an array: show a single tree
                   <TreeNode label="[]" value={ordered} path="$" depth={0} />
                 ) : (
-                  Object.entries(ordered as Record<string, any>).map(([k, v]) => (
-                    <TreeNode key={`$.${k}`} label={k} value={v} path={`$.${k}`} depth={0} />
-                  ))
+                  // Root is an object: render top-level sections similar to DocumentFields
+                  Object.entries(ordered as Record<string, any>).map(([k, v]) => {
+                    const color = colorForKey(k);
+                    const open = rootExpanded.has(k);
+                    return (
+                      <div
+                        key={k}
+                        className="space-y-1.5 bg-card rounded-lg border p-2 border-l-2"
+                        style={{ borderLeftColor: color }}
+                      >
+                        <RootSectionHeader
+                          title={k}
+                          id={k}
+                          color={color}
+                          isOpen={open}
+                          onToggle={toggleRoot}
+                        />
+                        {open && (
+                          <div className="pt-1">
+                            {isObjectLike(v) ? (
+                              Array.isArray(v) ? (
+                                <TreeNode label="[]" value={v} path={`$.${k}`} depth={0} />
+                              ) : (
+                                Object.entries(v as Record<string, any>).map(([sk, sv]) => (
+                                  <TreeNode
+                                    key={`$.${k}.${sk}`}
+                                    label={sk}
+                                    value={sv}
+                                    path={`$.${k}.${sk}`}
+                                    depth={0}
+                                  />
+                                ))
+                              )
+                            ) : (
+                              <div className="flex items-start gap-2 py-1.5 px-2 rounded-md">
+                                <span className="text-xs font-medium text-foreground">{k}:</span>
+                                <span className="text-xs font-mono text-muted-foreground break-all">
+                                  {v === null ? "null" : typeof v === "string" ? `"${v}"` : String(v)}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
                 )}
               </div>
             ) : (
