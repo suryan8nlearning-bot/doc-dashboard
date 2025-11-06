@@ -7,6 +7,7 @@ import { Copy, Download, ChevronDown, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import * as SalesSchema from "@/schemas/salesOrderCreate";
 import { motion } from "framer-motion";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 
 type SAPJsonCardProps = {
   data: unknown;
@@ -319,33 +320,44 @@ export function SAPJsonCard({
     value,
     path,
     depth,
-    sectionColor,
   }: {
     label: string;
     value: any;
     path: string;
     depth: number;
-    sectionColor?: string;
   }) => {
     const isComplex = isObjectLike(value);
     const indentStyle = { paddingLeft: `${depth * 16}px` };
 
+    // For arrays, detect "array of objects" to render as a table (old items UI)
+    const isArrayOfObjects =
+      Array.isArray(value) &&
+      (value as any[]).length > 0 &&
+      (value as any[]).every((row) => row && typeof row === "object" && !Array.isArray(row));
+
+    const tableColumns: Array<string> = isArrayOfObjects
+      ? Object.keys((value as Array<Record<string, any>>)[0] ?? {})
+      : [];
+
     if (!isComplex) {
-      // Replace simple leaf rendering to match DocumentFields FieldItem style with hover elevation
+      // Render leaf as simple editable field: label on left, value on right (no hover elevation, no colors)
       return (
-        <motion.div
-          className="py-2.5 px-3 rounded-lg transition-all duration-150 border bg-card/50 hover:bg-primary/5 hover:border-primary/30 hover:shadow-md hover:-translate-y-0.5 border-l-2"
-          style={{ ...indentStyle, borderLeftColor: sectionColor || 'transparent' }}
-          whileHover={{ y: -1 }}
-        >
-          <div className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-2">
-            {sectionColor && <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: sectionColor }} />}
-            {label}
+        <div className="py-2.5 px-3 rounded-md" style={indentStyle}>
+          <div className="grid grid-cols-[180px_minmax(0,1fr)] gap-3 items-center">
+            <label className="text-xs font-medium text-muted-foreground">{label}</label>
+            {value === null ? (
+              <span className="text-sm text-foreground">null</span>
+            ) : typeof value === "boolean" ? (
+              <input type="checkbox" defaultChecked={value} className="h-4 w-4" />
+            ) : (
+              <input
+                type={typeof value === "number" ? "number" : "text"}
+                defaultValue={String(value)}
+                className="w-full rounded-md border bg-background px-2 py-1 text-sm"
+              />
+            )}
           </div>
-          <div className="text-sm font-medium text-foreground break-words whitespace-pre-wrap">
-            {value === null ? "null" : typeof value === "string" ? `"${value}"` : String(value)}
-          </div>
-        </motion.div>
+        </div>
       );
     }
 
@@ -373,13 +385,12 @@ export function SAPJsonCard({
         }
       >
         <AccordionItem value={path} className="border-none">
-          {/* Update trigger to match DocumentFields SectionHeader style */}
+          {/* Header only (no colors) */}
           <AccordionTrigger
             className="w-full flex items-center justify-between py-2.5 px-3 hover:bg-muted/50 transition-colors rounded-lg group"
             style={indentStyle}
           >
             <div className="flex items-center gap-2">
-              {sectionColor && <span className="inline-block h-3 w-1.5 rounded-sm" style={{ backgroundColor: sectionColor }} />}
               <span className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
                 {label}
               </span>
@@ -401,16 +412,50 @@ export function SAPJsonCard({
                   : "space-y-1 pt-1"
               }
             >
-              {entries.map(([k, v]) => (
-                <TreeNode
-                  key={`${path}.${k}`}
-                  label={k}
-                  value={v}
-                  path={`${path}.${k}`}
-                  depth={depth + 1}
-                  sectionColor={sectionColor}
-                />
-              ))}
+              {isArrayOfObjects ? (
+                <div className="p-1">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        {tableColumns.map((col) => (
+                          <TableHead key={col} className="text-xs font-medium text-muted-foreground">
+                            {col}
+                          </TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(value as Array<Record<string, any>>).map((row, idx) => (
+                        <TableRow key={`${path}-row-${idx}`}>
+                          {tableColumns.map((col) => {
+                            const cell = row?.[col];
+                            const t = typeof cell;
+                            return (
+                              <TableCell key={`${path}-row-${idx}-col-${col}`} className="align-top">
+                                {cell === null || cell === undefined ? (
+                                  <span className="text-sm text-muted-foreground">—</span>
+                                ) : t === "boolean" ? (
+                                  <input type="checkbox" defaultChecked={Boolean(cell)} className="h-4 w-4" />
+                                ) : (
+                                  <input
+                                    type={t === "number" ? "number" : "text"}
+                                    defaultValue={String(cell)}
+                                    className="w-full rounded-md border bg-background px-2 py-1 text-sm"
+                                  />
+                                )}
+                              </TableCell>
+                            );
+                          })}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                entries.map(([k, v]) => (
+                  <TreeNode key={`${path}.${k}`} label={k} value={v} path={`${path}.${k}`} depth={depth + 1} />
+                ))
+              )}
             </motion.div>
           </AccordionContent>
         </AccordionItem>
@@ -422,13 +467,11 @@ export function SAPJsonCard({
   const RootSectionHeader = ({
     title,
     id,
-    color,
     isOpen,
     onToggle,
   }: {
     title: string;
     id: string;
-    color: string;
     isOpen: boolean;
     onToggle: (id: string) => void;
   }) => {
@@ -447,7 +490,6 @@ export function SAPJsonCard({
         className="flex items-center justify-between w-full py-2.5 px-3 hover:bg-muted/50 transition-colors rounded-lg group"
       >
         <div className="flex items-center gap-2">
-          <span className="inline-block h-3 w-1.5 rounded-sm" style={{ backgroundColor: color }} />
           <h3 className="font-semibold text-sm text-foreground group-hover:text-primary transition-colors">
             {title}
           </h3>
@@ -535,29 +577,17 @@ export function SAPJsonCard({
                 ) : (
                   // Root is an object: render top-level sections similar to DocumentFields
                   Object.entries(ordered as Record<string, any>).map(([k, v]) => {
-                    const color = colorForKey(k);
                     const open = rootExpanded.has(k);
+
                     // NEW: compute grid layout for immediate children if they are leaves
-                    const objectEntries = isObjectLike(v) && !Array.isArray(v)
-                      ? Object.entries(v as Record<string, any>)
-                      : [];
+                    const objectEntries =
+                      isObjectLike(v) && !Array.isArray(v) ? Object.entries(v as Record<string, any>) : [];
                     const rootAllLeaves =
-                      objectEntries.length > 0 &&
-                      objectEntries.every(([_, sv]) => !isObjectLike(sv));
+                      objectEntries.length > 0 && objectEntries.every(([_, sv]) => !isObjectLike(sv));
 
                     return (
-                      <div
-                        key={k}
-                        className="space-y-1.5 bg-card rounded-lg border p-2 border-l-2"
-                        style={{ borderLeftColor: color }}
-                      >
-                        <RootSectionHeader
-                          title={k}
-                          id={k}
-                          color={color}
-                          isOpen={open}
-                          onToggle={toggleRoot}
-                        />
+                      <div key={k} className="space-y-1.5 bg-card rounded-lg border p-2">
+                        <RootSectionHeader title={k} id={k} isOpen={open} onToggle={toggleRoot} />
                         {open && (
                           <motion.div
                             initial={{ opacity: 0, height: 0 }}
@@ -567,34 +597,30 @@ export function SAPJsonCard({
                           >
                             {isObjectLike(v) ? (
                               Array.isArray(v) ? (
-                                <TreeNode label="[]" value={v} path={`$.${k}`} depth={0} sectionColor={color} />
+                                <TreeNode label="[]" value={v} path={`$.${k}`} depth={0} />
                               ) : (
-                                <div
-                                  className={
-                                    rootAllLeaves
-                                      ? "grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-1"
-                                      : "space-y-1"
-                                  }
-                                >
+                                <div className={rootAllLeaves ? "grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-1" : "space-y-1"}>
                                   {Object.entries(v as Record<string, any>).map(([sk, sv]) => (
-                                    <TreeNode
-                                      key={`$.${k}.${sk}`}
-                                      label={sk}
-                                      value={sv}
-                                      path={`$.${k}.${sk}`}
-                                      depth={0}
-                                      sectionColor={color}
-                                    />
+                                    <TreeNode key={`$.${k}.${sk}`} label={sk} value={sv} path={`$.${k}.${sk}`} depth={0} />
                                   ))}
                                 </div>
                               )
                             ) : (
-                              <div className="flex items-start gap-2 py-1.5 px-2 rounded-md">
-                                <span className="inline-block h-2 w-2 rounded-full mt-1" style={{ backgroundColor: color }} />
-                                <span className="text-xs font-medium text-foreground">{k}:</span>
-                                <span className="text-xs font-mono text-muted-foreground break-all">
-                                  {v === null ? "null" : typeof v === "string" ? `"${v}"` : String(v)}
-                                </span>
+                              <div className="py-2.5 px-3 rounded-md">
+                                <div className="grid grid-cols-[180px_minmax(0,1fr)] gap-3 items-center">
+                                  <label className="text-xs font-medium text-muted-foreground">{k}</label>
+                                  {v === null ? (
+                                    <span className="text-sm text-foreground">null</span>
+                                  ) : typeof v === "boolean" ? (
+                                    <input type="checkbox" defaultChecked={Boolean(v)} className="h-4 w-4" />
+                                  ) : (
+                                    <input
+                                      type={typeof v === "number" ? "number" : "text"}
+                                      defaultValue={String(v)}
+                                      className="w-full rounded-md border bg-background px-2 py-1 text-sm"
+                                    />
+                                  )}
+                                </div>
                               </div>
                             )}
                           </motion.div>
