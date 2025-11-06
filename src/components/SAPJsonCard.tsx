@@ -310,11 +310,12 @@ export function SAPJsonCard({
     const indentStyle = { paddingLeft: `${depth * 16}px` };
 
     if (!isComplex) {
-      // Replace simple leaf rendering to match DocumentFields FieldItem style
+      // Replace simple leaf rendering to match DocumentFields FieldItem style with hover elevation
       return (
-        <div
-          className="py-2.5 px-3 rounded-lg transition-all border bg-card/50 hover:bg-primary/5 hover:border-primary/30 hover:shadow-sm border-l-2"
+        <motion.div
+          className="py-2.5 px-3 rounded-lg transition-all duration-150 border bg-card/50 hover:bg-primary/5 hover:border-primary/30 hover:shadow-md hover:-translate-y-0.5 border-l-2"
           style={{ ...indentStyle, borderLeftColor: sectionColor || 'transparent' }}
+          whileHover={{ y: -1 }}
         >
           <div className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-2">
             {sectionColor && <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: sectionColor }} />}
@@ -323,7 +324,7 @@ export function SAPJsonCard({
           <div className="text-sm font-medium text-foreground break-words whitespace-pre-wrap">
             {value === null ? "null" : typeof value === "string" ? `"${value}"` : String(value)}
           </div>
-        </div>
+        </motion.div>
       );
     }
 
