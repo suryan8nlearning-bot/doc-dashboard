@@ -46,6 +46,9 @@ const sourceDimsRef = useRef<{ width: number; height: number } | null>(null);
 // Add: manual zoom mode — disables auto-fit on resize after user zooms
 const manualZoomRef = useRef(false);
 
+// Add: suppress zoom-effect-triggered render during first page render to avoid flicker
+const suppressZoomEffectRef = useRef(false);
+
 // Add: debugging and Y-axis handling state
 const [invertY, setInvertY] = useState(true);
 const [debugMode, setDebugMode] = useState(false);
@@ -435,11 +438,9 @@ const toPxBox = (box: WideBox): WideBox => {
             throw new Error('PDF data buffer is empty (0 bytes)');
           }
 
-          // Remove duplicate buffer assignment to prevent detachment errors
-          // setPdfArrayBuffer(arrayBuffer);
-
-          setIsLoading(false);
-          if (onLoad) onLoad();
+          // Defer hiding loader and onLoad until the first page is fully rendered to avoid flicker
+          // setIsLoading(false);
+          // if (onLoad) onLoad();
         })
         .catch((err: any) => {
           console.error('PDFViewer: PDF fetch error:', err);
@@ -475,19 +476,30 @@ const toPxBox = (box: WideBox): WideBox => {
         const baseViewport = page.getViewport({ scale: 1 });
         baseViewportRef.current = { width: baseViewport.width, height: baseViewport.height };
 
-        // If fit-to-width is opted in, do it once; otherwise render at current zoom (100%)
-        if (fitToWidthInitially && !didFitToWidthRef.current && containerRef.current && baseViewport.width) {
-          const containerWidth = containerRef.current.clientWidth;
-          const targetScale = containerWidth / baseViewport.width;
-          setZoom(clampZoom(targetScale));
-          didFitToWidthRef.current = true;
-        } else {
-          renderPage(zoom);
+        // Compute initial scale (fit-to-width if requested)
+        let initialScale = 1;
+        if (fitToWidthInitially && containerRef.current && baseViewport.width) {
+          const containerWidth = containerRef.current.clientWidth || 0;
+          if (containerWidth) {
+            initialScale = clampZoom(containerWidth / baseViewport.width);
+            didFitToWidthRef.current = true;
+          }
         }
+
+        // Suppress the zoom effect during the first render to avoid double render flicker
+        suppressZoomEffectRef.current = true;
+        setZoom(initialScale);
+        await renderPage(initialScale);
+        suppressZoomEffectRef.current = false;
+
+        // Now that the first page is fully rendered, hide the loader and fire onLoad
+        setIsLoading(false);
+        if (onLoad) onLoad();
       } catch (e: any) {
         if (!cancelled) {
           console.error('PDFViewer: Failed to load cached PDF/page', e);
           setError(`Failed to render PDF: ${e?.message || e}`);
+          setIsLoading(false);
         }
       }
     })();
@@ -521,6 +533,8 @@ const toPxBox = (box: WideBox): WideBox => {
   // Re-render quickly on zoom using cached PDF page; cancels any in-flight render
   useEffect(() => {
     if (!pageRef.current || !canvasRef.current) return;
+    // Skip during the first render to avoid competing renders and loader flicker
+    if (suppressZoomEffectRef.current) return;
     renderPage(zoom);
     return () => {
       try {
