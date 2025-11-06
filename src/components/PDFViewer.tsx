@@ -50,7 +50,7 @@ const manualZoomRef = useRef(false);
 const suppressZoomEffectRef = useRef(false);
 
 // Add: debugging and Y-axis handling state
-const [invertY, setInvertY] = useState(true);
+const [invertY, setInvertY] = useState(false); // Default to top-left origin per spec
 const [debugMode, setDebugMode] = useState(false);
 
 // Add: normalize/scale helpers and current page state
@@ -61,14 +61,15 @@ function normalizeBoxAny(input: any): (BoundingBox & { page?: number }) | null {
   if (!input) return null;
   const toNum = (v: any) => (v === null || v === undefined || v === "" ? NaN : Number(v));
 
-  // Helper: choose scale factor based on the largest absolute coordinate
+  // Helper: choose scale factor with default = 1000 (unless clearly normalized < 1)
   const scaleFactorFor = (...vals: number[]) => {
     const nums = vals.filter((n) => Number.isFinite(n)) as number[];
-    if (!nums.length) return 1;
+    if (!nums.length) return 1000; // default to 1000 if no signal
     const maxv = Math.max(...nums.map((n) => Math.abs(n)));
-    if (maxv >= 1000) return 1000;
-    if (maxv >= 100) return 100;
-    return 1; // already normalized or small pixel-like numbers
+    if (maxv < 1) return 1;        // normalized [0..1]
+    if (maxv >= 1000) return 1000; // 1000x
+    if (maxv >= 100) return 100;   // 100x
+    return 1000;                   // default to 1000x
   };
 
   if (Array.isArray(input)) {
