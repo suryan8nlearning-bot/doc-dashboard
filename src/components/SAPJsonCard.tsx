@@ -290,11 +290,13 @@ export function SAPJsonCard({
     value,
     path,
     depth,
+    sectionColor,
   }: {
     label: string;
     value: any;
     path: string;
     depth: number;
+    sectionColor?: string;
   }) => {
     const isComplex = isObjectLike(value);
     const indentStyle = { paddingLeft: `${depth * 16}px` };
@@ -302,6 +304,9 @@ export function SAPJsonCard({
     if (!isComplex) {
       return (
         <div className="flex items-start gap-2 py-1.5 px-2 hover:bg-muted/40 rounded-md" style={indentStyle}>
+          {sectionColor && (
+            <span className="inline-block h-2 w-2 rounded-full mt-1" style={{ backgroundColor: sectionColor }} />
+          )}
           <span className="text-xs font-medium text-foreground">{label}:</span>
           <span className="text-xs font-mono text-muted-foreground break-all">
             {value === null ? "null" : typeof value === "string" ? `"${value}"` : String(value)}
@@ -333,6 +338,9 @@ export function SAPJsonCard({
             className="w-full flex items-center gap-2 py-1.5 px-2 hover:bg-muted/50 rounded-md"
             style={indentStyle}
           >
+            {sectionColor && (
+              <span className="inline-block h-3 w-1.5 rounded-sm" style={{ backgroundColor: sectionColor }} />
+            )}
             <span className="text-xs font-semibold text-foreground">{label}</span>
             <span className="ml-2 text-[10px] text-muted-foreground">
               {isArr(value) ? `[${(value as any[]).length}]` : `{${Object.keys(value as any).length}}`}
@@ -340,7 +348,14 @@ export function SAPJsonCard({
           </AccordionTrigger>
           <AccordionContent className="mt-0.5 pl-0">
             {entries.map(([k, v]) => (
-              <TreeNode key={`${path}.${k}`} label={k} value={v} path={`${path}.${k}`} depth={depth + 1} />
+              <TreeNode
+                key={`${path}.${k}`}
+                label={k}
+                value={v}
+                path={`${path}.${k}`}
+                depth={depth + 1}
+                sectionColor={sectionColor}
+              />
             ))}
           </AccordionContent>
         </AccordionItem>
@@ -475,7 +490,7 @@ export function SAPJsonCard({
                           <div className="pt-1">
                             {isObjectLike(v) ? (
                               Array.isArray(v) ? (
-                                <TreeNode label="[]" value={v} path={`$.${k}`} depth={0} />
+                                <TreeNode label="[]" value={v} path={`$.${k}`} depth={0} sectionColor={color} />
                               ) : (
                                 Object.entries(v as Record<string, any>).map(([sk, sv]) => (
                                   <TreeNode
@@ -484,11 +499,13 @@ export function SAPJsonCard({
                                     value={sv}
                                     path={`$.${k}.${sk}`}
                                     depth={0}
+                                    sectionColor={color}
                                   />
                                 ))
                               )
                             ) : (
                               <div className="flex items-start gap-2 py-1.5 px-2 rounded-md">
+                                <span className="inline-block h-2 w-2 rounded-full mt-1" style={{ backgroundColor: color }} />
                                 <span className="text-xs font-medium text-foreground">{k}:</span>
                                 <span className="text-xs font-mono text-muted-foreground break-all">
                                   {v === null ? "null" : typeof v === "string" ? `"${v}"` : String(v)}

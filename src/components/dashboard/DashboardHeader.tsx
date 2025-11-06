@@ -10,6 +10,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { LogOut, Moon, Sun, User, Bell, Search } from "lucide-react";
 import { motion } from "framer-motion";
+import { Link } from "react-router";
 
 type DashboardHeaderProps = {
   userEmail?: string;
@@ -55,6 +56,10 @@ export function DashboardHeader({
 
       {/* Right: Actions */}
       <div className="flex items-center gap-2">
+        <Button asChild variant="outline" size="sm" aria-label="Go to Dashboard" className="rounded-full">
+          <Link to="/dashboard">Dashboard</Link>
+        </Button>
+
         <Button
           variant="ghost"
           size="icon"
