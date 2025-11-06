@@ -452,6 +452,72 @@ export default function Dashboard() {
     return null;
   };
 
+  // Add: helper to find the best JSON object embedded anywhere in a row (strings or nested objects)
+  const findBestJsonInRow = (row: any): any | null => {
+    try {
+      const objs: Array<any> = [];
+
+      const visit = (val: any, depth: number) => {
+        if (depth > 6 || val == null) return;
+
+        if (typeof val === "string") {
+          const s = val.trim();
+          if ((s.startsWith("{") && s.endsWith("}")) || (s.startsWith("[") && s.endsWith("]"))) {
+            try {
+              const parsed = JSON.parse(s);
+              objs.push(parsed);
+              visit(parsed, depth + 1);
+            } catch {
+              // ignore parse errors
+            }
+          }
+          return;
+        }
+
+        if (Array.isArray(val)) {
+          for (const it of val) visit(it, depth + 1);
+          return;
+        }
+
+        if (typeof val === "object") {
+          for (const k of Object.keys(val)) {
+            visit((val as any)[k], depth + 1);
+          }
+        }
+      };
+
+      visit(row, 0);
+
+      // Prefer SAP-like objects (either object itself or its .output)
+      for (const o of objs) {
+        const out = (o && typeof o === "object" && (o.output ?? o.Output)) || o;
+        if (out && typeof out === "object" && hasSAPShape(out)) {
+          return out;
+        }
+        const deep = deepFindSAP(o);
+        if (deep) return deep;
+      }
+
+      // Otherwise return the largest parsed object by JSON size
+      let best: any | null = null;
+      let maxLen = -1;
+      for (const o of objs) {
+        try {
+          const len = JSON.stringify(o).length;
+          if (len > maxLen) {
+            maxLen = len;
+            best = o;
+          }
+        } catch {
+          // ignore stringify errors
+        }
+      }
+      return best;
+    } catch {
+      return null;
+    }
+  };
+
   /**
    * Extracts SAP output object from a row. Accepts multiple field name variants and string/object inputs.
    * Returns the "output" object if present, otherwise the parsed object itself.
@@ -506,21 +572,19 @@ export default function Dashboard() {
       }
     }
 
-    // 2) If still not found, try the entire row deeply
+    // 2) Deep search entire row
     const deep = deepFindSAP(row);
     if (deep) return deep;
 
-    // 3) As a last resort, try parsing a few known stringified containers in row
-    for (const key of ["SAP", "sap", "output", "json", "data", "payload", "body"]) {
-      const val = row?.[key];
-      const obj = tryParse(val);
-      if (obj && typeof obj === "object") {
-        const out = obj?.output ?? obj?.Output ?? obj;
-        if (hasSAPShape(out)) return out;
-        const found = deepFindSAP(out);
-        if (found) return found;
-      }
+    // 3) Fallback: find the best JSON anywhere in the row (stringified or nested)
+    const best = findBestJsonInRow(row);
+    if (best && typeof best === "object") {
+      // If not SAP-like, still return to render as hierarchical JSON
+      return best;
     }
+
+    // 4) As a last resort, if row is an object, show it hierarchically
+    if (row && typeof row === "object") return row;
 
     return undefined;
   };
