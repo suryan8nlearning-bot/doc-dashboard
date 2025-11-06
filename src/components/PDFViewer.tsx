@@ -144,6 +144,21 @@ function normalizeBoxAny(input: any): (BoundingBox & { page?: number }) | null {
   return null;
 }
 
+// Add: normalize a WideBox while preserving page & color
+function normalizeWideBox(input: WideBox | null | undefined): WideBox | null {
+  if (!input) return null;
+  const nb = normalizeBoxAny(input);
+  if (!nb) return null;
+  return {
+    x: nb.x,
+    y: nb.y,
+    width: nb.width,
+    height: nb.height,
+    page: (input as any).page ?? nb.page,
+    color: (input as any).color,
+  } as WideBox;
+}
+
 const [currentPage, setCurrentPage] = useState(1);
 const [totalPages, setTotalPages] = useState(1); // Add: track total pages
 
@@ -192,50 +207,18 @@ const toPxBox = (box: WideBox): WideBox => {
   const srcW = src?.width && src.width > 0 ? src.width : base.width;
   const srcH = src?.height && src.height > 0 ? src.height : base.height;
 
-  // Project with a configurable invertY
-  const project = (invert: boolean) => {
-    let pxX = isNormalized ? box.x * base.width : (box.x / srcW) * base.width;
-    let pxY = isNormalized ? box.y * base.height : (box.y / srcH) * base.height;
-    let pxW = isNormalized ? box.width * base.width : (box.width / srcW) * base.width;
-    let pxH = isNormalized ? box.height * base.height : (box.height / srcH) * base.height;
+  // Map source -> canvas base pixels
+  let pxX = isNormalized ? box.x * base.width : (box.x / srcW) * base.width;
+  let pxY = isNormalized ? box.y * base.height : (box.y / srcH) * base.height;
+  let pxW = isNormalized ? box.width * base.width : (box.width / srcW) * base.width;
+  let pxH = isNormalized ? box.height * base.height : (box.height / srcH) * base.height;
 
-    if (invert) {
-      pxY = base.height - (pxY + pxH);
-    }
+  // Optional bottom-left → top-left conversion
+  if (invertY) {
+    pxY = base.height - (pxY + pxH);
+  }
 
-    return { x: pxX, y: pxY, width: pxW, height: pxH };
-  };
-
-  // Score a projection by how "inside" the canvas it is
-  const score = (p: { x: number; y: number; width: number; height: number }) => {
-    const pad = 0; // strict containment
-    const inX = p.x >= -pad && p.x + p.width <= base.width + pad;
-    const inY = p.y >= -pad && p.y + p.height <= base.height + pad;
-    // Prefer fully in-bounds; if both or neither, prefer the one with less overflow
-    if (inX && inY) return 1000; // perfect
-    const overflowX =
-      (p.x < 0 ? -p.x : 0) + (p.x + p.width > base.width ? p.x + p.width - base.width : 0);
-    const overflowY =
-      (p.y < 0 ? -p.y : 0) + (p.y + p.height > base.height ? p.y + p.height - base.height : 0);
-    return Math.max(0, 1000 - (overflowX + overflowY)); // lower overflow => higher score
-  };
-
-  const primary = project(invertY);
-  const fallback = project(!invertY);
-
-  const primaryScore = score(primary);
-  const fallbackScore = score(fallback);
-
-  const chosen = fallbackScore > primaryScore ? fallback : primary;
-
-  return {
-    x: chosen.x,
-    y: chosen.y,
-    width: chosen.width,
-    height: chosen.height,
-    page: (box as any).page,
-    color: (box as any).color,
-  } as WideBox;
+  return { x: pxX, y: pxY, width: pxW, height: pxH, page: (box as any).page, color: (box as any).color } as WideBox;
 };
 
   const fetchPdfProxy = useAction(api.documents.fetchPdfProxy);
@@ -789,9 +772,17 @@ const toPxBox = (box: WideBox): WideBox => {
     if (!highlightBox || !containerRef.current) return;
 
     const maybeSwitchPageAndCenter = async () => {
-      const targetPage = (highlightBox as any).page as number | undefined;
+      const normalized = normalizeWideBox(highlightBox as any);
+      if (!normalized) return;
 
-      if (typeof targetPage === 'number' && pdfDocRef.current && targetPage !== currentPage) {
+      // Clamp page to [1, totalPages] and handle 0-based page indices
+      const rawPage = (normalized as any).page as number | undefined;
+      const targetPage =
+        typeof rawPage === "number"
+          ? Math.min(Math.max(rawPage <= 0 ? 1 : rawPage, 1), totalPages)
+          : undefined;
+
+      if (typeof targetPage === "number" && pdfDocRef.current && targetPage !== currentPage) {
         try {
           const page = await pdfDocRef.current.getPage(targetPage);
           pageRef.current = page;
@@ -813,8 +804,8 @@ const toPxBox = (box: WideBox): WideBox => {
         return;
       }
 
-      const pxBox = toPxBox(highlightBox as WideBox);
-      // Center on the highlight at the current zoom, but don't change zoom automatically
+      // Use normalized box to project reliably
+      const pxBox = toPxBox(normalized as WideBox);
       const boxCenterX = pxBox.x + pxBox.width / 2;
       const boxCenterY = pxBox.y + pxBox.height / 2;
       container.scrollTo({
@@ -1015,7 +1006,9 @@ const toPxBox = (box: WideBox): WideBox => {
 
           {/* Hover highlight overlay (normalized to base pixels) with dynamic color */}
           {highlightBox && (() => {
-            const hb = toPxBox(highlightBox as WideBox);
+            const hbNorm = normalizeWideBox(highlightBox as any) as WideBox | null;
+            if (!hbNorm) return null;
+            const hb = toPxBox(hbNorm);
             const pad = 8;
 
             // Helper to add alpha to hex color like #RRGGBB
@@ -1023,15 +1016,14 @@ const toPxBox = (box: WideBox): WideBox => {
               if (typeof hex === 'string' && /^#([0-9a-f]{6})$/i.test(hex)) {
                 return `${hex}${alphaHex}`;
               }
-              // fallback for non-hex inputs: return raw color
               return hex;
             };
 
-            const baseColor = (highlightBox as any).color || '#3b82f6'; // tailwind blue-500
+            const baseColor = (highlightBox as any).color || '#3b82f6';
             const ring = baseColor;
-            const glow = withAlpha(baseColor, '59');  // ~35% alpha
-            const fill = withAlpha(baseColor, '33');  // ~20% alpha
-            const label = `x:${Math.round(hb.x)}, y:${Math.round(hb.y)}, w:${Math.round(hb.width)}, h:${Math.round(hb.height)}${(highlightBox as any).page ? `, p:${(highlightBox as any).page}` : ""}`;
+            const glow = withAlpha(baseColor, '59');
+            const fill = withAlpha(baseColor, '33');
+            const label = `x:${Math.round(hb.x)}, y:${Math.round(hb.y)}, w:${Math.round(hb.width)}, h:${Math.round(hb.height)}${(hbNorm as any).page ? `, p:${(hbNorm as any).page}` : ""}`;
 
             return (
               <>
