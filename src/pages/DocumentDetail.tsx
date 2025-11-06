@@ -22,6 +22,7 @@ import { useLocation } from 'react-router';
 import { toast } from 'sonner';
 import { useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import PDFViewer from '@/components/PDFViewer'; // Add: correct default import for the PDF viewer
 
@@ -725,6 +726,46 @@ export default function DocumentDetail() {
     }
   };
 
+  // Add: helper to safely derive options and labels from nested pricing elements (results/array/object)
+  function extractPricingOptions(value: unknown): Array<{ value: string; label: string }> {
+    const list: Array<any> = Array.isArray((value as any)?.results)
+      ? (value as any).results
+      : Array.isArray(value)
+      ? (value as any)
+      : typeof value === "object" && value !== null
+      ? Object.entries(value as Record<string, any>).map(([k, v]) => ({ __k: k, __v: v }))
+      : [];
+
+    const displayFor = (item: any): string => {
+      if (item == null) return "—";
+      // Prefer common descriptive fields if present
+      return (
+        item.Description ||
+        item.description ||
+        item.Name ||
+        item.name ||
+        item.Title ||
+        item.title ||
+        item.ConditionType ||
+        item.PricingElement ||
+        item.Value ||
+        item.value ||
+        item.id ||
+        // Fallback: concise JSON
+        (typeof item === "object" ? JSON.stringify(item) : String(item))
+      );
+    };
+
+    // Normalize to { value, label }
+    return list.map((it, idx) => {
+      if (it && typeof it === "object" && "__k" in it && "__v" in it) {
+        // From object entries fallback
+        return { value: String(it.__k), label: displayFor(it.__v) };
+      }
+      return { value: String(idx), label: displayFor(it) };
+    });
+  }
+
   const renderSapEditable = () => {
     const out = sapObj;
     if (!out || (typeof out === "object" && out !== null && Object.keys(out).length === 0)) {
@@ -852,6 +893,42 @@ export default function DocumentDetail() {
           else next.add(idx);
           return next;
         });
+      };
+
+      // Add: track per-row pricing selection in local UI only
+      const [pricingSelection, setPricingSelection] = useState<Record<number, string>>({});
+
+      // Add: small helper to render pricing dropdown
+      const renderPricingDropdown = (rowIndex: number, cellKey: string, cellValue: unknown) => {
+        const options = extractPricingOptions(cellValue);
+        if (!options.length) {
+          // Nothing meaningful to select; fallback to inline expand or string
+          return typeof cellValue === "object" && cellValue !== null
+            ? "(expand to view)"
+            : String(cellValue ?? "—");
+        }
+
+        const selected = pricingSelection[rowIndex] ?? options[0]?.value ?? "";
+        return (
+          <Select
+            value={selected}
+            // Shadcn Select requires a non-empty value; options[0] is used as default
+            onValueChange={(val: string) =>
+              setPricingSelection((prev) => ({ ...prev, [rowIndex]: val }))
+            }
+          >
+            <SelectTrigger className="h-8 w-full min-w-[8rem]">
+              <SelectValue placeholder="Select..." />
+            </SelectTrigger>
+            <SelectContent>
+              {options.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        );
       };
 
       const onCellChange = (rowIdx: number, col: string, raw: string | boolean) => {
@@ -1118,24 +1195,24 @@ export default function DocumentDetail() {
                   <>
                     <TableRow key={`r-${i}`}>
                       {cols.map((c) => {
-                        const v = r?.[c];
-                        const isBool = typeof v === "boolean";
-                        const isNum = typeof v === "number";
+                        const cellValue = r?.[c];
+                        const isBool = typeof cellValue === "boolean";
+                        const isNum = typeof cellValue === "number";
                         return (
                           <TableCell key={c} className="min-w-[10rem] align-top">
                             {isBool ? (
                               <div className="flex items-center gap-2">
                                 <Switch
-                                  checked={Boolean(v)}
+                                  checked={Boolean(cellValue)}
                                   onCheckedChange={(checked) => onCellChange(i, c, checked)}
                                   aria-label={`${c}-${i}`}
                                 />
-                                <span className="text-xs">{Boolean(v) ? "True" : "False"}</span>
+                                <span className="text-xs">{Boolean(cellValue) ? "True" : "False"}</span>
                               </div>
                             ) : (
                               <Input
                                 type={isNum ? "number" : "text"}
-                                value={isNum ? (typeof v === "number" ? v : 0) : String(v ?? "")}
+                                value={isNum ? (typeof cellValue === "number" ? cellValue : 0) : String(cellValue ?? "")}
                                 onChange={(e) => onCellChange(i, c, e.target.value)}
                               />
                             )}
