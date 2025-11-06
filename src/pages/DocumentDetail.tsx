@@ -1141,28 +1141,64 @@ export default function DocumentDetail() {
                         );
                       })}
                       <TableCell className="align-top">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => toggleRow(i)}
-                          aria-label={expandedRows.has(i) ? "Collapse details" : "Expand details"}
-                        >
-                          {expandedRows.has(i) ? (
-                            <ChevronDown className="h-4 w-4" />
+                        {(() => {
+                          const entries = Object.entries(r || {});
+                          const hasNested = entries.some(([, v]) => {
+                            if (v && typeof v === "object") {
+                              if (Array.isArray(v)) {
+                                return v.some(
+                                  (row: any) =>
+                                    row && typeof row === "object" && !Array.isArray(row)
+                                );
+                              }
+                              return true;
+                            }
+                            return false;
+                          });
+                          return hasNested ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => toggleRow(i)}
+                              aria-label={
+                                expandedRows.has(i) ? "Collapse details" : "Expand details"
+                              }
+                            >
+                              {expandedRows.has(i) ? (
+                                <ChevronDown className="h-4 w-4" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4" />
+                              )}
+                            </Button>
                           ) : (
-                            <ChevronRight className="h-4 w-4" />
-                          )}
-                        </Button>
+                            <span className="text-xs text-muted-foreground">—</span>
+                          );
+                        })()}
                       </TableCell>
                     </TableRow>
 
-                    {expandedRows.has(i) && (
-                      <TableRow key={`r-exp-${i}`}>
-                        <TableCell colSpan={cols.length + 1}>
-                          {renderExpandedPanel(r, i)}
-                        </TableCell>
-                      </TableRow>
-                    )}
+                    {(() => {
+                      const entries = Object.entries(r || {});
+                      const hasNested = entries.some(([, v]) => {
+                        if (v && typeof v === "object") {
+                          if (Array.isArray(v)) {
+                            return v.some(
+                              (row: any) =>
+                                row && typeof row === "object" && !Array.isArray(row)
+                            );
+                          }
+                          return true;
+                        }
+                        return false;
+                      });
+                      return expandedRows.has(i) && hasNested ? (
+                        <TableRow key={`r-exp-${i}`}>
+                          <TableCell colSpan={cols.length + 1}>
+                            {renderExpandedPanel(r, i)}
+                          </TableCell>
+                        </TableRow>
+                      ) : null;
+                    })()}
                   </>
                 ))}
               </TableBody>
