@@ -19,6 +19,9 @@ import {
   DropdownMenuContent,
   DropdownMenuCheckboxItem,
   DropdownMenuTrigger,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { ReactNode, useMemo, useState } from "react";
 import { Switch } from "@/components/ui/switch";
@@ -52,6 +55,22 @@ function truncateText(text: string, maxLength = 50) {
   if (!text) return "—";
   const stripped = text.replace(/<[^>]*>/g, "");
   return stripped.length > maxLength ? stripped.substring(0, maxLength) + "..." : stripped;
+}
+
+// Add: strip HTML and decode HTML entities for better mail snippets
+function stripTagsAndDecode(input: string) {
+  if (!input) return "";
+  // Decode entities
+  let decoded = input;
+  try {
+    const ta = document.createElement("textarea");
+    ta.innerHTML = input;
+    decoded = ta.value || input;
+  } catch {
+    // ignore
+  }
+  // Strip tags
+  return decoded.replace(/<[^>]*>/g, "");
 }
 
 // Add: extract last path segment helper for document name
@@ -90,10 +109,9 @@ export function DocumentsTable({
   const pageSize = 10;
 
   const [showCreatedAt, setShowCreatedAt] = useState(false);
-  // Default: show CC column
   const [showCC, setShowCC] = useState(true);
 
-  // Add: opening state to show instant feedback when navigating
+  // Remove spinner delay to open immediately
   const [openingId, setOpeningId] = useState<string | null>(null);
 
   // Add: "Document Only" toggle state, persisted to localStorage
@@ -123,6 +141,17 @@ export function DocumentsTable({
     setPage(1);
   };
 
+  // Add: labels for sort UI
+  const sortLabels: Record<typeof sortBy, string> = {
+    id: "ID",
+    from: "From",
+    subject: "Subject",
+    status: "Status",
+    doc: "Document",
+    created: "Created",
+    cc: "CC Emails",
+  };
+
   const processed = useMemo(() => {
     const term = search.trim().toLowerCase();
     const filtered = term.length
@@ -130,7 +159,15 @@ export function DocumentsTable({
           const name = (d.subject || d.title || d.bucket_name || d.id || "").toLowerCase();
           const from = (d.from_email || "").toLowerCase();
           const status = (d.status || "").toLowerCase();
-          return name.includes(term) || from.includes(term) || status.includes(term);
+          const cc = (Array.isArray(d.cc_emails) ? d.cc_emails.join(",") : "").toLowerCase();
+          const mail = stripTagsAndDecode(d.mail_content || "").toLowerCase();
+          return (
+            name.includes(term) ||
+            from.includes(term) ||
+            status.includes(term) ||
+            cc.includes(term) ||
+            mail.includes(term)
+          );
         })
       : docs;
 
@@ -197,17 +234,15 @@ export function DocumentsTable({
   const end = Math.min(start + pageSize, total);
   const visible = processed;
 
-  // Add: central open handler with quick visual feedback
+  // Open immediately (no spinner state)
   const handleOpen = (id: string) => {
-    // Persist preference just before navigating, for reliability
     try {
       localStorage.setItem("openDocumentOnly", String(docOnly));
     } catch {
       // ignore
     }
-    setOpeningId(id);
+    setOpeningId(null);
     onViewDetails(id);
-    setTimeout(() => setOpeningId((curr) => (curr === id ? null : curr)), 3000);
   };
 
   const SortIcon = ({ active, dir }: { active: boolean; dir: "asc" | "desc" }) =>
@@ -215,14 +250,14 @@ export function DocumentsTable({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12, filter: "blur(2px)" }}
+      initial={{ opacity: 0, y: 8, filter: "blur(1px)" }}
       animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-      transition={{ duration: 0.35, ease: "easeOut" }}
+      transition={{ duration: 0.25, ease: "easeOut" }}
       className="rounded-2xl border border-white/10 bg-white/[0.04] supports-[backdrop-filter]:bg-white/10 backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] overflow-hidden ring-1 ring-white/5"
     >
       {/* Search + controls */}
-      <div className="p-4 border-b border-white/10 bg-white/[0.06] supports-[backdrop-filter]:bg-white/10 backdrop-blur-xl">
-        <div className="flex items-center gap-3">
+      <div className="p-3 border-b border-white/10 bg-white/[0.06] supports-[backdrop-filter]:bg-white/10 backdrop-blur-xl">
+        <div className="flex flex-wrap items-center gap-3">
           <Input
             value={search}
             onChange={(e) => {
@@ -230,11 +265,11 @@ export function DocumentsTable({
               setPage(1);
             }}
             placeholder="Search documents..."
-            className="bg-background/50"
+            className="bg-background/50 h-9"
             aria-label="Search documents"
           />
-          {/* Add: Document Only toggle (move from detail page into documents) */}
-          <div className="flex items-center gap-2 pl-2">
+          {/* Document Only toggle */}
+          <div className="flex items-center gap-2 pl-1">
             <Switch
               checked={docOnly}
               onCheckedChange={(v) => setDocOnly(!!v)}
@@ -242,7 +277,8 @@ export function DocumentsTable({
             />
             <span className="text-xs text-muted-foreground">Document Only</span>
           </div>
-          {/* Add: Columns menu */}
+
+          {/* Columns menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -272,7 +308,37 @@ export function DocumentsTable({
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Add: Select all (moved out of table header) */}
+          {/* Sort menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur"
+                aria-label="Sort"
+                title="Sort"
+              >
+                <ArrowUpDown className="h-4 w-4 mr-2" />
+                Sort: {sortLabels[sortBy]} ({sortDir})
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-44">
+              <DropdownMenuLabel>Field</DropdownMenuLabel>
+              <DropdownMenuItem onClick={() => toggleSort("id")}>ID</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toggleSort("from")}>From</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toggleSort("subject")}>Subject</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toggleSort("status")}>Status</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toggleSort("doc")}>Document</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toggleSort("created")}>Created</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toggleSort("cc")}>CC Emails</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Direction</DropdownMenuLabel>
+              <DropdownMenuItem onClick={() => setSortDir("asc")}>Ascending</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSortDir("desc")}>Descending</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Select all */}
           <div className="hidden md:flex items-center gap-2 pl-2">
             <Checkbox
               checked={selectedIds.size === docs.length && docs.length > 0}
@@ -286,33 +352,29 @@ export function DocumentsTable({
 
       {/* Scrollable rows area */}
       <div className="max-h-[60vh] overflow-auto relative">
-        {/* Desktop roomy card list */}
-        <div className="hidden md:block p-3 space-y-3">
-          {visible.map((doc, idx) => {
+        {/* Desktop compact card list */}
+        <div className="hidden md:block p-3 space-y-2.5">
+          {visible.map((doc) => {
             const docName =
               extractDocName(doc.bucket_name) ||
               extractDocName(doc.title || "") ||
               extractDocName(doc.subject || "") ||
               doc.id;
-            const subject = truncateText(doc.subject || "—", 120);
+            const subject = truncateText(doc.subject || "—", 110);
             const ccDisplay =
               Array.isArray(doc.cc_emails) && doc.cc_emails.length
                 ? doc.cc_emails.join(", ")
                 : "—";
-            const mailSnippet = truncateText(doc.mail_content || "—", 220);
+            // Use robust decoding for mail snippet
+            const mailSnippet = truncateText(stripTagsAndDecode(doc.mail_content || "—"), 180);
 
             return (
               <motion.div
                 key={doc.id}
-                initial={{ opacity: 0, y: 8 }}
+                initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{
-                  duration: 0.3,
-                  ease: "easeOut",
-                  delay: Math.min(idx * 0.03, 0.35),
-                }}
-                whileHover={{ y: -2 }}
-                whileTap={{ scale: 0.995 }}
+                transition={{ duration: 0.18, ease: "easeOut" }}
+                whileTap={{ scale: 0.997 }}
                 onClick={() => handleOpen(doc.id)}
                 role="button"
                 tabIndex={0}
@@ -326,9 +388,9 @@ export function DocumentsTable({
                   selectedIds.has(doc.id)
                     ? "bg-white/[0.14] ring-1 ring-white/20"
                     : "bg-white/[0.06]"
-                } supports-[backdrop-filter]:bg-white/10 backdrop-blur px-5 py-4 shadow-sm cursor-pointer`}
+                } supports-[backdrop-filter]:bg-white/10 backdrop-blur px-4 py-3 shadow-sm cursor-pointer`}
               >
-                {/* Top row: checkbox, title, status */}
+                {/* Top row: checkbox, ID first, title, status */}
                 <div className="flex items-start gap-3">
                   <div onClick={(e) => e.stopPropagation()}>
                     <Checkbox
@@ -341,13 +403,14 @@ export function DocumentsTable({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div
-                          className="text-base font-semibold truncate"
-                          title={docName}
-                        >
-                          {docName}
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono truncate" title={doc.id}>
+                          <span className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10">{doc.id}</span>
+                          <span className="text-foreground/70">•</span>
+                          <span className="text-sm font-semibold truncate" title={docName}>
+                            {docName}
+                          </span>
                         </div>
-                        <div className="mt-1 text-sm text-muted-foreground truncate" title={subject}>
+                        <div className="mt-0.5 text-sm text-muted-foreground truncate" title={subject}>
                           {subject}
                         </div>
                       </div>
@@ -357,24 +420,27 @@ export function DocumentsTable({
                       </div>
                     </div>
 
-                    {/* Meta rows */}
-                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {/* Meta rows (compact) */}
+                    <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
                       <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-[11px] uppercase tracking-wide text-muted-foreground">ID</span>
-                        <span className="font-mono text-xs truncate" title={doc.id}>
-                          {doc.id}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-[11px] uppercase tracking-wide text-muted-foreground">From</span>
+                        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">From</span>
                         <span className="text-xs truncate" title={doc.from_email || "—"}>
                           {doc.from_email || "—"}
                         </span>
                       </div>
 
+                      {showCreatedAt && (
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Created</span>
+                          <span className="text-xs truncate" title={doc.created_at || "—"}>
+                            {doc.created_at || "—"}
+                          </span>
+                        </div>
+                      )}
+
                       {showCC && (
                         <div className="flex items-center gap-2 min-w-0 sm:col-span-2">
-                          <span className="text-[11px] uppercase tracking-wide text-muted-foreground">CC</span>
+                          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">CC</span>
                           <span className="text-xs truncate" title={ccDisplay}>
                             {ccDisplay}
                           </span>
@@ -390,7 +456,7 @@ export function DocumentsTable({
                         role="button"
                         title="Click to view full mail content"
                       >
-                        <span className="text-[11px] uppercase tracking-wide text-muted-foreground mt-0.5">
+                        <span className="text-[10px] uppercase tracking-wide text-muted-foreground mt-0.5">
                           Mail
                         </span>
                         <span className="text-xs text-muted-foreground truncate max-w-full">
@@ -405,9 +471,9 @@ export function DocumentsTable({
           })}
         </div>
 
-        {/* Mobile card list */}
-        <div className="md:hidden p-3 space-y-3">
-          {visible.map((doc, idx) => {
+        {/* Mobile card list (smaller paddings) */}
+        <div className="md:hidden p-3 space-y-2.5">
+          {visible.map((doc) => {
             const docName =
               extractDocName(doc.bucket_name) ||
               extractDocName(doc.title || "") ||
@@ -416,15 +482,14 @@ export function DocumentsTable({
             const ccDisplay = Array.isArray(doc.cc_emails) && doc.cc_emails.length
               ? doc.cc_emails.join(", ")
               : "—";
-            const mailSnippet = truncateText(doc.mail_content || "—", 160);
+            const mailSnippet = truncateText(stripTagsAndDecode(doc.mail_content || "—"), 140);
 
             return (
               <motion.div
                 key={doc.id}
-                initial={{ opacity: 0, y: 8 }}
+                initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.25, ease: "easeOut", delay: Math.min(idx * 0.03, 0.3) }}
-                whileHover={{ y: -2 }}
+                transition={{ duration: 0.18, ease: "easeOut" }}
                 className="rounded-xl border border-white/10 bg-white/[0.06] supports-[backdrop-filter]:bg-white/10 backdrop-blur p-3 shadow-sm cursor-pointer"
                 onClick={() => handleOpen(doc.id)}
                 role="button"
@@ -448,56 +513,24 @@ export function DocumentsTable({
                       <div className="font-medium truncate" title={docName}>
                         {docName}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur transition-transform active:scale-95"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (onEdit) onEdit(doc.id);
-                            else onViewDetails(doc.id);
-                          }}
-                          aria-label="Edit document"
-                          title="Edit"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur transition-transform active:scale-95"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpen(doc.id);
-                          }}
-                          aria-label="Open details"
-                          title="Open"
-                          disabled={openingId === doc.id}
-                          aria-busy={openingId === doc.id}
-                        >
-                          {openingId === doc.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <ChevronRight className="h-4 w-4" />
-                          )}
-                        </Button>
+                      <div className="text-xs">
+                        <StatusBadge value={doc.status} />
                       </div>
                     </div>
-                    <div className="mt-1 text-[11px] text-muted-foreground font-mono truncate" title={doc.id}>
+                    <div className="mt-0.5 text-[11px] text-muted-foreground font-mono truncate" title={doc.id}>
                       ID: {doc.id}
                     </div>
-                    <div className="mt-1 text-xs text-muted-foreground truncate" title={doc.from_email || "—"}>
+                    <div className="mt-0.5 text-xs text-muted-foreground truncate" title={doc.from_email || "—"}>
                       From: {doc.from_email || "—"}
                     </div>
-                    <div className="mt-1 text-xs text-muted-foreground truncate" title={doc.subject || "—"}>
+                    <div className="mt-0.5 text-xs text-muted-foreground truncate" title={doc.subject || "—"}>
                       Subject: {truncateText(doc.subject || "—", 80)}
                     </div>
-                    <div className="mt-1 text-xs text-muted-foreground truncate" title={ccDisplay}>
+                    <div className="mt-0.5 text-xs text-muted-foreground truncate" title={ccDisplay}>
                       CC: {ccDisplay}
                     </div>
                     <div
-                      className="mt-1 text-xs text-muted-foreground truncate"
+                      className="mt-0.5 text-xs text-muted-foreground truncate"
                       title={mailSnippet}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -507,11 +540,6 @@ export function DocumentsTable({
                     >
                       Mail: {mailSnippet}
                     </div>
-                    {/* Add: Status (mobile) */}
-                    <div className="mt-1 text-xs text-muted-foreground flex items-center gap-2">
-                      <span>Status:</span>
-                      <StatusBadge value={doc.status} />
-                    </div>
                   </div>
                 </div>
               </motion.div>
@@ -520,7 +548,7 @@ export function DocumentsTable({
         </div>
       </div>
 
-      {/* Pagination */}
+      {/* Pagination (unused) */}
       <div className="hidden" />
     </motion.div>
   );

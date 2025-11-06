@@ -318,53 +318,69 @@ export default function Dashboard() {
       "Mail Content",
       "mail content",
       "mailContent",
-      "html",
-      "HTML",
-      "body",
-      "Body",
-      "content",
-      "Content",
-      "message",
-      "Message",
-      "text",
-      "Text",
+      "mail",
+      "Mail",
       "email_body",
       "Email Body",
       "emailBody",
+      "html",
+      "HTML",
+      "htmlBody",
+      "body",
+      "Body",
+      "text",
+      "Text",
+      "plain",
+      "plainText",
+      "text_body",
+      "textBody",
+      "message",
+      "Message",
+      "messageBody",
+      "Message Body",
+      "content",
+      "Content",
+      "contentHtml",
+      "contentText",
     ];
 
     const readFromObject = (obj: any): string | undefined => {
       if (!obj || typeof obj !== "object") return undefined;
       // direct keys
-      for (const k of ["html", "HTML", "body", "Body", "text", "Text", "content", "Content", "message", "Message"]) {
+      for (const k of ["html","HTML","htmlBody","body","Body","text","Text","plain","plainText","text_body","textBody","content","Content","message","Message","contentHtml","contentText"]) {
         const v = obj[k];
         if (typeof v === "string" && v.trim().length) return v;
       }
-      // nested under data
-      if (obj.data && typeof obj.data === "object") {
-        for (const k of ["html", "HTML", "body", "Body", "text", "Text", "content", "Content", "message", "Message"]) {
-          const v = obj.data[k];
-          if (typeof v === "string" && v.trim().length) return v;
+      // nested under common containers
+      for (const parent of ["data","payload"]) {
+        if (obj[parent] && typeof obj[parent] === "object") {
+          for (const k of ["html","HTML","htmlBody","body","Body","text","Text","plain","plainText","content","Content","message","Message","contentHtml","contentText"]) {
+            const v = obj[parent][k];
+            if (typeof v === "string" && v.trim().length) return v;
+          }
         }
       }
       return undefined;
     };
 
-    // scan candidate keys on the row
     for (const k of keys) {
       const candidate = row?.[k];
       if (candidate == null) continue;
 
+      if (Array.isArray(candidate)) {
+        const joined = candidate.filter((x) => typeof x === "string").join("\n").trim();
+        if (joined) return joined;
+      }
+
       if (typeof candidate === "string") {
         const s = candidate.trim();
-        // Try JSON if it looks like JSON
         if ((s.startsWith("{") && s.endsWith("}")) || (s.startsWith("[") && s.endsWith("]"))) {
           try {
             const parsed = JSON.parse(s);
             const fromParsed = readFromObject(parsed);
             if (fromParsed) return fromParsed;
           } catch {
-            // not json, fall through
+            // fall through
           }
         }
         if (s.length) return s;
@@ -375,6 +391,10 @@ export default function Dashboard() {
         if (fromObj) return fromObj;
       }
     }
+
+    // try top-level nested buckets too
+    const nested = readFromObject(row);
+    if (nested) return nested;
 
     return "";
   };
