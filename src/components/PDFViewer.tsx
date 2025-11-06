@@ -172,6 +172,8 @@ const [totalPages, setTotalPages] = useState(1); // Add: track total pages
 // Add: state for in-browser ML detections
 const [predictions, setPredictions] = useState<any[]>([]);
 const [detecting, setDetecting] = useState(false);
+// Add: OCR results state (word-level boxes)
+const [ocrWords, setOcrWords] = useState<Array<{ x: number; y: number; w: number; h: number; text: string; conf: number }>>([]);
 
 const getBaseDims = () => {
   const base = baseViewportRef.current;
@@ -771,9 +773,33 @@ const toPxBox = (box: WideBox): WideBox => {
       const preds = await model.detect(canvas as any);
       setPredictions(Array.isArray(preds) ? preds : []);
       toast(`Detected ${Array.isArray(preds) ? preds.length : 0} objects.`);
+
+      // Also run OCR using Tesseract.js
+      toast("Running OCR...");
+      const { default: Tesseract } = await import("tesseract.js");
+      const ocrRes: any = await Tesseract.recognize(canvas as any, "eng");
+      const wordsRaw = Array.isArray(ocrRes?.data?.words) ? ocrRes.data.words : [];
+
+      const mapped = wordsRaw.map((w: any) => {
+        const bb = w?.bbox ?? w?.bBox ?? w?.box ?? {};
+        const x0 = bb?.x0 ?? bb?.left ?? 0;
+        const y0 = bb?.y0 ?? bb?.top ?? 0;
+        const x1 = bb?.x1 ?? bb?.right ?? 0;
+        const y1 = bb?.y1 ?? bb?.bottom ?? 0;
+        const x = Number(x0) || 0;
+        const y = Number(y0) || 0;
+        const ww = Math.max(0, (Number(x1) || 0) - x);
+        const hh = Math.max(0, (Number(y1) || 0) - y);
+        const text = String(w?.text ?? w?.symbol ?? w?.word ?? "");
+        const conf = Number(w?.confidence ?? w?.conf ?? 0);
+        return { x, y, w: ww, h: hh, text, conf };
+      });
+
+      setOcrWords(mapped);
+      toast(`OCR extracted ${mapped.length} words.`);
     } catch (e: any) {
-      console.error("Detection error:", e);
-      toast.error(`Detection failed: ${e?.message || e}`);
+      console.error("Detection/OCR error:", e);
+      toast.error(`Detection/OCR failed: ${e?.message || e}`);
     } finally {
       setDetecting(false);
     }
@@ -782,6 +808,8 @@ const toPxBox = (box: WideBox): WideBox => {
   // Add: Clear detection overlays
   const clearDetections = () => {
     setPredictions([]);
+    // Also clear OCR overlays
+    setOcrWords([]);
     toast("Cleared detections.");
   };
 
@@ -1013,8 +1041,8 @@ const toPxBox = (box: WideBox): WideBox => {
           size="sm"
           className="h-8 px-3 rounded-full"
           onClick={clearDetections}
-          disabled={detecting || predictions.length === 0}
-          title="Clear detection overlays"
+          disabled={detecting || (predictions.length === 0 && ocrWords.length === 0)}
+          title="Clear detection and OCR overlays"
         >
           Clear
         </Button>
@@ -1240,6 +1268,71 @@ const toPxBox = (box: WideBox): WideBox => {
                           <div className="font-medium">{label}</div>
                           <div className="text-muted-foreground">
                             x:{Math.round(x)}, y:{Math.round(y)}, w:{Math.round(w)}, h:{Math.round(h)}
+                          </div>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                );
+              })}
+            </>
+          )}
+
+          {/* OCR overlays (Tesseract.js word boxes; from canvas pixel coords; scaled by zoom) */}
+          {ocrWords.length > 0 && (
+            <>
+              {ocrWords.map((w, idx) => {
+                const left = w.x * zoom;
+                const top = w.y * zoom;
+                const width = w.w * zoom;
+                const height = w.h * zoom;
+
+                // green-500 color scheme
+                const ring = "#22c55e";
+                const glow = "#22c55e55";
+                const fill = "#22c55e22";
+                const label = w.text || "(word)";
+                const conf =
+                  Number.isFinite(w.conf) && (w.conf as number) >= 0
+                    ? ` (${Math.round((w.conf as number))}%)`
+                    : "";
+
+                return (
+                  <div key={`ocr-${idx}`}>
+                    <div
+                      className="absolute pointer-events-none rounded-sm z-30"
+                      style={{
+                        left: `${left}px`,
+                        top: `${top}px`,
+                        width: `${width}px`,
+                        height: `${height}px`,
+                        boxShadow: `0 0 0 2px ${ring}, 0 0 0 6px ${glow}`,
+                        background: fill,
+                        filter: "drop-shadow(0 6px 16px rgba(0,0,0,0.22))",
+                      }}
+                    />
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div
+                          className="absolute z-[31] px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-background/85 border shadow-sm pointer-events-auto cursor-help"
+                          style={{
+                            left: `${left}px`,
+                            top: `${Math.max(0, top - 18)}px`,
+                            whiteSpace: "nowrap",
+                            borderColor: ring,
+                          }}
+                        >
+                          {label}
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent sideOffset={6}>
+                        <div className="text-xs space-y-1">
+                          <div className="font-medium">
+                            {label}
+                            {conf}
+                          </div>
+                          <div className="text-muted-foreground">
+                            x:{Math.round(w.x)}, y:{Math.round(w.y)}, w:{Math.round(w.w)}, h:{Math.round(w.h)}
                           </div>
                         </div>
                       </TooltipContent>
