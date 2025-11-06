@@ -415,7 +415,7 @@ export function DocumentsTable({
                 Array.isArray(doc.cc_emails) && doc.cc_emails.length
                   ? doc.cc_emails.join(", ")
                   : "—";
-              const mailPlainFull = stripTagsAndDecode(doc.mail_content || "—");
+              const mailPlainFull = (doc as any)._mailPlain || stripTagsAndDecode(doc.mail_content || "");
               const mailSnippet = truncateText(mailPlainFull, 180);
               const isExpanded = expandedIds.has(doc.id);
 
@@ -510,7 +510,7 @@ export function DocumentsTable({
                             transition={{ duration: 0.18, ease: "easeOut" }}
                             className="overflow-hidden"
                           >
-                            <div className="mt-2 grid gap-1.5 sm:grid-cols-2" onClick={(e) => e.stopPropagation()}>
+                            <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
                               <div className="flex items-center gap-2 min-w-0">
                                 <span className="text-[10px] uppercase tracking-wide text-muted-foreground">From</span>
                                 <span className="text-xs truncate" title={doc.from_email || "—"}>
@@ -581,7 +581,8 @@ export function DocumentsTable({
             const ccDisplay = Array.isArray(doc.cc_emails) && doc.cc_emails.length
               ? doc.cc_emails.join(", ")
               : "—";
-            const mailSnippet = truncateText(stripTagsAndDecode(doc.mail_content || "—"), 140);
+            const mp = (doc as any)._mailPlain || stripTagsAndDecode(doc.mail_content || "");
+            const mailSnippet = truncateText(mp, 140);
 
             return (
               <motion.div
