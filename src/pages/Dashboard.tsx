@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase, hasSupabaseEnv, publicUrlForPath } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -756,6 +757,76 @@ export default function Dashboard() {
     );
   }
 
+  function InlineObjectCell({ obj }: { obj: Record<string, any> }) {
+    const [selectedKey, setSelectedKey] = useState<string>(() => {
+      // Prefer a sensible default key if present
+      const preferred: Array<string> = [
+        "value", "Value", "label", "Label", "name", "Name", "text", "Text",
+        "ConditionType", "ConditionAmount", "ConditionCurrency", "ConditionRateValue",
+      ];
+      for (const k of preferred) {
+        const v = (obj as any)[k];
+        if (v !== undefined && (typeof v === "string" || typeof v === "number" || typeof v === "boolean")) {
+          return k;
+        }
+      }
+      // Otherwise pick the first primitive key
+      for (const k of Object.keys(obj)) {
+        const v = (obj as any)[k];
+        if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
+          return k;
+        }
+      }
+      // Fallback to the first key if no primitives
+      return Object.keys(obj)[0] ?? "";
+    });
+
+    const keys: Array<string> = useMemo(() => Object.keys(obj), [obj]);
+
+    const formatPrimitive = (v: any): string => {
+      if (v === null || v === undefined) return "—";
+      if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") return String(v);
+      if (Array.isArray(v)) return v.map((x) => (typeof x === "object" ? "[object]" : String(x))).join(", ");
+      // keep objects summarized
+      return "{...}";
+    };
+
+    const selectedValue = formatPrimitive((obj as any)?.[selectedKey]);
+
+    return (
+      <div className="w-full space-y-1">
+        <Select value={selectedKey} onValueChange={(val) => setSelectedKey(val)}>
+          <SelectTrigger className="h-7 px-2 py-1 text-[12px]">
+            <SelectValue placeholder="Select key" />
+          </SelectTrigger>
+          <SelectContent className="text-[12px]">
+            {keys.map((k) => (
+              <SelectItem key={k} value={k}>
+                {k}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <div className="text-[12px] font-semibold leading-snug whitespace-pre-wrap break-words">
+          {selectedValue}
+        </div>
+
+        <div className="mt-1 border-t border-white/10 pt-1 text-[11px] text-muted-foreground space-y-0.5">
+          {keys.map((k) => {
+            const v = (obj as any)[k];
+            return (
+              <div key={k} className="flex justify-between gap-2">
+                <span className="uppercase tracking-wide">{k}</span>
+                <span className="truncate">{formatPrimitive(v)}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   // Replace renderSap to fallback to hierarchical JSON view when shape is unknown
   const renderSap = (out: any) => {
     if (!out || typeof out !== 'object') {
@@ -813,8 +884,12 @@ export default function Dashboard() {
                     {Object.entries(p || {}).map(([k, v]) => (
                       <div key={k} className="flex items-start justify-between rounded-sm bg-card/40 p-1.5 gap-2">
                         <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{k}</div>
-                        <div className="text-[12px] font-medium leading-snug whitespace-pre-wrap break-words">
-                          {String(v ?? '—')}
+                        <div className="text-[12px] font-medium leading-snug whitespace-pre-wrap break-words w-full">
+                          {v !== null && typeof v === 'object' ? (
+                            <InlineObjectCell obj={v as any} />
+                          ) : (
+                            String(v ?? '—')
+                          )}
                         </div>
                       </div>
                     ))}
@@ -884,8 +959,12 @@ export default function Dashboard() {
                                 {Object.entries(p || {}).map(([k, v]) => (
                                   <div key={k} className="flex items-start justify-between gap-2">
                                     <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{k}</span>
-                                    <span className="text-[12px] font-medium leading-snug whitespace-pre-wrap break-words">
-                                      {String(v ?? '—')}
+                                    <span className="text-[12px] font-medium leading-snug whitespace-pre-wrap break-words w-full">
+                                      {v !== null && typeof v === 'object' ? (
+                                        <InlineObjectCell obj={v as any} />
+                                      ) : (
+                                        String(v ?? '—')
+                                      )}
                                     </span>
                                   </div>
                                 ))}
