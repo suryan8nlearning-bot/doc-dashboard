@@ -698,6 +698,25 @@ export default function Dashboard() {
     );
   };
 
+  // Add: handler to open SAP dialog for a document by id
+  const handleViewSAP = (docId: string) => {
+    const doc = documents.find((d) => d.id === docId);
+    if (!doc) return;
+
+    // Try extracting from raw row first, then from document_data
+    const out =
+      extractSapOutput(doc.raw) ??
+      extractSapOutput(doc.document_data) ??
+      null;
+
+    if (out) {
+      setSelectedSAP(out);
+      setIsSAPDialogOpen(true);
+    } else {
+      toast.info("No SAP data found for this document.");
+    }
+  };
+
   const fetchDocuments = async () => {
     try {
       setIsLoadingDocs(true);
@@ -1205,6 +1224,7 @@ export default function Dashboard() {
                       onViewMailContent={(content) => handleViewMailContent(content)}
                       onViewDetails={(id) => handleEditDocument(id)}
                       onEdit={handleEditDocument}
+                      onViewSAP={handleViewSAP}
                     />
                   )}
                 </motion.section>

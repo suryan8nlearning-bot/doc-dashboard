@@ -37,6 +37,8 @@ type DocumentsTableProps = {
   onViewMailContent: (content: string) => void;
   onViewDetails: (id: string) => void;
   onEdit?: (id: string) => void;
+  // Add: optional SAP viewer callback
+  onViewSAP?: (id: string) => void;
 };
 
 function truncateText(text: string, maxLength = 50) {
@@ -87,6 +89,8 @@ export function DocumentsTable({
   onViewMailContent,
   onViewDetails,
   onEdit,
+  // Add: onViewSAP in props
+  onViewSAP,
 }: DocumentsTableProps): ReactNode {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"id" | "from" | "subject" | "status" | "doc" | "created" | "cc">("id");
@@ -542,6 +546,24 @@ export function DocumentsTable({
                                   </TooltipContent>
                                 </Tooltip>
                               </div>
+                              {/* Add: SAP action */}
+                              {onViewSAP && (
+                                <div className="flex items-center gap-2 sm:col-span-2 mt-1">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="bg-white/5 hover:bg-white/10 border-white/10"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onViewSAP(doc.id);
+                                    }}
+                                    aria-label="View SAP payload"
+                                    title="View SAP payload"
+                                  >
+                                    View SAP
+                                  </Button>
+                                </div>
+                              )}
                         </div>
                       </motion.div>
                       )}
@@ -622,6 +644,23 @@ export function DocumentsTable({
                     >
                       Mail: {mailSnippet}
                     </div>
+                    {onViewSAP && (
+                      <div className="mt-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="bg-white/5 hover:bg-white/10 border-white/10"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onViewSAP(doc.id);
+                          }}
+                          aria-label="View SAP payload"
+                          title="View SAP payload"
+                        >
+                          View SAP
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </motion.div>
