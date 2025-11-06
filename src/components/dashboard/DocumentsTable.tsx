@@ -400,13 +400,13 @@ export function DocumentsTable({
                 extractDocName(doc.title || "") ||
                 extractDocName(doc.subject || "") ||
                 doc.id;
-              const subject = truncateText(doc.subject || "—", 110);
+              const subject = (doc.subject || "—");
               const ccDisplay =
                 Array.isArray(doc.cc_emails) && doc.cc_emails.length
                   ? doc.cc_emails.join(", ")
                   : "—";
               const mailPlainFull = (doc as any)._mailPlain || stripTagsAndDecode(doc.mail_content || "");
-              const mailSnippet = truncateText(mailPlainFull, 180);
+              const mailSnippet = mailPlainFull; // use full mail text; allow wrapping
               const isExpanded = expandedIds.has(doc.id);
 
               return (
@@ -463,12 +463,12 @@ export function DocumentsTable({
                             >
                               {doc.id}
                             </span>
-                            <div className="text-sm font-semibold truncate" title={subject || "—"}>
+                            <div className="text-sm font-semibold whitespace-pre-wrap break-words" title={subject || "—"}>
                               {subject || "—"}
                             </div>
                           </div>
                           {/* PDF/Document name as secondary info */}
-                          <div className="mt-0.5 text-xs text-muted-foreground truncate" title={docName}>
+                          <div className="mt-0.5 text-xs text-muted-foreground whitespace-pre-wrap break-words" title={docName}>
                             {docName}
                           </div>
                         </div>
@@ -496,7 +496,7 @@ export function DocumentsTable({
                             <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
                               <div className="flex items-center gap-2 min-w-0">
                                 <span className="text-[10px] uppercase tracking-wide text-muted-foreground">From</span>
-                                <span className="text-xs truncate" title={doc.from_email || "—"}>
+                                <span className="text-xs whitespace-pre-wrap break-words" title={doc.from_email || "—"}>
                                   {doc.from_email || "—"}
                                 </span>
                               </div>
@@ -504,7 +504,7 @@ export function DocumentsTable({
                               {showCreatedAt && (
                                 <div className="flex items-center gap-2 min-w-0">
                                   <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Created</span>
-                                  <span className="text-xs truncate" title={doc.created_at || "—"}>
+                                  <span className="text-xs whitespace-pre-wrap break-words" title={doc.created_at || "—"}>
                                     {doc.created_at || "—"}
                                   </span>
                                 </div>
@@ -513,7 +513,7 @@ export function DocumentsTable({
                               {showCC && (
                                 <div className="flex items-center gap-2 min-w-0 sm:col-span-2">
                                   <span className="text-[10px] uppercase tracking-wide text-muted-foreground">CC</span>
-                                  <span className="text-xs truncate" title={ccDisplay}>
+                                  <span className="text-xs whitespace-pre-wrap break-words" title={ccDisplay}>
                                     {ccDisplay}
                                   </span>
                                 </div>
@@ -525,7 +525,7 @@ export function DocumentsTable({
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <span
-                                      className="text-xs text-muted-foreground truncate max-w-full hover:text-foreground"
+                                      className="text-xs text-muted-foreground whitespace-pre-wrap break-words max-w-full hover:text-foreground"
                                       title="Hover to preview full mail. Click to open."
                                       onClick={(e) => {
                                         // prevent row navigation when opening mail preview
@@ -592,27 +592,27 @@ export function DocumentsTable({
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="font-medium truncate" title={docName}>
+                      <div className="font-medium whitespace-pre-wrap break-words" title={docName}>
                         {docName}
                       </div>
                       <div className="text-xs">
                         <StatusBadge value={doc.status} />
                       </div>
                     </div>
-                    <div className="mt-0.5 text-[11px] text-muted-foreground font-mono truncate" title={doc.id}>
+                    <div className="mt-0.5 text-[11px] text-muted-foreground font-mono break-all" title={doc.id}>
                       ID: {doc.id}
                     </div>
-                    <div className="mt-0.5 text-xs text-muted-foreground truncate" title={doc.from_email || "—"}>
+                    <div className="mt-0.5 text-xs text-muted-foreground whitespace-pre-wrap break-words" title={doc.from_email || "—"}>
                       From: {doc.from_email || "—"}
                     </div>
-                    <div className="mt-0.5 text-xs text-muted-foreground truncate" title={doc.subject || "—"}>
-                      Subject: {truncateText(doc.subject || "—", 80)}
+                    <div className="mt-0.5 text-xs text-muted-foreground whitespace-pre-wrap break-words" title={doc.subject || "—"}>
+                      Subject: {doc.subject || "—"}
                     </div>
-                    <div className="mt-0.5 text-xs text-muted-foreground truncate" title={ccDisplay}>
+                    <div className="mt-0.5 text-xs text-muted-foreground whitespace-pre-wrap break-words" title={ccDisplay}>
                       CC: {ccDisplay}
                     </div>
                     <div
-                      className="mt-0.5 text-xs text-muted-foreground truncate"
+                      className="mt-0.5 text-xs text-muted-foreground whitespace-pre-wrap break-words"
                       title={mailSnippet}
                       onClick={(e) => {
                         e.stopPropagation();

@@ -132,7 +132,7 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
           {color && <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: color }} />}
           {label}
         </div>
-        <div className="text-sm font-medium text-foreground truncate">{value || '—'}</div>
+        <div className="text-sm font-medium text-foreground break-words whitespace-pre-wrap">{value || '—'}</div>
         {showDebug && (
           <div className="mt-1 text-[10px] text-muted-foreground font-mono">{dbg}</div>
         )}
@@ -291,7 +291,7 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 pt-1"
+              className="grid gap-2 pt-1"
             >
               {page.items.map((item, index) => (
                 <motion.div
@@ -304,28 +304,33 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
                   }}
                   onMouseLeave={() => onFieldHover(null)}
                 >
-                  <div className="text-xs font-semibold text-primary mb-2 flex items-center gap-2">
-                    <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: SECTION_COLORS.items }} />
-                    Item {index + 1}
+                  <div className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-3">
+                    <div>
+                      <div className="text-xs text-muted-foreground mb-1 whitespace-pre-wrap break-words">Description</div>
+                      <div className="text-sm font-medium whitespace-pre-wrap break-words">
+                        {item.description || '—'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground mb-1 whitespace-pre-wrap break-words">Quantity</div>
+                      <div className="text-sm font-medium whitespace-pre-wrap break-words">
+                        {item.quantity || '—'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground mb-1 whitespace-pre-wrap break-words">Unit Price</div>
+                      <div className="text-sm font-medium whitespace-pre-wrap break-words">
+                        {item.unit_price || '—'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground mb-1 whitespace-pre-wrap break-words">Total</div>
+                      <div className="text-sm font-medium whitespace-pre-wrap break-words">
+                        {item.total || '—'}
+                      </div>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                    <div>
-                      <div className="text-xs text-muted-foreground mb-1">Description</div>
-                      <div className="text-sm font-medium truncate">{item.description || '—'}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-muted-foreground mb-1">Quantity</div>
-                      <div className="text-sm font-medium">{item.quantity || '—'}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-muted-foreground mb-1">Unit Price</div>
-                      <div className="text-sm font-medium">{item.unit_price || '—'}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-muted-foreground mb-1">Total</div>
-                      <div className="text-sm font-medium">{item.total || '—'}</div>
-                    </div>
-                  </div>
+
                   {(() => {
                     const ibb = normalizeBoxAny(item.bounding_box?.[0]);
                     return (
