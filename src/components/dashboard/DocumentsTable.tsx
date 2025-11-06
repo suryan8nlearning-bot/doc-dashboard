@@ -115,16 +115,15 @@ export function DocumentsTable({
   const lastClickRef = useRef<Record<string, number>>({});
 
   // Add: per-row expand/collapse (default expanded)
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(
-    // Default all rows to expanded on first render
-    new Set(docs.map((d) => d.id))
-  );
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set(docs.map((d) => d.id)));
 
   // Ensure any newly loaded docs default to expanded without collapsing user-toggled rows
   useEffect(() => {
     setExpandedIds((prev) => {
       const next = new Set(prev);
-      for (const d of docs) next.add(d.id);
+      for (const d of docs) {
+        if (!prev.has(d.id)) next.add(d.id);
+      }
       return next;
     });
   }, [docs]);
@@ -499,15 +498,13 @@ export function DocumentsTable({
                       </div>
 
                       {/* Collapsible meta content */}
-                      <AnimatePresence initial={false}>
-                        {isExpanded && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: "auto", opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            transition={{ duration: 0.18, ease: "easeOut" }}
-                            className="overflow-hidden"
-                          >
+                      {isExpanded && (
+                        <motion.div
+                          initial={false}
+                          animate={{ height: "auto", opacity: 1 }}
+                          transition={{ duration: 0.18, ease: "easeOut" }}
+                          className="overflow-hidden"
+                        >
                             <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
                               <div className="flex items-center gap-2 min-w-0">
                                 <span className="text-[10px] uppercase tracking-wide text-muted-foreground">From</span>
@@ -557,10 +554,9 @@ export function DocumentsTable({
                                   </TooltipContent>
                                 </Tooltip>
                               </div>
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
+                        </div>
+                      </motion.div>
+                      )}
                     </div>
                   </div>
                 </motion.div>
