@@ -14,6 +14,8 @@ import { useAction } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import type { BoundingBox, DocumentData as ExtractedDocumentData } from '@/lib/supabase';
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+// Add: toast for quick feedback
+import { toast } from "sonner";
 
 interface PDFViewerProps {
   pdfUrl: string;
@@ -166,6 +168,10 @@ function normalizeWideBox(input: WideBox | null | undefined): WideBox | null {
 
 const [currentPage, setCurrentPage] = useState(1);
 const [totalPages, setTotalPages] = useState(1); // Add: track total pages
+
+// Add: state for in-browser ML detections
+const [predictions, setPredictions] = useState<any[]>([]);
+const [detecting, setDetecting] = useState(false);
 
 const getBaseDims = () => {
   const base = baseViewportRef.current;
@@ -745,6 +751,40 @@ const toPxBox = (box: WideBox): WideBox => {
     setTimeout(() => setShowZoomHud(false), 450);
   };
 
+  // Add: Run COCO-SSD detection on current canvas
+  const runDetection = async () => {
+    if (detecting) return;
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      toast("PDF not ready yet.");
+      return;
+    }
+    try {
+      setDetecting(true);
+      toast("Loading detection model...");
+      // Lazy load to avoid heavy initial bundle
+      const [{ load }] = await Promise.all([
+        import("@tensorflow-models/coco-ssd"),
+        import("@tensorflow/tfjs"),
+      ]);
+      const model = await load({ base: "lite_mobilenet_v2" } as any);
+      const preds = await model.detect(canvas as any);
+      setPredictions(Array.isArray(preds) ? preds : []);
+      toast(`Detected ${Array.isArray(preds) ? preds.length : 0} objects.`);
+    } catch (e: any) {
+      console.error("Detection error:", e);
+      toast.error(`Detection failed: ${e?.message || e}`);
+    } finally {
+      setDetecting(false);
+    }
+  };
+
+  // Add: Clear detection overlays
+  const clearDetections = () => {
+    setPredictions([]);
+    toast("Cleared detections.");
+  };
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === '+' || e.key === '=') {
@@ -948,6 +988,36 @@ const toPxBox = (box: WideBox): WideBox => {
         >
           Y:{invertY ? '↓' : '↑'}
         </Button>
+
+        {/* Add: Object detection controls */}
+        <div className="mx-2 h-5 w-px bg-border" />
+        <Button
+          variant="default"
+          size="sm"
+          className="h-8 px-3 rounded-full"
+          onClick={runDetection}
+          disabled={detecting}
+          title="Run object detection on the current page canvas"
+        >
+          {detecting ? (
+            <span className="inline-flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Detecting…
+            </span>
+          ) : (
+            "Detect Objects"
+          )}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 px-3 rounded-full"
+          onClick={clearDetections}
+          disabled={detecting || predictions.length === 0}
+          title="Clear detection overlays"
+        >
+          Clear
+        </Button>
       </div>
 
       {/* Scroll to top button inside PDF container */}
@@ -1120,6 +1190,65 @@ const toPxBox = (box: WideBox): WideBox => {
               </>
             );
           })()}
+
+          {/* COCO-SSD detection overlays (from canvas pixel coords; scaled by zoom) */}
+          {predictions.length > 0 && (
+            <>
+              {predictions.map((p: any, idx: number) => {
+                const [x, y, w, h] = p?.bbox || [0, 0, 0, 0];
+                const left = x * zoom;
+                const top = y * zoom;
+                const width = w * zoom;
+                const height = h * zoom;
+
+                // amber-500 color scheme
+                const ring = "#f59e0b";
+                const glow = "#f59e0b55";
+                const fill = "#f59e0b22";
+                const label = `${p?.class ?? "object"} ${p?.score ? `(${Math.round((p.score as number) * 100)}%)` : ""}`;
+
+                return (
+                  <div key={`det-${idx}`}>
+                    <div
+                      className="absolute pointer-events-none rounded-md z-40"
+                      style={{
+                        left: `${left}px`,
+                        top: `${top}px`,
+                        width: `${width}px`,
+                        height: `${height}px`,
+                        boxShadow: `0 0 0 3px ${ring}, 0 0 0 7px ${glow}`,
+                        background: fill,
+                        filter: "drop-shadow(0 8px 20px rgba(0,0,0,0.25))",
+                      }}
+                    />
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div
+                          className="absolute z-[41] px-2 py-1 rounded-md text-[10px] font-medium bg-background/85 border shadow-sm pointer-events-auto cursor-help"
+                          style={{
+                            left: `${left}px`,
+                            top: `${Math.max(0, top - 22)}px`,
+                            whiteSpace: "nowrap",
+                            borderColor: ring,
+                          }}
+                        >
+                          {label}
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent sideOffset={6}>
+                        <div className="text-xs space-y-1">
+                          <div className="font-medium">{label}</div>
+                          <div className="text-muted-foreground">
+                            x:{Math.round(x)}, y:{Math.round(y)}, w:{Math.round(w)}, h:{Math.round(h)}
+                          </div>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                );
+              })}
+            </>
+          )}
         </div>
       </div>
     </div>

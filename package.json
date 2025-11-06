@@ -45,6 +45,8 @@
     "@react-three/fiber": "^9.1.2",
     "@supabase/supabase-js": "^2.76.1",
     "@tailwindcss/vite": "^4.1.8",
+    "@tensorflow-models/coco-ssd": "^2.2.3",
+    "@tensorflow/tfjs": "^4.22.0",
     "@types/three": "^0.177.0",
     "@zumer/snapdom": "^1.7.1",
     "ajv": "^8.17.1",
