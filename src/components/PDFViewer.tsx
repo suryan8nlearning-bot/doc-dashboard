@@ -57,6 +57,9 @@ const [debugMode, setDebugMode] = useState(false);
 // Add: normalize/scale helpers and current page state
 type WideBox = BoundingBox & { page?: number; color?: string };
 
+// Add: small Y calibration to correct slight vertical drift
+const Y_CALIBRATION_PX = -2;
+
 // Normalize incoming bounding boxes to a standard shape for rendering
 function normalizeBoxAny(input: any): (BoundingBox & { page?: number }) | null {
   if (!input) return null;
@@ -219,6 +222,9 @@ const toPxBox = (box: WideBox): WideBox => {
   if (invertY) {
     pxY = base.height - (pxY + pxH);
   }
+
+  // Apply small calibration offset on Y to correct slight vertical drift
+  pxY += Y_CALIBRATION_PX;
 
   return { x: pxX, y: pxY, width: pxW, height: pxH, page: (box as any).page, color: (box as any).color } as WideBox;
 };
