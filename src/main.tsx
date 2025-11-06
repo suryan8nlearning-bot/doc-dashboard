@@ -105,13 +105,13 @@ function RouteFallback() {
   }, [ctx]);
 
   return (
-    <div
-      className="min-h-screen grid place-items-center bg-background text-muted-foreground"
-      role="status"
-      aria-live="polite"
-      aria-busy="true"
-    >
-      Loading…
+    <div className="min-h-screen grid place-items-center bg-background text-muted-foreground p-6" role="status" aria-live="polite" aria-busy="true">
+      <div className="w-full max-w-2xl space-y-3 animate-pulse">
+        <div className="h-3 rounded bg-muted/60" />
+        <div className="h-3 w-11/12 rounded bg-muted/60" />
+        <div className="h-3 w-8/12 rounded bg-muted/60" />
+        <div className="mt-4 h-32 rounded-xl bg-muted/40" />
+      </div>
     </div>
   );
 }

@@ -8,7 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Mail } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +26,7 @@ import {
 import { ReactNode, useMemo, useState, useDeferredValue } from "react";
 import { Switch } from "@/components/ui/switch";
 import { useEffect } from "react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const MotionTableRow = motion(TableRow);
 
@@ -111,6 +112,17 @@ export function DocumentsTable({
 
   // Remove spinner delay to open immediately
   const [openingId, setOpeningId] = useState<string | null>(null);
+
+  // Add: per-row expand/collapse
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const toggleExpand = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   // Add: "Document Only" toggle state, persisted to localStorage
   const [docOnly, setDocOnly] = useState<boolean>(() => {
@@ -366,125 +378,162 @@ export function DocumentsTable({
       </div>
 
       {/* Scrollable rows area */}
-      <div className="max-h-[60vh] overflow-auto relative">
+      <div className="max-h-[60vh] md:max-h-[60vh] overflow-auto relative">
         {/* Desktop compact card list */}
-        <div className="hidden md:block p-3 space-y-2.5">
-          {visible.map((doc) => {
-            const docName =
-              extractDocName(doc.bucket_name) ||
-              extractDocName(doc.title || "") ||
-              extractDocName(doc.subject || "") ||
-              doc.id;
-            const subject = truncateText(doc.subject || "—", 110);
-            const ccDisplay =
-              Array.isArray(doc.cc_emails) && doc.cc_emails.length
-                ? doc.cc_emails.join(", ")
-                : "—";
-            // Use robust decoding for mail snippet
-            const mailSnippet = truncateText(stripTagsAndDecode(doc.mail_content || "—"), 180);
+        <TooltipProvider>
+          <div className="hidden md:block p-3 space-y-2.5">
+            {visible.map((doc) => {
+              const docName =
+                extractDocName(doc.bucket_name) ||
+                extractDocName(doc.title || "") ||
+                extractDocName(doc.subject || "") ||
+                doc.id;
+              const subject = truncateText(doc.subject || "—", 110);
+              const ccDisplay =
+                Array.isArray(doc.cc_emails) && doc.cc_emails.length
+                  ? doc.cc_emails.join(", ")
+                  : "—";
+              const mailPlainFull = stripTagsAndDecode(doc.mail_content || "—");
+              const mailSnippet = truncateText(mailPlainFull, 180);
+              const isExpanded = expandedIds.has(doc.id);
 
-            return (
-              <motion.div
-                key={doc.id}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.18, ease: "easeOut" }}
-                whileTap={{ scale: 0.997 }}
-                onClick={() => handleOpen(doc.id)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    handleOpen(doc.id);
-                  }
-                }}
-                className={`group rounded-2xl border border-white/10 ${
-                  selectedIds.has(doc.id)
-                    ? "bg-white/[0.14] ring-1 ring-white/20"
-                    : "bg-white/[0.06]"
-                } supports-[backdrop-filter]:bg-white/10 backdrop-blur px-4 py-2 shadow-sm cursor-pointer`}
-              >
-                {/* Top row: checkbox, ID first, title, status */}
-                <div className="flex items-start gap-3">
-                  <div onClick={(e) => e.stopPropagation()}>
-                    <Checkbox
-                      checked={selectedIds.has(doc.id)}
-                      onCheckedChange={() => onToggleSelect(doc.id)}
-                      aria-label={`Select ${doc.id}`}
-                    />
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono truncate" title={doc.id}>
-                          <span className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10">{doc.id}</span>
-                          <span className="text-foreground/70">•</span>
-                          <span className="text-sm font-semibold truncate" title={docName}>
-                            {docName}
-                          </span>
-                        </div>
-                        <div className="mt-0.5 text-sm text-muted-foreground truncate" title={subject}>
-                          {subject}
-                        </div>
-                      </div>
-
-                      <div className="shrink-0">
-                        <StatusBadge value={doc.status} />
-                      </div>
+              return (
+                <motion.div
+                  key={doc.id}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.18, ease: "easeOut" }}
+                  whileTap={{ scale: 0.997 }}
+                  whileHover={{ scale: 1.002 }}
+                  onClick={() => handleOpen(doc.id)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      handleOpen(doc.id);
+                    }
+                  }}
+                  className={`group rounded-2xl border border-white/10 ${
+                    selectedIds.has(doc.id)
+                      ? "bg-white/[0.14] ring-1 ring-white/20"
+                      : "bg-white/[0.06]"
+                  } supports-[backdrop-filter]:bg-white/10 backdrop-blur px-4 py-2 shadow-sm cursor-pointer`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={selectedIds.has(doc.id)}
+                        onCheckedChange={() => onToggleSelect(doc.id)}
+                        aria-label={`Select ${doc.id}`}
+                      />
                     </div>
 
-                    {/* Meta rows (compact) */}
-                    <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">From</span>
-                        <span className="text-xs truncate" title={doc.from_email || "—"}>
-                          {doc.from_email || "—"}
-                        </span>
-                      </div>
-
-                      {showCreatedAt && (
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Created</span>
-                          <span className="text-xs truncate" title={doc.created_at || "—"}>
-                            {doc.created_at || "—"}
-                          </span>
-                        </div>
-                      )}
-
-                      {showCC && (
-                        <div className="flex items-center gap-2 min-w-0 sm:col-span-2">
-                          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">CC</span>
-                          <span className="text-xs truncate" title={ccDisplay}>
-                            {ccDisplay}
-                          </span>
-                        </div>
-                      )}
-
+                    <div className="flex-1 min-w-0">
+                      {/* Top line: PDF name on left, ID + Status + Chevron on right. Click top row to fold/expand */}
                       <div
-                        className="flex items-start gap-2 min-w-0 sm:col-span-2"
+                        className="flex items-center justify-between gap-3"
                         onClick={(e) => {
                           e.stopPropagation();
-                          onViewMailContent(doc.mail_content || "");
+                          toggleExpand(doc.id);
                         }}
                         role="button"
-                        title="Click to view full mail content"
+                        aria-expanded={isExpanded}
+                        title="Click to expand/collapse"
                       >
-                        <span className="text-[10px] uppercase tracking-wide text-muted-foreground mt-0.5">
-                          Mail
-                        </span>
-                        <span className="text-xs text-muted-foreground truncate max-w-full">
-                          {mailSnippet}
-                        </span>
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold truncate" title={docName}>
+                            {docName}
+                          </div>
+                          <div className="mt-0.5 text-sm text-muted-foreground truncate" title={subject}>
+                            {subject}
+                          </div>
+                        </div>
+
+                        <div className="shrink-0 flex items-center gap-2">
+                          <span
+                            className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 font-mono text-xs"
+                            title={doc.id}
+                          >
+                            {doc.id}
+                          </span>
+                          <StatusBadge value={doc.status} />
+                          <motion.span
+                            initial={false}
+                            animate={{ rotate: isExpanded ? 90 : 0 }}
+                            className="text-muted-foreground"
+                          >
+                            <ChevronRight className="h-4 w-4" />
+                          </motion.span>
+                        </div>
                       </div>
+
+                      {/* Collapsible meta content */}
+                      <AnimatePresence initial={false}>
+                        {isExpanded && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.18, ease: "easeOut" }}
+                            className="overflow-hidden"
+                          >
+                            <div className="mt-2 grid gap-1.5 sm:grid-cols-2" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">From</span>
+                                <span className="text-xs truncate" title={doc.from_email || "—"}>
+                                  {doc.from_email || "—"}
+                                </span>
+                              </div>
+
+                              {showCreatedAt && (
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Created</span>
+                                  <span className="text-xs truncate" title={doc.created_at || "—"}>
+                                    {doc.created_at || "—"}
+                                  </span>
+                                </div>
+                              )}
+
+                              {showCC && (
+                                <div className="flex items-center gap-2 min-w-0 sm:col-span-2">
+                                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground">CC</span>
+                                  <span className="text-xs truncate" title={ccDisplay}>
+                                    {ccDisplay}
+                                  </span>
+                                </div>
+                              )}
+
+                              {/* Mail row: hover to show full mail, click to open dialog */}
+                              <div className="flex items-start gap-2 min-w-0 sm:col-span-2">
+                                <span className="text-[10px] uppercase tracking-wide text-muted-foreground mt-0.5">Mail</span>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span
+                                      className="text-xs text-muted-foreground truncate max-w-full hover:text-foreground"
+                                      title="Hover to preview full mail. Click to open."
+                                      onClick={() => onViewMailContent(doc.mail_content || "")}
+                                      role="button"
+                                    >
+                                      {mailSnippet}
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" align="start" className="max-w-[640px] whitespace-pre-wrap">
+                                    {mailPlainFull || "—"}
+                                  </TooltipContent>
+                                </Tooltip>
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
                   </div>
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        </TooltipProvider>
 
         {/* Mobile card list (smaller paddings) */}
         <div className="md:hidden p-3 space-y-2.5">
