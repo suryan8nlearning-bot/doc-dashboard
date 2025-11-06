@@ -17,6 +17,225 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
+// Add robust helpers to normalize mail content into safe HTML
+const escapeHtml = (s: string) =>
+  s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+
+const textToHtml = (s: string) => {
+  const safe = escapeHtml(s);
+  // Convert double newlines to paragraphs and single newlines to <br/>
+  return safe
+    .split(/\n{2,}/)
+    .map((para: string) => `<p>${para.replace(/\n/g, "<br/>")}</p>`)
+    .join("");
+};
+
+const looksLikeJson = (s: string) => {
+  const t = s.trim();
+  return (t.startsWith("{") && t.endsWith("}")) || (t.startsWith("[") && t.endsWith("]"));
+};
+
+const tryParseJson = (s: string): any | null => {
+  try {
+    return JSON.parse(s);
+  } catch {
+    return null;
+  }
+};
+
+const tryDecodeBase64 = (s: string): string | null => {
+  try {
+    // Remove whitespace that may be present in logged payloads
+    const trimmed = s.replace(/\s+/g, "");
+    if (!/^[A-Za-z0-9+/=]+$/.test(trimmed) || trimmed.length % 4 !== 0) return null;
+    const decoded = atob(trimmed);
+    // Check if mostly printable to avoid showing binary
+    const printable = decoded.split("").filter((c) => /[\x09\x0A\x0D\x20-\x7E]/.test(c)).length;
+    if (decoded.length === 0) return null;
+    if (printable / decoded.length < 0.85) return null;
+    return decoded;
+  } catch {
+    return null;
+  }
+};
+
+// Prefer HTML fields, then plain text, then anything string-like
+const pickMailField = (obj: any): string | undefined => {
+  if (!obj || typeof obj !== "object") return undefined;
+
+  const htmlKeys: string[] = [
+    "html",
+    "HTML",
+    "body_html",
+    "html_body",
+    "content_html",
+    "message_html",
+    "bodyAsHtml",
+  ];
+  const textKeys: string[] = [
+    "text",
+    "Text",
+    "plain",
+    "plain_text",
+    "body_text",
+    "text_body",
+    "textBody",
+    "message",
+    "Message",
+    "body",
+    "Body",
+    "email_body",
+    "Email Body",
+    "emailBody",
+    "bodyAsText",
+    "content",
+    "Content",
+  ];
+
+  for (const k of htmlKeys) {
+    const v = (obj as any)[k];
+    if (typeof v === "string" && v.trim()) return v;
+  }
+  for (const k of textKeys) {
+    const v = (obj as any)[k];
+    if (typeof v === "string" && v.trim()) return v;
+  }
+
+  // Some providers wrap content in arrays or nested objects
+  for (const k of Object.keys(obj)) {
+    const v = (obj as any)[k];
+    if (typeof v === "string" && v.trim()) return v;
+    if (v && typeof v === "object") {
+      const inner = pickMailField(v);
+      if (inner) return inner;
+    }
+    if (Array.isArray(v)) {
+      for (const item of v) {
+        const inner = typeof item === "string" ? item : pickMailField(item);
+        if (inner && String(inner).trim()) return String(inner);
+      }
+    }
+  }
+
+  return undefined;
+};
+
+const getMailContent = (row: any): string => {
+  const directKeys: Array<string> = [
+    "mail_content",
+    "Mail Content",
+    "mail content",
+    "mailContent",
+    "html",
+    "HTML",
+    "body",
+    "Body",
+    "content",
+    "Content",
+    "message",
+    "Message",
+    "text",
+    "Text",
+    "email_body",
+    "Email Body",
+    "emailBody",
+    "body_html",
+    "html_body",
+    "content_html",
+    "message_html",
+    "body_text",
+    "text_body",
+    "textBody",
+    "plain_text",
+    "bodyAsHtml",
+    "bodyAsText",
+    "raw", // sometimes raw payload holds the body
+  ];
+
+  const containers = ["data", "payload", "mail", "email", "message", "raw"];
+
+  const normalizeAnyToHtml = (val: any): string => {
+    if (val == null) return "";
+    if (typeof val === "string") {
+      const s = val.trim();
+      if (!s) return "";
+      // JSON-encoded string?
+      if (looksLikeJson(s)) {
+        const parsed = tryParseJson(s);
+        if (parsed) return normalizeAnyToHtml(parsed);
+      }
+      // Base64-encoded?
+      const maybeDecoded = tryDecodeBase64(s);
+      if (maybeDecoded) {
+        // If decoded contains HTML tags, use as-is; else treat as text
+        if (/[<>]/.test(maybeDecoded)) return maybeDecoded;
+        return textToHtml(maybeDecoded);
+      }
+      // If contains HTML tags, treat as HTML; otherwise treat as plain text
+      if (/[<>]/.test(s)) return s;
+      return textToHtml(s);
+    }
+    if (Array.isArray(val)) {
+      const joined = val
+        .map((item) => (typeof item === "string" ? item : pickMailField(item) ?? ""))
+        .filter(Boolean)
+        .join("\n\n");
+      return normalizeAnyToHtml(joined);
+    }
+    if (typeof val === "object") {
+      const picked = pickMailField(val);
+      if (picked) return normalizeAnyToHtml(picked);
+      // last resort stringify
+      try {
+        return textToHtml(JSON.stringify(val, null, 2));
+      } catch {
+        return "";
+      }
+    }
+    // numbers/booleans
+    return textToHtml(String(val));
+  };
+
+  // 1) Try direct keys on row
+  for (const k of directKeys) {
+    const candidate = row?.[k];
+    if (candidate == null) continue;
+    const html = normalizeAnyToHtml(candidate);
+    if (html) return html;
+  }
+
+  // 2) Try common nested containers
+  for (const c of containers) {
+    const nested = row?.[c];
+    if (!nested) continue;
+
+    // direct pick within the container
+    const picked = pickMailField(nested);
+    if (picked) {
+      const html = normalizeAnyToHtml(picked);
+      if (html) return html;
+    }
+
+    // scan deeper
+    const html = normalizeAnyToHtml(nested);
+    if (html) return html;
+  }
+
+  // 3) Full object scan as fallback
+  const fallback = pickMailField(row);
+  if (fallback) {
+    const html = normalizeAnyToHtml(fallback);
+    if (html) return html;
+  }
+
+  return "";
+};
+
 export default function Documents() {
   const { isLoading: authLoading, isAuthenticated, user, signOut } = useAuth();
   const navigate = useNavigate();
@@ -171,81 +390,6 @@ export default function Documents() {
       if (single) return [String(single)].filter(Boolean);
     }
     return [];
-  };
-
-  const getMailContent = (row: any): string => {
-    // Prefer these keys if present directly
-    const directKeys: Array<string> = [
-      "mail_content", "Mail Content", "mail content", "mailContent",
-      "html", "HTML", "body", "Body", "content", "Content", "message", "Message",
-      "text", "Text", "email_body", "Email Body", "emailBody",
-    ];
-
-    // Helper to read from an object with common fields
-    const readFlat = (obj: any): string | undefined => {
-      if (!obj || typeof obj !== "object") return undefined;
-      for (const k of ["html", "HTML", "body", "Body", "text", "Text", "content", "Content", "message", "Message"]) {
-        const v = obj[k];
-        if (typeof v === "string" && v.trim().length) return v;
-      }
-      return undefined;
-    };
-
-    // Helper: try nested containers commonly seen in logs
-    const readNested = (obj: any): string | undefined => {
-      if (!obj || typeof obj !== "object") return undefined;
-      const containers = ["data", "payload", "mail", "email", "message"];
-      for (const c of containers) {
-        const nested = obj[c];
-        if (!nested) continue;
-
-        // Direct fields
-        const flat = readFlat(nested);
-        if (flat) return flat;
-
-        // Some providers wrap again one level deep
-        for (const k of Object.keys(nested)) {
-          const maybe = nested[k];
-          if (typeof maybe === "string" && maybe.trim().length) {
-            if (["html", "HTML", "body", "Body", "text", "Text", "content", "Content", "message", "Message"].includes(k)) {
-              return maybe;
-            }
-          }
-          if (maybe && typeof maybe === "object") {
-            const deep = readFlat(maybe) || readNested(maybe);
-            if (deep) return deep;
-          }
-        }
-      }
-      return undefined;
-    };
-
-    // 1) Try direct keys on row
-    for (const k of directKeys) {
-      const candidate = row?.[k];
-      if (candidate == null) continue;
-      if (typeof candidate === "string") {
-        const s = candidate.trim();
-        if ((s.startsWith("{") && s.endsWith("}")) || (s.startsWith("[") && s.endsWith("]"))) {
-          try {
-            const parsed = JSON.parse(s);
-            const fromParsed = readFlat(parsed) || readNested(parsed);
-            if (fromParsed) return fromParsed;
-          } catch {}
-        }
-        if (s.length) return s;
-      }
-      if (typeof candidate === "object") {
-        const fromObj = readFlat(candidate) || readNested(candidate);
-        if (fromObj) return fromObj;
-      }
-    }
-
-    // 2) Try common nested containers on the whole row
-    const nested = readNested(row);
-    if (nested) return nested;
-
-    return "";
   };
 
   const fetchDocuments = async () => {
