@@ -158,7 +158,8 @@ export default function Auth({ redirectAfterAuth }: AuthProps = {}) {
 
                 <label className="flex items-center gap-3 text-base text-muted-foreground select-none">
                   <Checkbox
-                    size="lg"
+                    size="xl"
+                    variant="glass"
                     className="rounded-md"
                     checked={remember}
                     onCheckedChange={(v) => setRemember(Boolean(v))}
