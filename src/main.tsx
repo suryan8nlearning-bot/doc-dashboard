@@ -23,6 +23,17 @@ const PendingContext = createContext<{ pending: boolean; setPending: (p: boolean
 
 function PendingProvider({ children }: { children: ReactNode }) {
   const [pending, setPending] = useState(false);
+
+  // Expose global pending controls so other parts of the app can drive a single loader
+  useEffect(() => {
+    (window as any).__routePendingStart = () => setPending(true);
+    (window as any).__routePendingStop = () => setPending(false);
+    return () => {
+      delete (window as any).__routePendingStart;
+      delete (window as any).__routePendingStop;
+    };
+  }, []);
+
   return <PendingContext.Provider value={{ pending, setPending }}>{children}</PendingContext.Provider>;
 }
 
@@ -118,6 +129,13 @@ function RouteFallback() {
 
 function RouteSyncer() {
   const location = useLocation();
+  const ctx = useContext(PendingContext);
+
+  useEffect(() => {
+    // Stop global pending as soon as the route changes to avoid double-loading feeling
+    const t = window.setTimeout(() => ctx?.setPending(false), 0);
+    return () => window.clearTimeout(t);
+  }, [location, ctx]);
 
   return null;
 }

@@ -63,6 +63,11 @@ export default function Documents() {
   }, [user]);
 
   useEffect(() => {
+    // Preload the Document Detail route to make navigation snappy
+    import("@/pages/DocumentDetail.tsx").catch(() => {});
+  }, []);
+
+  useEffect(() => {
     if (isAuthenticated) {
       if (hasSupabaseEnv) {
         fetchDocuments();

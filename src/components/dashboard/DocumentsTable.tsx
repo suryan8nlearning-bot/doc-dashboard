@@ -109,8 +109,7 @@ export function DocumentsTable({
   const [showCreatedAt, setShowCreatedAt] = useState(false);
   const [showCC, setShowCC] = useState(true);
 
-  // Remove spinner delay to open immediately
-  const [openingId, setOpeningId] = useState<string | null>(null);
+  // Removed row-level overlay; using global route progress via PendingContext
 
   // debounce guard to prevent double clicks per-row
   const lastClickRef = useRef<Record<string, number>>({});
@@ -291,7 +290,11 @@ export function DocumentsTable({
       // ignore
     }
 
-    setOpeningId(id);
+    // Drive a single, global loader for a smoother experience
+    (window as any).__routePendingStart?.();
+    // Fallback stop to avoid stuck loading in rare cases
+    window.setTimeout(() => { (window as any).__routePendingStop?.(); }, 7000);
+
     onViewDetails(id);
   };
 
@@ -442,12 +445,7 @@ export function DocumentsTable({
                       : "bg-white/[0.06]"
                   } supports-[backdrop-filter]:bg-white/10 backdrop-blur px-4 py-2 shadow-sm cursor-pointer`}
                 >
-                  {/* per-row overlay while navigating to detail */}
-                  {openingId === doc.id && (
-                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 supports-[backdrop-filter]:bg-background/40 backdrop-blur rounded-2xl">
-                      <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                    </div>
-                  )}
+                  
 
                   <div className="flex items-start gap-3">
                     <div onClick={(e) => e.stopPropagation()}>
