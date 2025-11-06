@@ -15,6 +15,27 @@ type SAPJsonCardProps = {
   defaultCollapsed?: boolean;
 };
 
+// Add: robust JSON extraction helpers to handle string inputs containing JSON
+function extractJsonFromText(input: string): any | null {
+  const s = input.trim();
+
+  // 1) Try fenced blocks 
+  const fenced = s.match(/(?:^|[^\\])\{\{(.+?)\}\}/s);
+  if (fenced) return JSON.parse(fenced[1]);
+
+  // 2) Try JSON string
+  try {
+    return JSON.parse(s);
+  } catch {
+    // 3) Try JSON string with escaped quotes
+    try {
+      return JSON.parse(s.replace(/"/g, '"'));
+    } catch {
+      return null;
+    }
+  }
+}
+
 export function SAPJsonCard({
   data,
   title = "SAP JSON",

@@ -1,0 +1,116 @@
+  if (fenceMatch) {
+    try {
+      return JSON.parse(fenceMatch[1].trim());
+    } catch {
+      // ignore
+    }
+  }
+
+  // 2) Try to extract the first balanced JSON object or array
+  const firstBrace = s.indexOf("{");
+  const firstBracket = s.indexOf("[");
+  let start = -1;
+  let openChar = "";
+  let closeChar = "";
+
+  if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
+    start = firstBrace;
+    openChar = "{";
+    closeChar = "}";
+  } else if (firstBracket !== -1) {
+    start = firstBracket;
+    openChar = "[";
+    closeChar = "]";
+  }
+
+  if (start === -1) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+
+  for (let i = start; i < s.length; i++) {
+    const ch = s[i];
+
+    if (inString) {
+      if (escape) {
+        escape = false;
+      } else if (ch === "\\") {
+        escape = true;
+      } else if (ch === "\"") {
+        inString = false;
+      }
+      continue;
+    } else {
+      if (ch === "\"") {
+        inString = true;
+        continue;
+      }
+      if (ch === openChar) depth++;
+      if (ch === closeChar) depth--;
+      if (depth === 0) {
+        const candidate = s.slice(start, i + 1);
+        try {
+          return JSON.parse(candidate);
+        } catch {
+          // continue scanning in case of malformed segment
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function safeParseStringToJson(input: string): any | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    // Fallback: attempt to extract JSON from text blobs
+    return extractJsonFromText(trimmed);
+  }
+}
+
+export function SAPJsonCard({
+// ... keep existing code (component signature)
+}: SAPJsonCardProps) {
+// ... keep existing code (state and helpers above orderTree)
+
+  const orderTree = useMemo(() => deriveOrderTreeFromSchema(SalesSchema), []);
+
+  // Update: pretty now prefers parsed+ordered JSON when possible (even from text)
+  const pretty = useMemo(() => {
+    try {
+      let parsedLocal: any = null;
+      if (typeof data === "string") {
+        parsedLocal = safeParseStringToJson(data);
+        if (parsedLocal == null) return data.trim() ? String(data) : "// Empty";
+      } else if (data == null) {
+        return "// No data";
+      } else if (typeof data === "object") {
+        parsedLocal = data as any;
+      } else {
+        return JSON.stringify(data, null, 2);
+      }
+
+      const maybeOrdered = orderTree ? reorderByOrderTree(parsedLocal, orderTree) : parsedLocal;
+      return JSON.stringify(maybeOrdered, null, 2);
+    } catch {
+      return String(data);
+    }
+  }, [data, orderTree]);
+
+  // Update: parsed prefers robust extraction for strings
+  const parsed = useMemo(() => {
+    try {
+      if (typeof data === "string") return safeParseStringToJson(data);
+      if (data == null) return null;
+      return data as any;
+    } catch {
+      return null;
+    }
+  }, [data]);
+
+// ... keep existing code (ordered/allExpandablePaths/useEffects/TreeNode/RootSectionHeader/render)
+}
