@@ -202,9 +202,11 @@ export function SAPJsonCard({
   useEffect(() => {
     if (!initExpandedApplied && allExpandablePaths.length > 0) {
       setExpanded(new Set(allExpandablePaths));
+      // Also expand all root sections initially so the UI is visible immediately
+      setRootExpanded(new Set(rootKeys));
       setInitExpandedApplied(true);
     }
-  }, [allExpandablePaths, initExpandedApplied]);
+  }, [allExpandablePaths, rootKeys, initExpandedApplied]);
 
   // Add: derive root keys for expand/collapse all at the section level
   const rootKeys = useMemo<Array<string>>(() => {
@@ -368,7 +370,7 @@ export function SAPJsonCard({
               transition={{ duration: 0.18, ease: "easeOut" }}
               className={
                 allImmediateLeaves
-                  ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-1 pt-1"
+                  ? "grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-1 pt-1"
                   : "space-y-1 pt-1"
               }
             >
@@ -534,7 +536,7 @@ export function SAPJsonCard({
                                 <div
                                   className={
                                     rootAllLeaves
-                                      ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-1"
+                                      ? "grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-1"
                                       : "space-y-1"
                                   }
                                 >
