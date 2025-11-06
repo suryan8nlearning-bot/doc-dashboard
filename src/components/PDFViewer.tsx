@@ -415,7 +415,9 @@ const toPxBox = (box: WideBox): WideBox => {
           });
 
           if (!result.success) {
-            throw new Error(result.error || 'Failed to fetch PDF');
+            console.warn('PDFViewer: Backend proxy failed, will try direct fetch fallback:', result.error);
+            // Don't throw immediately; let the catch block handle fallback
+            throw new Error(result.error || 'Failed to fetch PDF via proxy');
           }
           if (!result.data) {
             throw new Error('No PDF data returned from backend');
