@@ -340,19 +340,17 @@ export function SAPJsonCard({
       : [];
 
     if (!isComplex) {
-      // Render leaf as simple editable field: label on left, value on right (no hover elevation, no colors)
+      // Render leaf as simple editable field: label on left, value on right (editable for all types)
       return (
         <div className="py-2.5 px-3 rounded-md" style={indentStyle}>
           <div className="grid grid-cols-[180px_minmax(0,1fr)] gap-3 items-center">
             <label className="text-xs font-medium text-muted-foreground">{label}</label>
-            {value === null ? (
-              <span className="text-sm text-foreground">null</span>
-            ) : typeof value === "boolean" ? (
+            {typeof value === "boolean" ? (
               <input type="checkbox" defaultChecked={value} className="h-4 w-4" />
             ) : (
               <input
                 type={typeof value === "number" ? "number" : "text"}
-                defaultValue={String(value)}
+                defaultValue={value === null || value === undefined ? "" : String(value)}
                 className="w-full rounded-md border bg-background px-2 py-1 text-sm"
               />
             )}
@@ -367,7 +365,7 @@ export function SAPJsonCard({
 
     const open = expanded.has(path);
 
-    // NEW: determine when immediate children are all leaves to layout as an auto-fit grid
+    // Determine when immediate children are all leaves to layout as a responsive 3-column grid
     const allImmediateLeaves = entries.every(([_, v]) => !isObjectLike(v));
 
     return (
@@ -385,7 +383,6 @@ export function SAPJsonCard({
         }
       >
         <AccordionItem value={path} className="border-none">
-          {/* Header only (no colors) */}
           <AccordionTrigger
             className="w-full flex items-center justify-between py-2.5 px-3 hover:bg-muted/50 transition-colors rounded-lg group"
             style={indentStyle}
@@ -408,7 +405,7 @@ export function SAPJsonCard({
               transition={{ duration: 0.18, ease: "easeOut" }}
               className={
                 allImmediateLeaves
-                  ? "grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-1 pt-1"
+                  ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 pt-1"
                   : "space-y-1 pt-1"
               }
             >
@@ -432,14 +429,12 @@ export function SAPJsonCard({
                             const t = typeof cell;
                             return (
                               <TableCell key={`${path}-row-${idx}-col-${col}`} className="align-top">
-                                {cell === null || cell === undefined ? (
-                                  <span className="text-sm text-muted-foreground">—</span>
-                                ) : t === "boolean" ? (
+                                {t === "boolean" ? (
                                   <input type="checkbox" defaultChecked={Boolean(cell)} className="h-4 w-4" />
                                 ) : (
                                   <input
                                     type={t === "number" ? "number" : "text"}
-                                    defaultValue={String(cell)}
+                                    defaultValue={cell === null || cell === undefined ? "" : String(cell)}
                                     className="w-full rounded-md border bg-background px-2 py-1 text-sm"
                                   />
                                 )}
@@ -531,30 +526,6 @@ export function SAPJsonCard({
           <CardTitle className="text-base">{title}</CardTitle>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setExpanded(new Set(allExpandablePaths));
-              setRootExpanded(new Set(rootKeys));
-            }}
-            aria-label="Expand all"
-            title="Expand all"
-          >
-            Expand all
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setExpanded(new Set());
-              setRootExpanded(new Set());
-            }}
-            aria-label="Collapse all"
-            title="Collapse all"
-          >
-            Collapse all
-          </Button>
           <Button variant="outline" size="sm" onClick={handleCopy} aria-label="Copy JSON">
             <Copy className="h-4 w-4 mr-2" />
             Copy
@@ -572,14 +543,10 @@ export function SAPJsonCard({
             {ordered && typeof ordered === "object" ? (
               <div className="p-2 space-y-2">
                 {Array.isArray(ordered) ? (
-                  // Root is an array: show a single tree
                   <TreeNode label="[]" value={ordered} path="$" depth={0} />
                 ) : (
-                  // Root is an object: render top-level sections similar to DocumentFields
                   Object.entries(ordered as Record<string, any>).map(([k, v]) => {
                     const open = rootExpanded.has(k);
-
-                    // NEW: compute grid layout for immediate children if they are leaves
                     const objectEntries =
                       isObjectLike(v) && !Array.isArray(v) ? Object.entries(v as Record<string, any>) : [];
                     const rootAllLeaves =
@@ -599,7 +566,7 @@ export function SAPJsonCard({
                               Array.isArray(v) ? (
                                 <TreeNode label="[]" value={v} path={`$.${k}`} depth={0} />
                               ) : (
-                                <div className={rootAllLeaves ? "grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-1" : "space-y-1"}>
+                                <div className={rootAllLeaves ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2" : "space-y-1"}>
                                   {Object.entries(v as Record<string, any>).map(([sk, sv]) => (
                                     <TreeNode key={`$.${k}.${sk}`} label={sk} value={sv} path={`$.${k}.${sk}`} depth={0} />
                                   ))}
@@ -609,14 +576,12 @@ export function SAPJsonCard({
                               <div className="py-2.5 px-3 rounded-md">
                                 <div className="grid grid-cols-[180px_minmax(0,1fr)] gap-3 items-center">
                                   <label className="text-xs font-medium text-muted-foreground">{k}</label>
-                                  {v === null ? (
-                                    <span className="text-sm text-foreground">null</span>
-                                  ) : typeof v === "boolean" ? (
+                                  {typeof v === "boolean" ? (
                                     <input type="checkbox" defaultChecked={Boolean(v)} className="h-4 w-4" />
                                   ) : (
                                     <input
                                       type={typeof v === "number" ? "number" : "text"}
-                                      defaultValue={String(v)}
+                                      defaultValue={v === null || v === undefined ? "" : String(v)}
                                       className="w-full rounded-md border bg-background px-2 py-1 text-sm"
                                     />
                                   )}
