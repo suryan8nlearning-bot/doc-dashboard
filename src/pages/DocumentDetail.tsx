@@ -15,7 +15,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { supabase, type BoundingBox, hasSupabaseEnv, publicUrlForPath } from '@/lib/supabase';
 import { createSignedUrlForPath } from '@/lib/supabase';
 import { motion } from 'framer-motion';
-import { ArrowLeft, FileText, Loader2, ExternalLink, ArrowUp, Pencil, Check } from 'lucide-react';
+import { ArrowLeft, FileText, Loader2, ExternalLink, ArrowUp, Pencil, Check, ChevronDown, ChevronRight } from 'lucide-react';
 import { useEffect, useState, useRef, lazy, Suspense } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { useLocation } from 'react-router';
@@ -791,7 +791,7 @@ export default function DocumentDetail() {
             <Input
               id={id}
               type={isNum ? "number" : "text"}
-              value={value ?? ""}
+              value={isNum ? (typeof value === "number" ? value : 0) : String(value ?? "")}
               onChange={(e) => onChangePrimitive(e.target.value)}
             />
           )}
@@ -817,7 +817,7 @@ export default function DocumentDetail() {
       );
     };
 
-    // Editable table for arrays of objects
+    // Editable table for arrays of objects WITH row expansion panel
     const ArrayTable = ({
       title,
       arrKey,
@@ -827,8 +827,10 @@ export default function DocumentDetail() {
       arrKey: string;
       rows: any[];
     }) => {
-      const isObjArray = Array.isArray(rows) && rows.some((r) => r && typeof r === "object" && !Array.isArray(r));
+      const isObjArray =
+        Array.isArray(rows) && rows.some((r) => r && typeof r === "object" && !Array.isArray(r));
       if (!isObjArray) return null;
+
       // derive columns from union of keys (limit to reasonable keys)
       const colsSet = new Set<string>();
       rows.forEach((r) => {
@@ -838,6 +840,17 @@ export default function DocumentDetail() {
       });
       const cols = Array.from(colsSet);
       if (!cols.length) return null;
+
+      // Local expansion state
+      const [expandedRows, setExpandedRows] = useState<Set<number>>(() => new Set());
+      const toggleRow = (idx: number) => {
+        setExpandedRows((prev) => {
+          const next = new Set(prev);
+          if (next.has(idx)) next.delete(idx);
+          else next.add(idx);
+          return next;
+        });
+      };
 
       const onCellChange = (rowIdx: number, col: string, raw: string | boolean) => {
         setSap((prev) => {
@@ -858,6 +871,231 @@ export default function DocumentDetail() {
         });
       };
 
+      const onNestedPrimitiveChange = (
+        rowIdx: number,
+        objKey: string,
+        fieldKey: string,
+        raw: string | boolean
+      ) => {
+        setSap((prev) => {
+          const next = { ...prev };
+          const arr = Array.isArray(next[arrKey]) ? [...next[arrKey]] : [];
+          const row = { ...(arr[rowIdx] || {}) };
+          const nested = { ...(row[objKey] || {}) };
+          const original = nested[fieldKey];
+          const typed =
+            typeof original === "boolean"
+              ? Boolean(raw)
+              : typeof original === "number"
+              ? Number(raw)
+              : coerceValue(String(raw), original);
+          nested[fieldKey] = typed;
+          row[objKey] = nested;
+          arr[rowIdx] = row;
+          next[arrKey] = arr;
+          return next;
+        });
+      };
+
+      const onNestedArrayCellChange = (
+        parentRowIdx: number,
+        childArrKey: string,
+        childRowIdx: number,
+        col: string,
+        raw: string | boolean
+      ) => {
+        setSap((prev) => {
+          const next = { ...prev };
+          const arr = Array.isArray(next[arrKey]) ? [...next[arrKey]] : [];
+          const row = { ...(arr[parentRowIdx] || {}) };
+          const childArr: any[] = Array.isArray(row[childArrKey]) ? [...row[childArrKey]] : [];
+          const child = { ...(childArr[childRowIdx] || {}) };
+          const original = child[col];
+          const typed =
+            typeof original === "boolean"
+              ? Boolean(raw)
+              : typeof original === "number"
+              ? Number(raw)
+              : coerceValue(String(raw), original);
+          child[col] = typed;
+          childArr[childRowIdx] = child;
+          row[childArrKey] = childArr;
+          arr[parentRowIdx] = row;
+          next[arrKey] = arr;
+          return next;
+        });
+      };
+
+      const renderExpandedPanel = (r: any, rowIdx: number) => {
+        const entries = Object.entries(r || {});
+        const primitiveEntries = entries.filter(([_, v]) => typeof v !== "object" || v === null);
+        const objectEntries = entries.filter(
+          ([_, v]) => v && typeof v === "object" && !Array.isArray(v)
+        );
+        const arrayEntries = entries.filter(
+          ([_, v]) =>
+            Array.isArray(v) &&
+            v.some((row) => row && typeof row === "object" && !Array.isArray(row))
+        );
+
+        return (
+          <div className="rounded-md border p-3 bg-background">
+            {/* Primitive fields for this row */}
+            {primitiveEntries.length > 0 && (
+              <div className="mb-4">
+                <div className="text-xs font-semibold mb-2">Fields</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {primitiveEntries.map(([k, v]) => {
+                    const isBool = typeof v === "boolean";
+                    const isNum = typeof v === "number";
+                    return (
+                      <div key={k} className="flex flex-col gap-1 rounded-lg border p-3">
+                        <label className="text-xs text-muted-foreground">{k}</label>
+                        {isBool ? (
+                          <div className="flex items-center gap-2">
+                            <Switch
+                              checked={Boolean(v)}
+                              onCheckedChange={(checked) => onCellChange(rowIdx, k, checked)}
+                              aria-label={`${k}-${rowIdx}`}
+                            />
+                            <span className="text-xs">{Boolean(v) ? "True" : "False"}</span>
+                          </div>
+                        ) : (
+                          <Input
+                            type={isNum ? "number" : "text"}
+                            value={isNum ? (typeof v === "number" ? v : 0) : String(v ?? "")}
+                            onChange={(e) => onCellChange(rowIdx, k, e.target.value)}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Nested objects as 3-col grids */}
+            {objectEntries.map(([objKey, obj]) => {
+              const objPrims = Object.entries(obj || {}).filter(
+                ([, v]) => typeof v !== "object" || v === null
+              );
+              if (!objPrims.length) return null;
+              return (
+                <div key={objKey} className="mb-4 rounded-lg border p-3">
+                  <div className="text-xs font-semibold mb-2">{objKey}</div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {objPrims.map(([k, v]) => {
+                      const isBool = typeof v === "boolean";
+                      const isNum = typeof v === "number";
+                      return (
+                        <div key={k} className="flex flex-col gap-1 rounded-lg border p-3">
+                          <label className="text-xs text-muted-foreground">{k}</label>
+                          {isBool ? (
+                            <div className="flex items-center gap-2">
+                              <Switch
+                                checked={Boolean(v)}
+                                onCheckedChange={(checked) =>
+                                  onNestedPrimitiveChange(rowIdx, objKey, k, checked)
+                                }
+                                aria-label={`${objKey}.${k}-${rowIdx}`}
+                              />
+                              <span className="text-xs">{Boolean(v) ? "True" : "False"}</span>
+                            </div>
+                          ) : (
+                            <Input
+                              type={isNum ? "number" : "text"}
+                              value={isNum ? (typeof v === "number" ? v : 0) : String(v ?? "")}
+                              onChange={(e) =>
+                                onNestedPrimitiveChange(rowIdx, objKey, k, e.target.value)
+                              }
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Nested arrays as tables */}
+            {arrayEntries.map(([childKey, arr]) => {
+              const childRows: any[] = Array.isArray(arr) ? arr : [];
+              const childColsSet = new Set<string>();
+              childRows.forEach((cr) => {
+                if (cr && typeof cr === "object" && !Array.isArray(cr)) {
+                  Object.keys(cr).forEach((k) => childColsSet.add(k));
+                }
+              });
+              const childCols = Array.from(childColsSet);
+              if (!childCols.length) return null;
+
+              return (
+                <div key={childKey} className="mb-4 rounded-lg border p-3">
+                  <div className="text-xs font-semibold mb-2">{childKey}</div>
+                  <div className="w-full overflow-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          {childCols.map((c) => (
+                            <TableHead key={c} className="whitespace-nowrap">
+                              {c}
+                            </TableHead>
+                          ))}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {childRows.map((cr, cri) => (
+                          <TableRow key={cri}>
+                            {childCols.map((c) => {
+                              const v = cr?.[c];
+                              const isBool = typeof v === "boolean";
+                              const isNum = typeof v === "number";
+                              return (
+                                <TableCell key={c} className="min-w-[10rem] align-top">
+                                  {isBool ? (
+                                    <div className="flex items-center gap-2">
+                                      <Switch
+                                        checked={Boolean(v)}
+                                        onCheckedChange={(checked) =>
+                                          onNestedArrayCellChange(rowIdx, childKey, cri, c, checked)
+                                        }
+                                        aria-label={`${childKey}.${c}-${cri}`}
+                                      />
+                                      <span className="text-xs">
+                                        {Boolean(v) ? "True" : "False"}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <Input
+                                      type={isNum ? "number" : "text"}
+                                      value={isNum ? (typeof v === "number" ? v : 0) : String(v ?? "")}
+                                      onChange={(e) =>
+                                        onNestedArrayCellChange(
+                                          rowIdx,
+                                          childKey,
+                                          cri,
+                                          c,
+                                          e.target.value
+                                        )
+                                      }
+                                    />
+                                  )}
+                                </TableCell>
+                              );
+                            })}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      };
+
       return (
         <div className="rounded-lg border p-3">
           <div className="text-sm font-semibold mb-2">{title}</div>
@@ -866,39 +1104,66 @@ export default function DocumentDetail() {
               <TableHeader>
                 <TableRow>
                   {cols.map((c) => (
-                    <TableHead key={c} className="whitespace-nowrap">{c}</TableHead>
+                    <TableHead key={c} className="whitespace-nowrap">
+                      {c}
+                    </TableHead>
                   ))}
+                  <TableHead className="w-12">Details</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {rows.map((r, i) => (
-                  <TableRow key={i}>
-                    {cols.map((c) => {
-                      const v = r?.[c];
-                      const isBool = typeof v === "boolean";
-                      const isNum = typeof v === "number";
-                      return (
-                        <TableCell key={c} className="min-w-[10rem] align-top">
-                          {isBool ? (
-                            <div className="flex items-center gap-2">
-                              <Switch
-                                checked={Boolean(v)}
-                                onCheckedChange={(checked) => onCellChange(i, c, checked)}
-                                aria-label={`${c}-${i}`}
+                  <>
+                    <TableRow key={`r-${i}`}>
+                      {cols.map((c) => {
+                        const v = r?.[c];
+                        const isBool = typeof v === "boolean";
+                        const isNum = typeof v === "number";
+                        return (
+                          <TableCell key={c} className="min-w-[10rem] align-top">
+                            {isBool ? (
+                              <div className="flex items-center gap-2">
+                                <Switch
+                                  checked={Boolean(v)}
+                                  onCheckedChange={(checked) => onCellChange(i, c, checked)}
+                                  aria-label={`${c}-${i}`}
+                                />
+                                <span className="text-xs">{Boolean(v) ? "True" : "False"}</span>
+                              </div>
+                            ) : (
+                              <Input
+                                type={isNum ? "number" : "text"}
+                                value={isNum ? (typeof v === "number" ? v : 0) : String(v ?? "")}
+                                onChange={(e) => onCellChange(i, c, e.target.value)}
                               />
-                              <span className="text-xs">{Boolean(v) ? "True" : "False"}</span>
-                            </div>
+                            )}
+                          </TableCell>
+                        );
+                      })}
+                      <TableCell className="align-top">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => toggleRow(i)}
+                          aria-label={expandedRows.has(i) ? "Collapse details" : "Expand details"}
+                        >
+                          {expandedRows.has(i) ? (
+                            <ChevronDown className="h-4 w-4" />
                           ) : (
-                            <Input
-                              type={isNum ? "number" : "text"}
-                              value={v ?? ""}
-                              onChange={(e) => onCellChange(i, c, e.target.value)}
-                            />
+                            <ChevronRight className="h-4 w-4" />
                           )}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+
+                    {expandedRows.has(i) && (
+                      <TableRow key={`r-exp-${i}`}>
+                        <TableCell colSpan={cols.length + 1}>
+                          {renderExpandedPanel(r, i)}
                         </TableCell>
-                      );
-                    })}
-                  </TableRow>
+                      </TableRow>
+                    )}
+                  </>
                 ))}
               </TableBody>
             </Table>
