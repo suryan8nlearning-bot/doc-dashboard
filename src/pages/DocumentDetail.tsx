@@ -1156,20 +1156,20 @@ export default function DocumentDetail() {
                             return false;
                           });
                           return hasNested ? (
-                            <Button
-                              variant="ghost"
-                              size="icon"
+                            <button
+                              type="button"
+                              className="flex items-center gap-2"
                               onClick={() => toggleRow(i)}
-                              aria-label={
-                                expandedRows.has(i) ? "Collapse details" : "Expand details"
-                              }
+                              aria-label={expandedRows.has(i) ? "Collapse row details" : "Expand row details"}
+                              data-role="expand-toggle"
+                              data-expanded={expandedRows.has(i)}
                             >
                               {expandedRows.has(i) ? (
                                 <ChevronDown className="h-4 w-4" />
                               ) : (
                                 <ChevronRight className="h-4 w-4" />
                               )}
-                            </Button>
+                            </button>
                           ) : (
                             <span className="text-xs text-muted-foreground">—</span>
                           );
