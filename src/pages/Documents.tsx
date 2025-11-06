@@ -129,6 +129,7 @@ const getMailContent = (row: any): string => {
   const directKeys: Array<string> = [
     "mail_content",
     "Mail Content",
+    "Mail content",
     "mail content",
     "mailContent",
     "html",
