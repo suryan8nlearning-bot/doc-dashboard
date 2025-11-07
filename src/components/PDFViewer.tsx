@@ -753,65 +753,14 @@ const toPxBox = (box: WideBox): WideBox => {
     setTimeout(() => setShowZoomHud(false), 450);
   };
 
-  // Add: Run COCO-SSD detection on current canvas
+  // Removed OCR and detection functionality
   const runDetection = async () => {
-    if (detecting) return;
-    const canvas = canvasRef.current;
-    if (!canvas) {
-      toast("PDF not ready yet.");
-      return;
-    }
-    try {
-      setDetecting(true);
-      toast("Loading detection model...");
-      // Lazy load to avoid heavy initial bundle
-      const [{ load }] = await Promise.all([
-        import("@tensorflow-models/coco-ssd"),
-        import("@tensorflow/tfjs"),
-      ]);
-      const model = await load({ base: "lite_mobilenet_v2" } as any);
-      const preds = await model.detect(canvas as any);
-      setPredictions(Array.isArray(preds) ? preds : []);
-      toast(`Detected ${Array.isArray(preds) ? preds.length : 0} objects.`);
-
-      // Also run OCR using Tesseract.js
-      toast("Running OCR...");
-      const { default: Tesseract } = await import("tesseract.js");
-      const ocrRes: any = await Tesseract.recognize(canvas as any, "eng");
-      const wordsRaw = Array.isArray(ocrRes?.data?.words) ? ocrRes.data.words : [];
-
-      const mapped = wordsRaw.map((w: any) => {
-        const bb = w?.bbox ?? w?.bBox ?? w?.box ?? {};
-        const x0 = bb?.x0 ?? bb?.left ?? 0;
-        const y0 = bb?.y0 ?? bb?.top ?? 0;
-        const x1 = bb?.x1 ?? bb?.right ?? 0;
-        const y1 = bb?.y1 ?? bb?.bottom ?? 0;
-        const x = Number(x0) || 0;
-        const y = Number(y0) || 0;
-        const ww = Math.max(0, (Number(x1) || 0) - x);
-        const hh = Math.max(0, (Number(y1) || 0) - y);
-        const text = String(w?.text ?? w?.symbol ?? w?.word ?? "");
-        const conf = Number(w?.confidence ?? w?.conf ?? 0);
-        return { x, y, w: ww, h: hh, text, conf };
-      });
-
-      setOcrWords(mapped);
-      toast(`OCR extracted ${mapped.length} words.`);
-    } catch (e: any) {
-      console.error("Detection/OCR error:", e);
-      toast.error(`Detection/OCR failed: ${e?.message || e}`);
-    } finally {
-      setDetecting(false);
-    }
+    return;
   };
 
   // Add: Clear detection overlays
-  const clearDetections = () => {
-    setPredictions([]);
-    // Also clear OCR overlays
-    setOcrWords([]);
-    toast("Cleared detections.");
-  };
+  // Removed OCR and detection functionality
+  const clearDetections = () => {};
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -1017,35 +966,7 @@ const toPxBox = (box: WideBox): WideBox => {
           Y:{invertY ? '↓' : '↑'}
         </Button>
 
-        {/* Add: Object detection controls */}
-        <div className="mx-2 h-5 w-px bg-border" />
-        <Button
-          variant="default"
-          size="sm"
-          className="h-8 px-3 rounded-full"
-          onClick={runDetection}
-          disabled={detecting}
-          title="Run object detection on the current page canvas"
-        >
-          {detecting ? (
-            <span className="inline-flex items-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Detecting…
-            </span>
-          ) : (
-            "Detect Objects"
-          )}
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 px-3 rounded-full"
-          onClick={clearDetections}
-          disabled={detecting || (predictions.length === 0 && ocrWords.length === 0)}
-          title="Clear detection and OCR overlays"
-        >
-          Clear
-        </Button>
+        {/* Detection & OCR controls removed */}
       </div>
 
       {/* Scroll to top button inside PDF container */}
