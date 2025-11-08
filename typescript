@@ -1,0 +1,2 @@
+const convexUrl = (import.meta.env.VITE_CONVEX_URL as string | undefined) || (window as any).__CONVEX_URL;
+const convex = new ConvexReactClient(convexUrl);

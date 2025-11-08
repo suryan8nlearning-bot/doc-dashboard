@@ -944,31 +944,6 @@ const toPxBox = (box: WideBox): WideBox => {
         <ArrowUp className="h-4 w-4" />
       </Button>
 
-      {/* Add: compact debug panel to inspect sizes */}
-      {debugMode && (
-        <div className="absolute bottom-4 left-4 z-20 rounded-md border bg-background/85 backdrop-blur px-3 py-2 text-xs shadow-sm">
-          <div className="font-medium mb-1">Debug: Dimensions</div>
-          <div className="space-y-0.5 text-muted-foreground">
-            <div>Canvas: {canvasSize.width} × {canvasSize.height}px</div>
-            <div>Base @1x: {baseViewportRef.current?.width ?? 0} × {baseViewportRef.current?.height ?? 0}px</div>
-            <div>Source (bbox default): {sourceDimsRef.current?.width ?? 0} × {sourceDimsRef.current?.height ?? 0}</div>
-            <div>Zoom: {Number.isFinite(zoom) ? Math.round(zoom * 100) : 100}% | Y-Invert: {invertY ? 'on' : 'off'}</div>
-            {highlightBox && (() => {
-              const hbNorm = normalizeWideBox(highlightBox as any);
-              if (!hbNorm) return null;
-              const hbPx = toPxBox(hbNorm);
-              return (
-                <div className="pt-1 space-y-0.5">
-                  <div className="font-medium text-foreground">Highlight</div>
-                  <div>Norm: x:{Math.round(hbNorm.x*1000)/1000}, y:{Math.round(hbNorm.y*1000)/1000}, w:{Math.round(hbNorm.width*1000)/1000}, h:{Math.round(hbNorm.height*1000)/1000}{hbNorm.page ? `, p:${hbNorm.page}` : ''}</div>
-                  <div>Px: x:{Math.round(hbPx.x)}, y:{Math.round(hbPx.y)}, w:{Math.round(hbPx.width)}, h:{Math.round(hbPx.height)}</div>
-                </div>
-              );
-            })()}
-          </div>
-        </div>
-      )}
-
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-background/60 z-20">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
