@@ -182,26 +182,18 @@ function robustUnitEdges(input: any): { x1: number; y1: number; x2: number; y2: 
   let x1: number, y1: number, x2: number, y2: number;
 
   if (Array.isArray(input) && input.length >= 4) {
-    const a0 = toNum(input[0]);
-    const a1 = toNum(input[1]);
-    const a2 = toNum(input[2]);
-    const a3 = toNum(input[3]);
+    // Always interpret arrays as [x1, y1, x2, y2] — never [x, y, w, h]
+    let a0 = toNum(input[0]);
+    let a1 = toNum(input[1]);
+    let a2 = toNum(input[2]);
+    let a3 = toNum(input[3]);
     if (![a0, a1, a2, a3].every(Number.isFinite)) return zero;
 
-    const allUnit = [a0, a1, a2, a3].every((n) => n >= 0 && n <= 1);
+    x1 = a0; y1 = a1; x2 = a2; y2 = a3;
 
-    if (allUnit) {
-      // Treat arrays as edges directly in unit space
-      x1 = a0; y1 = a1; x2 = a2; y2 = a3;
-    } else {
-      // Decide if [x1,y1,x2,y2] or [x,y,w,h]
-      const looksLikeEdges = a2 > a0 && a3 > a1;
-      if (looksLikeEdges) {
-        x1 = a0; y1 = a1; x2 = a2; y2 = a3;
-      } else {
-        x1 = a0; y1 = a1; x2 = a0 + a2; y2 = a1 + a3;
-      }
-      // Normalize using sourceDims (preferred) or base viewport
+    // Normalize if not in [0,1]
+    const alreadyUnit = [x1, y1, x2, y2].every((n) => n >= 0 && n <= 1);
+    if (!alreadyUnit) {
       x1 = x1 / srcW;
       y1 = y1 / srcH;
       x2 = x2 / srcW;
@@ -222,25 +214,23 @@ function robustUnitEdges(input: any): { x1: number; y1: number; x2: number; y2: 
     if (!Number.isFinite(ry2) && Number.isFinite(rh)) ry2 = ry + rh;
     if (!Number.isFinite(rx2) || !Number.isFinite(ry2)) return zero;
 
-    const alreadyUnit = [rx, ry, rx2, ry2].every((n) => n >= 0 && n <= 1);
-    if (alreadyUnit) {
-      x1 = rx; y1 = ry; x2 = rx2; y2 = ry2;
-    } else {
-      x1 = rx / srcW;
-      y1 = ry / srcH;
-      x2 = rx2 / srcW;
-      y2 = ry2 / srcH;
+    x1 = rx; y1 = ry; x2 = rx2; y2 = ry2;
+
+    const alreadyUnit = [x1, y1, x2, y2].every((n) => n >= 0 && n <= 1);
+    if (!alreadyUnit) {
+      x1 = x1 / srcW;
+      y1 = y1 / srcH;
+      x2 = x2 / srcW;
+      y2 = y2 / srcH;
     }
   }
 
-  // Fix inverted axes if needed
+  // Enforce proper ordering in case of inverted edges
   if (x2 < x1) [x1, x2] = [x2, x1];
   if (y2 < y1) [y1, y2] = [y2, y1];
 
-  // Clamp
+  // Clamp and guard
   x1 = clamp01(x1); y1 = clamp01(y1); x2 = clamp01(x2); y2 = clamp01(y2);
-
-  // Guard degenerate
   if (x2 <= x1 || y2 <= y1) return zero;
 
   return { x1, y1, x2, y2 };
