@@ -167,18 +167,14 @@ const [detecting, setDetecting] = useState(false);
 const [ocrWords, setOcrWords] = useState<Array<{ x: number; y: number; w: number; h: number; text: string; conf: number }>>([]);
 
 const getBaseDims = () => {
+  // Only use the base viewport (scale = 1) to avoid double-scaling.
   const base = baseViewportRef.current;
   if (base?.width && base?.height) return base;
-  const canvas = canvasRef.current;
-  if (canvas?.width && canvas?.height) {
-    return { width: canvas.width, height: canvas.height };
-  }
-  // Fallback to tracked canvasSize state if canvasRef isn't ready yet
-  if (canvasSize.width && canvasSize.height) {
-    return { width: canvasSize.width, height: canvasSize.height };
-  }
   return { width: 0, height: 0 };
 };
+
+// Add a reactive flag to ensure base viewport is ready before projecting boxes
+const baseReady = !!(baseViewportRef.current?.width && baseViewportRef.current?.height);
 
 // Replace projector to normalize first, then scale by canvas size from PDF top-left
 const toPxBox = (box: WideBox): WideBox => {
@@ -1046,7 +1042,7 @@ const toPxBox = (box: WideBox): WideBox => {
 
           {/* Subtle overlays for all boxes (normalized to base pixels, then scaled by zoom) */}
           {/* Show all bounding boxes by default - ensure canvas is ready for visibility */}
-          {allBoxes.length > 0 && canvasSize.width > 0 && canvasSize.height > 0 && (
+          {allBoxes.length > 0 && baseReady && canvasSize.width > 0 && canvasSize.height > 0 && (
             <>
               {allBoxes.map((box, idx) => {
                 const bb = toPxBox(box as any);
@@ -1101,7 +1097,7 @@ const toPxBox = (box: WideBox): WideBox => {
           )}
 
           {/* Hover highlight overlay (normalized to base pixels) with dynamic color */}
-          {highlightBox && (() => {
+          {highlightBox && baseReady && (() => {
             const hbNorm = normalizeWideBox(highlightBox as any) as WideBox | null;
             if (!hbNorm) return null;
             const hb = toPxBox(hbNorm);
