@@ -172,13 +172,16 @@ function robustUnitEdges(input: any): { x1: number; y1: number; x2: number; y2: 
   const zero = { x1: 0, y1: 0, x2: 0, y2: 0 };
   if (!base.width || !base.height || !input) return zero;
 
+  const src = sourceDimsRef.current;
+  const srcW = src?.width && src.width > 0 ? src.width : base.width;
+  const srcH = src?.height && src.height > 0 ? src.height : base.height;
+
   const toNum = (v: any) => (v === null || v === undefined || v === "" ? NaN : Number(v));
   const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 
   let x1: number, y1: number, x2: number, y2: number;
 
   if (Array.isArray(input) && input.length >= 4) {
-    // Prefer edges [x1,y1,x2,y2] for arrays; fallback to [x,y,w,h] if needed
     const a0 = toNum(input[0]);
     const a1 = toNum(input[1]);
     const a2 = toNum(input[2]);
@@ -188,22 +191,21 @@ function robustUnitEdges(input: any): { x1: number; y1: number; x2: number; y2: 
     const allUnit = [a0, a1, a2, a3].every((n) => n >= 0 && n <= 1);
 
     if (allUnit) {
-      // Treat as edges directly
+      // Treat arrays as edges directly in unit space
       x1 = a0; y1 = a1; x2 = a2; y2 = a3;
     } else {
-      // Not all unit; decide if edges or width/height
+      // Decide if [x1,y1,x2,y2] or [x,y,w,h]
       const looksLikeEdges = a2 > a0 && a3 > a1;
       if (looksLikeEdges) {
         x1 = a0; y1 = a1; x2 = a2; y2 = a3;
       } else {
-        // Treat as width/height
         x1 = a0; y1 = a1; x2 = a0 + a2; y2 = a1 + a3;
       }
-      // Normalize to [0..1] using base viewport dims
-      x1 = x1 / base.width;
-      y1 = y1 / base.height;
-      x2 = x2 / base.width;
-      y2 = y2 / base.height;
+      // Normalize using sourceDims (preferred) or base viewport
+      x1 = x1 / srcW;
+      y1 = y1 / srcH;
+      x2 = x2 / srcW;
+      y2 = y2 / srcH;
     }
   } else {
     // Object-like: use x/left + x2/right or width; y/top + y2/bottom or height
@@ -224,10 +226,10 @@ function robustUnitEdges(input: any): { x1: number; y1: number; x2: number; y2: 
     if (alreadyUnit) {
       x1 = rx; y1 = ry; x2 = rx2; y2 = ry2;
     } else {
-      x1 = rx / base.width;
-      y1 = ry / base.height;
-      x2 = rx2 / base.width;
-      y2 = ry2 / base.height;
+      x1 = rx / srcW;
+      y1 = ry / srcH;
+      x2 = rx2 / srcW;
+      y2 = ry2 / srcH;
     }
   }
 
