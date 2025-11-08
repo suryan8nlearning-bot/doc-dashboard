@@ -46,6 +46,9 @@ const baseViewportRef = useRef<{ width: number; height: number } | null>(null);
 // Track the source coordinate space of incoming boxes (auto-guessed per page)
 const sourceDimsRef = useRef<{ width: number; height: number } | null>(null);
 
+// Add: pdf.js intrinsic view dimensions (user units, before pixel scaling)
+const pdfViewDimsRef = useRef<{ width: number; height: number } | null>(null);
+
 // Add: manual zoom mode — disables auto-fit on resize after user zooms
 const manualZoomRef = useRef(false);
 
@@ -551,6 +554,22 @@ const toPxBox = (box: WideBox): WideBox => {
         const baseViewport = page.getViewport({ scale: 1 });
         baseViewportRef.current = { width: baseViewport.width, height: baseViewport.height };
 
+        // Add: also capture pdf.js intrinsic page view (user units)
+        const view = (page as any).view as number[] | undefined;
+        if (Array.isArray(view) && view.length >= 4) {
+          const [xMin, yMin, xMax, yMax] = view;
+          pdfViewDimsRef.current = {
+            width: Math.abs(xMax - xMin),
+            height: Math.abs(yMax - yMin),
+          };
+        } else {
+          // Fallback to base viewport if view is unavailable
+          pdfViewDimsRef.current = {
+            width: baseViewport.width,
+            height: baseViewport.height,
+          };
+        }
+
         // Compute initial scale (fit-to-width if requested)
         let initialScale = 1;
         if (fitToWidthInitially && containerRef.current && baseViewport.width) {
@@ -988,6 +1007,7 @@ const toPxBox = (box: WideBox): WideBox => {
           <div className="space-y-0.5 text-muted-foreground">
             <div>Canvas: {canvasSize.width} × {canvasSize.height}px</div>
             <div>Base @1x: {baseViewportRef.current?.width ?? 0} × {baseViewportRef.current?.height ?? 0}px</div>
+            <div>PDF View (user units): {pdfViewDimsRef.current?.width ?? 0} × {pdfViewDimsRef.current?.height ?? 0}</div>
             <div>Source (bbox default): {sourceDimsRef.current?.width ?? 0} × {sourceDimsRef.current?.height ?? 0}</div>
             <div>Zoom: {Number.isFinite(zoom) ? Math.round(zoom * 100) : 100}% | Y-Invert: {invertY ? 'on' : 'off'}</div>
             {highlightBox && (() => {
