@@ -46,6 +46,9 @@ const baseViewportRef = useRef<{ width: number; height: number } | null>(null);
 // Track the source coordinate space of incoming boxes (auto-guessed per page)
 const sourceDimsRef = useRef<{ width: number; height: number } | null>(null);
 
+// Add: detect if incoming boxes use bottom-left origin (PDF native space)
+const originBottomLeftRef = useRef(false);
+
 // Add: manual zoom mode — disables auto-fit on resize after user zooms
 const manualZoomRef = useRef(false);
 
@@ -209,16 +212,35 @@ const toPxBox = (box: WideBox): WideBox => {
   const srcW = src?.width && src.width > 0 ? src.width : base.width;
   const srcH = src?.height && src.height > 0 ? src.height : base.height;
 
-  // Normalize first (relative to source), then scale to canvas pixels
+  // Normalize first (relative to source)
   const normX = isNormalized ? box.x : box.x / srcW;
-  const normY = isNormalized ? box.y : box.y / srcH;
   const normW = isNormalized ? box.width : box.width / srcW;
-  const normH = isNormalized ? box.height : box.height / srcH;
 
-  const pxX = normX * base.width;
-  const pxY = normY * base.height;
-  const pxW = normW * base.width;
-  const pxH = normH * base.height;
+  // If the source appears to be bottom-left origin, flip Y before scaling
+  let normY: number;
+  let normH: number;
+  if (isNormalized) {
+    normH = box.height;
+    if (originBottomLeftRef.current) {
+      normY = 1 - (box.y + box.height);
+    } else {
+      normY = box.y;
+    }
+  } else {
+    normH = box.height / srcH;
+    if (originBottomLeftRef.current) {
+      normY = (srcH - (box.y + box.height)) / srcH;
+    } else {
+      normY = box.y / srcH;
+    }
+  }
+
+  // Clamp normalized values defensively
+  const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+  const pxX = clamp01(normX) * base.width;
+  const pxY = clamp01(normY) * base.height;
+  const pxW = clamp01(normW) * base.width;
+  const pxH = clamp01(normH) * base.height;
 
   // Strictly render from PDF top-left (no extra offsets)
   return { x: pxX, y: pxY, width: pxW, height: pxH, page: (box as any).page, color: (box as any).color } as WideBox;
@@ -458,6 +480,52 @@ const toPxBox = (box: WideBox): WideBox => {
       console.debug("PDFViewer: sourceDims guessed", sourceDims);
     }
   }, [sourceDims?.width, sourceDims?.height, currentPage]);
+
+  // Add: auto-detect if incoming boxes use bottom-left origin and flip Y accordingly
+  useEffect(() => {
+    const src = sourceDimsRef.current;
+    if (!src?.width || !src?.height || !Array.isArray(allBoxes) || allBoxes.length === 0) {
+      originBottomLeftRef.current = false;
+      return;
+    }
+    const srcW = src.width;
+    const srcH = src.height;
+
+    let topHalfCountTopLeft = 0;
+    let topHalfCountFlipped = 0;
+    let samples = 0;
+
+    for (const b of allBoxes as any[]) {
+      const x = typeof b?.x === "number" ? b.x : NaN;
+      const y = typeof b?.y === "number" ? b.y : NaN;
+      const h = typeof b?.height === "number" ? b.height : NaN;
+      if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(h)) continue;
+
+      // Normalize assuming absolute space
+      const yTopLeftNorm = y / srcH;
+      const yFlippedNorm = (srcH - (y + h)) / srcH;
+
+      if (Number.isFinite(yTopLeftNorm) && Number.isFinite(yFlippedNorm)) {
+        const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+        const y1 = clamp01(yTopLeftNorm);
+        const y2 = clamp01(yFlippedNorm);
+        // Consider "top half" if y < 0.4 (slightly generous)
+        if (y1 < 0.4) topHalfCountTopLeft++;
+        if (y2 < 0.4) topHalfCountFlipped++;
+        samples++;
+      }
+    }
+
+    if (samples === 0) {
+      originBottomLeftRef.current = false;
+      return;
+    }
+
+    // If flipping produces noticeably more boxes in the top half, assume bottom-left origin
+    const ratioTopLeft = topHalfCountTopLeft / samples;
+    const ratioFlipped = topHalfCountFlipped / samples;
+    originBottomLeftRef.current = ratioFlipped > ratioTopLeft + 0.1;
+  }, [allBoxes, sourceDims?.width, sourceDims?.height, currentPage]);
 
   // Fetch PDF via backend proxy; convert to ArrayBuffer for pdf.js
   useEffect(() => {
