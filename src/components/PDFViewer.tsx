@@ -219,6 +219,61 @@ const recomputeOriginGuess = () => {
   originBottomLeftRef.current = ratioFlipped > ratioTopLeft + 0.1;
 };
 
+// Returns a normalized (0..1) top-left origin box for a given input box,
+// respecting sourceDimsRef and originBottomLeftRef.
+const toUnitBoxTopLeft = (
+  box: WideBox
+): { x: number; y: number; width: number; height: number } => {
+  if (
+    box == null ||
+    typeof box.x !== "number" ||
+    typeof box.y !== "number" ||
+    typeof box.width !== "number" ||
+    typeof box.height !== "number"
+  ) {
+    return { x: 0, y: 0, width: 0, height: 0 };
+  }
+
+  const base = getBaseDims();
+  // If coords are already normalized (0..1), use as-is; else normalize using source dims (fallback to base dims)
+  const isNormalized =
+    box.x >= 0 &&
+    box.y >= 0 &&
+    box.width > 0 &&
+    box.height > 0 &&
+    box.x <= 1 &&
+    box.y <= 1 &&
+    box.width <= 1 &&
+    box.height <= 1;
+
+  const src = sourceDimsRef.current;
+  const srcW = src?.width && src.width > 0 ? src.width : base.width || 1;
+  const srcH = src?.height && src.height > 0 ? src.height : base.height || 1;
+
+  const normX = isNormalized ? box.x : box.x / srcW;
+  const normW = isNormalized ? box.width : box.width / srcW;
+
+  let normY: number;
+  let normH: number;
+  if (isNormalized) {
+    normH = box.height;
+    normY = originBottomLeftRef.current ? 1 - (box.y + box.height) : box.y;
+  } else {
+    normH = box.height / srcH;
+    normY = originBottomLeftRef.current
+      ? (srcH - (box.y + box.height)) / srcH
+      : box.y / srcH;
+  }
+
+  const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+  return {
+    x: clamp01(normX),
+    y: clamp01(normY),
+    width: clamp01(normW),
+    height: clamp01(normH),
+  };
+};
+
 // Replace projector to normalize first, then scale by canvas size from PDF top-left
 const toPxBox = (box: WideBox): WideBox => {
   // Guard missing values
@@ -1090,8 +1145,19 @@ const toPxBox = (box: WideBox): WideBox => {
                           <div className="text-xs space-y-1">
                             <div className="font-medium">{String(text)}</div>
                             <div className="text-muted-foreground">
-                              x:{Math.round(bb.x)}, y:{Math.round(bb.y)}, w:{Math.round(bb.width)}, h:{Math.round(bb.height)}
-                              {(nb as any)?.page ? `, p:${(nb as any).page}` : ""}
+                              {
+                                (() => {
+                                  const unit = toUnitBoxTopLeft(nb as any);
+                                  const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+                                  const x1 = clamp01(unit.x);
+                                  const y1 = clamp01(unit.y);
+                                  const x2 = clamp01(unit.x + unit.width);
+                                  const y2 = clamp01(unit.y + unit.height);
+                                  const fmt = (n: number) => n.toFixed(4);
+                                  const pageStr = (nb as any)?.page ? `, p:${(nb as any).page}` : "";
+                                  return `x1:${fmt(x1)}, y1:${fmt(y1)}, x2:${fmt(x2)}, y2:${fmt(y2)}${pageStr}`;
+                                })()
+                              }
                             </div>
                           </div>
                         </TooltipContent>
@@ -1165,8 +1231,19 @@ const toPxBox = (box: WideBox): WideBox => {
                     <div className="text-xs space-y-1">
                       <div className="font-medium">{label}</div>
                       <div className="text-muted-foreground">
-                        x:{Math.round(hb.x)}, y:{Math.round(hb.y)}, w:{Math.round(hb.width)}, h:{Math.round(hb.height)}
-                        {(hbNorm as any)?.page ? `, p:${(hbNorm as any).page}` : ""}
+                        {
+                          (() => {
+                            const unit = toUnitBoxTopLeft(hbNorm as any);
+                            const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+                            const x1 = clamp01(unit.x);
+                            const y1 = clamp01(unit.y);
+                            const x2 = clamp01(unit.x + unit.width);
+                            const y2 = clamp01(unit.y + unit.height);
+                            const fmt = (n: number) => n.toFixed(4);
+                            const pageStr = (hbNorm as any)?.page ? `, p:${(hbNorm as any).page}` : "";
+                            return `x1:${fmt(x1)}, y1:${fmt(y1)}, x2:${fmt(x2)}, y2:${fmt(y2)}${pageStr}`;
+                          })()
+                        }
                       </div>
                     </div>
                   </TooltipContent>
