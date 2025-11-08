@@ -174,23 +174,31 @@ function toUnitEdgesTopLeft(input: any): { x1: number; y1: number; x2: number; y
   const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
   const toNum = (v: any) => (v === null || v === undefined || v === "" ? NaN : Number(v));
 
-  // Arrays are always treated as [x1, y1, x2, y2]
+  // For arrays, unify via normalizeBoxAny to support both [x,y,w,h] and [x1,y1,x2,y2]
   if (Array.isArray(input) && input.length >= 4) {
-    let x1 = toNum(input[0]);
-    let y1 = toNum(input[1]);
-    let x2 = toNum(input[2]);
-    let y2 = toNum(input[3]);
+    const nb = normalizeBoxAny(input);
+    if (!nb) return { x1: 0, y1: 0, x2: 0, y2: 0 };
 
-    if (![x1, y1, x2, y2].every(Number.isFinite)) return { x1: 0, y1: 0, x2: 0, y2: 0 };
+    let x1 = nb.x;
+    let y1 = nb.y;
+    let x2 = nb.x + nb.width;
+    let y2 = nb.y + nb.height;
 
-    const alreadyUnit = [x1, y1, x2, y2].every((n) => n >= 0 && n <= 1);
+    const alreadyUnit = [x1, y1, x2, y2].every((n) => Number.isFinite(n) && n >= 0 && n <= 1);
     if (!alreadyUnit) {
       x1 = x1 / base.width;
       y1 = y1 / base.height;
       x2 = x2 / base.width;
       y2 = y2 / base.height;
     }
-    return { x1: clamp01(x1), y1: clamp01(y1), x2: clamp01(x2), y2: clamp01(y2) };
+
+    // Ensure non-inverted edges
+    const minX = Math.min(x1, x2);
+    const maxX = Math.max(x1, x2);
+    const minY = Math.min(y1, y2);
+    const maxY = Math.max(y1, y2);
+
+    return { x1: clamp01(minX), y1: clamp01(minY), x2: clamp01(maxX), y2: clamp01(maxY) };
   }
 
   // Object-like formats
@@ -221,25 +229,34 @@ function toUnitEdgesTopLeft(input: any): { x1: number; y1: number; x2: number; y
     y2 = y2 / base.height;
   }
 
+  // Ensure non-inverted edges
+  const minX = Math.min(x1, x2);
+  const maxX = Math.max(x1, x2);
+  const minY = Math.min(y1, y2);
+  const maxY = Math.max(y1, y2);
+
   return {
-    x1: clamp01(x1),
-    y1: clamp01(y1),
-    x2: clamp01(x2),
-    y2: clamp01(y2),
+    x1: clamp01(minX),
+    y1: clamp01(minY),
+    x2: clamp01(maxX),
+    y2: clamp01(maxY),
   };
 }
 
 function edgesToPxRect(edges: { x1: number; y1: number; x2: number; y2: number }) {
   const base = getBaseDims();
   const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
-  const x1 = clamp01(edges.x1);
-  const y1 = clamp01(edges.y1);
-  const x2 = clamp01(edges.x2);
-  const y2 = clamp01(edges.y2);
-  const x = x1 * base.width;
-  const y = y1 * base.height;
-  const width = Math.max(0, x2 - x1) * base.width;
-  const height = Math.max(0, y2 - y1) * base.height;
+
+  // Enforce proper ordering in case inputs are inverted
+  const x1n = clamp01(Math.min(edges.x1, edges.x2));
+  const y1n = clamp01(Math.min(edges.y1, edges.y2));
+  const x2n = clamp01(Math.max(edges.x1, edges.x2));
+  const y2n = clamp01(Math.max(edges.y1, edges.y2));
+
+  const x = x1n * base.width;
+  const y = y1n * base.height;
+  const width = Math.max(0, x2n - x1n) * base.width;
+  const height = Math.max(0, y2n - y1n) * base.height;
   return { x, y, width, height };
 }
 
