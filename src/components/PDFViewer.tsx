@@ -166,6 +166,84 @@ const [detecting, setDetecting] = useState(false);
 // Add: OCR results state (word-level boxes)
 const [ocrWords, setOcrWords] = useState<Array<{ x: number; y: number; w: number; h: number; text: string; conf: number }>>([]);
 
+// Add: robust normalized edges helper that unifies arrays/objects and fixes inverted X
+function robustUnitEdges(input: any): { x1: number; y1: number; x2: number; y2: number } {
+  const base = getBaseDims();
+  const zero = { x1: 0, y1: 0, x2: 0, y2: 0 };
+  if (!base.width || !base.height || !input) return zero;
+
+  const toNum = (v: any) => (v === null || v === undefined || v === "" ? NaN : Number(v));
+  const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+
+  let x1: number, y1: number, x2: number, y2: number;
+
+  if (Array.isArray(input) && input.length >= 4) {
+    // Prefer edges [x1,y1,x2,y2] for arrays; fallback to [x,y,w,h] if needed
+    const a0 = toNum(input[0]);
+    const a1 = toNum(input[1]);
+    const a2 = toNum(input[2]);
+    const a3 = toNum(input[3]);
+    if (![a0, a1, a2, a3].every(Number.isFinite)) return zero;
+
+    const allUnit = [a0, a1, a2, a3].every((n) => n >= 0 && n <= 1);
+
+    if (allUnit) {
+      // Treat as edges directly
+      x1 = a0; y1 = a1; x2 = a2; y2 = a3;
+    } else {
+      // Not all unit; decide if edges or width/height
+      const looksLikeEdges = a2 > a0 && a3 > a1;
+      if (looksLikeEdges) {
+        x1 = a0; y1 = a1; x2 = a2; y2 = a3;
+      } else {
+        // Treat as width/height
+        x1 = a0; y1 = a1; x2 = a0 + a2; y2 = a1 + a3;
+      }
+      // Normalize to [0..1] using base viewport dims
+      x1 = x1 / base.width;
+      y1 = y1 / base.height;
+      x2 = x2 / base.width;
+      y2 = y2 / base.height;
+    }
+  } else {
+    // Object-like: use x/left + x2/right or width; y/top + y2/bottom or height
+    const rx = toNum(input?.x ?? input?.left ?? input?.x0 ?? input?.x1 ?? input?.minX);
+    const ry = toNum(input?.y ?? input?.top ?? input?.y0 ?? input?.y1 ?? input?.minY);
+    let rx2 = toNum(input?.x2 ?? input?.right ?? input?.maxX);
+    let ry2 = toNum(input?.y2 ?? input?.bottom ?? input?.maxY);
+    const rw = toNum(input?.width ?? input?.w);
+    const rh = toNum(input?.height ?? input?.h);
+
+    if (!Number.isFinite(rx) || !Number.isFinite(ry)) return zero;
+
+    if (!Number.isFinite(rx2) && Number.isFinite(rw)) rx2 = rx + rw;
+    if (!Number.isFinite(ry2) && Number.isFinite(rh)) ry2 = ry + rh;
+    if (!Number.isFinite(rx2) || !Number.isFinite(ry2)) return zero;
+
+    const alreadyUnit = [rx, ry, rx2, ry2].every((n) => n >= 0 && n <= 1);
+    if (alreadyUnit) {
+      x1 = rx; y1 = ry; x2 = rx2; y2 = ry2;
+    } else {
+      x1 = rx / base.width;
+      y1 = ry / base.height;
+      x2 = rx2 / base.width;
+      y2 = ry2 / base.height;
+    }
+  }
+
+  // Fix inverted axes if needed
+  if (x2 < x1) [x1, x2] = [x2, x1];
+  if (y2 < y1) [y1, y2] = [y2, y1];
+
+  // Clamp
+  x1 = clamp01(x1); y1 = clamp01(y1); x2 = clamp01(x2); y2 = clamp01(y2);
+
+  // Guard degenerate
+  if (x2 <= x1 || y2 <= y1) return zero;
+
+  return { x1, y1, x2, y2 };
+}
+
 // Add: normalized edges (x1,y1,x2,y2) helpers and projection using base viewport
 function toUnitEdgesTopLeft(input: any): { x1: number; y1: number; x2: number; y2: number } {
   const base = getBaseDims();
@@ -174,31 +252,23 @@ function toUnitEdgesTopLeft(input: any): { x1: number; y1: number; x2: number; y
   const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
   const toNum = (v: any) => (v === null || v === undefined || v === "" ? NaN : Number(v));
 
-  // For arrays, unify via normalizeBoxAny to support both [x,y,w,h] and [x1,y1,x2,y2]
+  // Arrays are always treated as [x1, y1, x2, y2]
   if (Array.isArray(input) && input.length >= 4) {
-    const nb = normalizeBoxAny(input);
-    if (!nb) return { x1: 0, y1: 0, x2: 0, y2: 0 };
+    let x1 = toNum(input[0]);
+    let y1 = toNum(input[1]);
+    let x2 = toNum(input[2]);
+    let y2 = toNum(input[3]);
 
-    let x1 = nb.x;
-    let y1 = nb.y;
-    let x2 = nb.x + nb.width;
-    let y2 = nb.y + nb.height;
+    if (![x1, y1, x2, y2].every(Number.isFinite)) return { x1: 0, y1: 0, x2: 0, y2: 0 };
 
-    const alreadyUnit = [x1, y1, x2, y2].every((n) => Number.isFinite(n) && n >= 0 && n <= 1);
+    const alreadyUnit = [x1, y1, x2, y2].every((n) => n >= 0 && n <= 1);
     if (!alreadyUnit) {
       x1 = x1 / base.width;
       y1 = y1 / base.height;
       x2 = x2 / base.width;
       y2 = y2 / base.height;
     }
-
-    // Ensure non-inverted edges
-    const minX = Math.min(x1, x2);
-    const maxX = Math.max(x1, x2);
-    const minY = Math.min(y1, y2);
-    const maxY = Math.max(y1, y2);
-
-    return { x1: clamp01(minX), y1: clamp01(minY), x2: clamp01(maxX), y2: clamp01(maxY) };
+    return { x1: clamp01(x1), y1: clamp01(y1), x2: clamp01(x2), y2: clamp01(y2) };
   }
 
   // Object-like formats
@@ -229,34 +299,25 @@ function toUnitEdgesTopLeft(input: any): { x1: number; y1: number; x2: number; y
     y2 = y2 / base.height;
   }
 
-  // Ensure non-inverted edges
-  const minX = Math.min(x1, x2);
-  const maxX = Math.max(x1, x2);
-  const minY = Math.min(y1, y2);
-  const maxY = Math.max(y1, y2);
-
   return {
-    x1: clamp01(minX),
-    y1: clamp01(minY),
-    x2: clamp01(maxX),
-    y2: clamp01(maxY),
+    x1: clamp01(x1),
+    y1: clamp01(y1),
+    x2: clamp01(x2),
+    y2: clamp01(y2),
   };
 }
 
 function edgesToPxRect(edges: { x1: number; y1: number; x2: number; y2: number }) {
   const base = getBaseDims();
   const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
-
-  // Enforce proper ordering in case inputs are inverted
-  const x1n = clamp01(Math.min(edges.x1, edges.x2));
-  const y1n = clamp01(Math.min(edges.y1, edges.y2));
-  const x2n = clamp01(Math.max(edges.x1, edges.x2));
-  const y2n = clamp01(Math.max(edges.y1, edges.y2));
-
-  const x = x1n * base.width;
-  const y = y1n * base.height;
-  const width = Math.max(0, x2n - x1n) * base.width;
-  const height = Math.max(0, y2n - y1n) * base.height;
+  const x1 = clamp01(edges.x1);
+  const y1 = clamp01(edges.y1);
+  const x2 = clamp01(edges.x2);
+  const y2 = clamp01(edges.y2);
+  const x = x1 * base.width;
+  const y = y1 * base.height;
+  const width = Math.max(0, x2 - x1) * base.width;
+  const height = Math.max(0, y2 - y1) * base.height;
   return { x, y, width, height };
 }
 
@@ -1174,8 +1235,8 @@ const toPxBox = (box: WideBox): WideBox => {
                 const text: string | undefined =
                   (box as any)?.value || (box as any)?.label || undefined;
 
-                // Use normalized edges (x1,y1,x2,y2) for projection
-                const edges = toUnitEdgesTopLeft(box);
+                // Use robust normalized edges helper (handles arrays, width/height, and inverted X)
+                const edges = robustUnitEdges(box);
                 // Guard zero-size boxes
                 if (!Number.isFinite(edges.x1) || !Number.isFinite(edges.y1) || !Number.isFinite(edges.x2) || !Number.isFinite(edges.y2) || edges.x2 <= edges.x1 || edges.y2 <= edges.y1) {
                   return null;
@@ -1234,7 +1295,7 @@ const toPxBox = (box: WideBox): WideBox => {
 
           {/* Hover highlight overlay (normalized to base pixels) with dynamic color */}
           {highlightBox && baseReady && (() => {
-            const hbEdges = toUnitEdgesTopLeft(highlightBox as any);
+            const hbEdges = robustUnitEdges(highlightBox as any);
             if (!Number.isFinite(hbEdges.x1) || !Number.isFinite(hbEdges.y1) || !Number.isFinite(hbEdges.x2) || !Number.isFinite(hbEdges.y2) || hbEdges.x2 <= hbEdges.x1 || hbEdges.y2 <= hbEdges.y1) {
               return null;
             }
