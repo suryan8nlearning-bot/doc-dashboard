@@ -668,6 +668,8 @@ const toPxBox = (box: WideBox): WideBox => {
 
         const baseViewport = page.getViewport({ scale: 1 });
         baseViewportRef.current = { width: baseViewport.width, height: baseViewport.height };
+        // Ensure source dimensions always match the PDF base viewport (avoid guessing from boxes)
+        sourceDimsRef.current = { width: baseViewport.width, height: baseViewport.height };
 
         // Compute initial scale (fit-to-width if requested)
         let initialScale = 1;
@@ -714,6 +716,8 @@ const toPxBox = (box: WideBox): WideBox => {
       pageRef.current = page;
       const base = page.getViewport({ scale: 1 });
       baseViewportRef.current = { width: base.width, height: base.height };
+      // Keep source dims tied to base viewport for consistent projection
+      sourceDimsRef.current = { width: base.width, height: base.height };
       setCurrentPage(clamped);
       await renderPage(zoom);
     } catch (e) {
@@ -849,6 +853,13 @@ const toPxBox = (box: WideBox): WideBox => {
       });
     }, 180);
   }, [focusBox, pdfArrayBuffer, canvasSize.width, canvasSize.height]);
+
+  // Remove overriding sourceDimsRef with guessed dimensions from boxes;
+  // retain the effect but make it a no-op to avoid accidental overrides.
+  useEffect(() => {
+    // Intentionally do not override sourceDimsRef here.
+    // Using the PDF base viewport (scale=1) avoids mis-scaling when boxes don't span the full page.
+  }, [sourceDims?.width, sourceDims?.height, currentPage]);
 
   const handleZoomIn = () => {
     const newZoom = clampZoom(zoom + 0.25);
