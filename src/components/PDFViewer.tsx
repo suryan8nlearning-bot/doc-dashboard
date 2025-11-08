@@ -1046,21 +1046,18 @@ const toPxBox = (box: WideBox): WideBox => {
             <>
               {allBoxes.map((box, idx) => {
                 const bb = toPxBox(box as any);
-                const pad = 2;
                 const text: string | undefined =
                   (box as any)?.value || (box as any)?.label || undefined;
-                // Overlays rendered without debug mode
                 return (
                   <>
                     <div
                       key={`box-${idx}`}
                       className="absolute pointer-events-none rounded-sm"
                       style={{
-                        left: `${(bb.x - pad) * zoom}px`,
-                        top: `${(bb.y - pad) * zoom}px`,
-                        width: `${(bb.width + pad * 2) * zoom}px`,
-                        height: `${(bb.height + pad * 2) * zoom}px`,
-                        // Lighter visuals so overlaps don't flood the page
+                        left: `${bb.x * zoom}px`,
+                        top: `${bb.y * zoom}px`,
+                        width: `${bb.width * zoom}px`,
+                        height: `${bb.height * zoom}px`,
                         boxShadow: "0 0 0 1px rgba(59,130,246,0.8), 0 0 0 6px rgba(59,130,246,0.18)",
                         background: "rgba(59,130,246,0.05)",
                         zIndex: 10,
@@ -1101,9 +1098,7 @@ const toPxBox = (box: WideBox): WideBox => {
             const hbNorm = normalizeWideBox(highlightBox as any) as WideBox | null;
             if (!hbNorm) return null;
             const hb = toPxBox(hbNorm);
-            const pad = 8;
 
-            // Helper to add alpha to hex color like #RRGGBB
             const withAlpha = (hex: string, alphaHex: string) => {
               if (typeof hex === 'string' && /^#([0-9a-f]{6})$/i.test(hex)) {
                 return `${hex}${alphaHex}`;
@@ -1131,10 +1126,10 @@ const toPxBox = (box: WideBox): WideBox => {
                   exit={{ opacity: 0 }}
                   className="absolute pointer-events-none rounded-md z-50"
                   style={{
-                    left: `${(hb.x - pad) * zoom}px`,
-                    top: `${(hb.y - pad) * zoom}px`,
-                    width: `${(hb.width + pad * 2) * zoom}px`,
-                    height: `${(hb.height + pad * 2) * zoom}px`,
+                    left: `${hb.x * zoom}px`,
+                    top: `${hb.y * zoom}px`,
+                    width: `${hb.width * zoom}px`,
+                    height: `${hb.height * zoom}px`,
                     boxShadow: `0 0 0 4px ${ring}, 0 0 0 8px ${glow}`,
                     background: fill,
                     filter: "drop-shadow(0 10px 28px rgba(0,0,0,0.30))",
@@ -1146,8 +1141,8 @@ const toPxBox = (box: WideBox): WideBox => {
                     <div
                       className="absolute z-[60] px-2 py-1 rounded-md text-[10px] font-medium bg-background/85 border shadow-sm pointer-events-auto cursor-help"
                       style={{
-                        left: `${(hb.x - pad) * zoom}px`,
-                        top: `${(hb.y - pad - 22) * zoom}px`,
+                        left: `${hb.x * zoom}px`,
+                        top: `${hb.y * zoom}px`,
                         transform: "translateY(-4px)",
                         whiteSpace: "nowrap",
                         borderColor: ring,
