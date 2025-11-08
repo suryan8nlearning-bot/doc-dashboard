@@ -176,6 +176,49 @@ const getBaseDims = () => {
 // Add a reactive flag to ensure base viewport is ready before projecting boxes
 const baseReady = !!(baseViewportRef.current?.width && baseViewportRef.current?.height);
 
+// Helper: recompute whether incoming boxes use a bottom-left origin (PDF native)
+const recomputeOriginGuess = () => {
+  const src = sourceDimsRef.current;
+  if (!src?.width || !src?.height || !Array.isArray(allBoxes) || allBoxes.length === 0) {
+    originBottomLeftRef.current = false;
+    return;
+  }
+  const srcW = src.width;
+  const srcH = src.height;
+
+  let topHalfCountTopLeft = 0;
+  let topHalfCountFlipped = 0;
+  let samples = 0;
+
+  for (const b of allBoxes as any[]) {
+    const x = typeof (b as any)?.x === "number" ? (b as any).x : NaN;
+    const y = typeof (b as any)?.y === "number" ? (b as any).y : NaN;
+    const h = typeof (b as any)?.height === "number" ? (b as any).height : NaN;
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(h)) continue;
+
+    const yTopLeftNorm = y / srcH;
+    const yFlippedNorm = (srcH - (y + h)) / srcH;
+
+    if (Number.isFinite(yTopLeftNorm) && Number.isFinite(yFlippedNorm)) {
+      const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+      const y1 = clamp01(yTopLeftNorm);
+      const y2 = clamp01(yFlippedNorm);
+      if (y1 < 0.4) topHalfCountTopLeft++;
+      if (y2 < 0.4) topHalfCountFlipped++;
+      samples++;
+    }
+  }
+
+  if (samples === 0) {
+    originBottomLeftRef.current = false;
+    return;
+  }
+
+  const ratioTopLeft = topHalfCountTopLeft / samples;
+  const ratioFlipped = topHalfCountFlipped / samples;
+  originBottomLeftRef.current = ratioFlipped > ratioTopLeft + 0.1;
+};
+
 // Replace projector to normalize first, then scale by canvas size from PDF top-left
 const toPxBox = (box: WideBox): WideBox => {
   // Guard missing values
@@ -493,48 +536,7 @@ const toPxBox = (box: WideBox): WideBox => {
 
   // Add: auto-detect if incoming boxes use bottom-left origin and flip Y accordingly
   useEffect(() => {
-    const src = sourceDimsRef.current;
-    if (!src?.width || !src?.height || !Array.isArray(allBoxes) || allBoxes.length === 0) {
-      originBottomLeftRef.current = false;
-      return;
-    }
-    const srcW = src.width;
-    const srcH = src.height;
-
-    let topHalfCountTopLeft = 0;
-    let topHalfCountFlipped = 0;
-    let samples = 0;
-
-    for (const b of allBoxes as any[]) {
-      const x = typeof b?.x === "number" ? b.x : NaN;
-      const y = typeof b?.y === "number" ? b.y : NaN;
-      const h = typeof b?.height === "number" ? b.height : NaN;
-      if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(h)) continue;
-
-      // Normalize assuming absolute space
-      const yTopLeftNorm = y / srcH;
-      const yFlippedNorm = (srcH - (y + h)) / srcH;
-
-      if (Number.isFinite(yTopLeftNorm) && Number.isFinite(yFlippedNorm)) {
-        const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
-        const y1 = clamp01(yTopLeftNorm);
-        const y2 = clamp01(yFlippedNorm);
-        // Consider "top half" if y < 0.4 (slightly generous)
-        if (y1 < 0.4) topHalfCountTopLeft++;
-        if (y2 < 0.4) topHalfCountFlipped++;
-        samples++;
-      }
-    }
-
-    if (samples === 0) {
-      originBottomLeftRef.current = false;
-      return;
-    }
-
-    // If flipping produces noticeably more boxes in the top half, assume bottom-left origin
-    const ratioTopLeft = topHalfCountTopLeft / samples;
-    const ratioFlipped = topHalfCountFlipped / samples;
-    originBottomLeftRef.current = ratioFlipped > ratioTopLeft + 0.1;
+    recomputeOriginGuess();
   }, [allBoxes, sourceDims?.width, sourceDims?.height, currentPage]);
 
   // Fetch PDF via backend proxy; convert to ArrayBuffer for pdf.js
@@ -875,6 +877,9 @@ const toPxBox = (box: WideBox): WideBox => {
           baseViewportRef.current = { width: base.width, height: base.height };
           setCurrentPage(targetPage);
           await renderPage(zoom);
+
+          // Ensure the origin inversion state matches the new page before projecting the highlight
+          recomputeOriginGuess();
         } catch (e) {
           console.warn('Failed to switch page for highlight box:', e);
         }
@@ -889,8 +894,7 @@ const toPxBox = (box: WideBox): WideBox => {
         return;
       }
 
-      // Use normalized box to project reliably
-      const pxBox = toPxBox(normalized as WideBox);
+      const pxBox = toPxBox(normalized as any);
       const boxCenterX = pxBox.x + pxBox.width / 2;
       const boxCenterY = pxBox.y + pxBox.height / 2;
       container.scrollTo({
