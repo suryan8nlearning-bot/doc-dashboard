@@ -1049,9 +1049,15 @@ const toPxBox = (box: WideBox): WideBox => {
           {allBoxes.length > 0 && baseReady && canvasSize.width > 0 && canvasSize.height > 0 && (
             <>
               {allBoxes.map((box, idx) => {
-                const bb = toPxBox(box as any);
+                // Unify pipeline with hover highlight: normalize first, then project
                 const text: string | undefined =
                   (box as any)?.value || (box as any)?.label || undefined;
+
+                const nb = normalizeWideBox(box as any);
+                if (!nb) return null;
+
+                const bb = toPxBox(nb as any);
+
                 return (
                   <>
                     <div
@@ -1085,7 +1091,7 @@ const toPxBox = (box: WideBox): WideBox => {
                             <div className="font-medium">{String(text)}</div>
                             <div className="text-muted-foreground">
                               x:{Math.round(bb.x)}, y:{Math.round(bb.y)}, w:{Math.round(bb.width)}, h:{Math.round(bb.height)}
-                              {(box as any)?.page ? `, p:${(box as any).page}` : ""}
+                              {(nb as any)?.page ? `, p:${(nb as any).page}` : ""}
                             </div>
                           </div>
                         </TooltipContent>
