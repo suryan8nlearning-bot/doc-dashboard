@@ -166,6 +166,83 @@ const [detecting, setDetecting] = useState(false);
 // Add: OCR results state (word-level boxes)
 const [ocrWords, setOcrWords] = useState<Array<{ x: number; y: number; w: number; h: number; text: string; conf: number }>>([]);
 
+// Add: normalized edges (x1,y1,x2,y2) helpers and projection using base viewport
+function toUnitEdgesTopLeft(input: any): { x1: number; y1: number; x2: number; y2: number } {
+  const base = getBaseDims();
+  if (!base.width || !base.height) return { x1: 0, y1: 0, x2: 0, y2: 0 };
+
+  const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+  const toNum = (v: any) => (v === null || v === undefined || v === "" ? NaN : Number(v));
+
+  // Arrays are always treated as [x1, y1, x2, y2]
+  if (Array.isArray(input) && input.length >= 4) {
+    let x1 = toNum(input[0]);
+    let y1 = toNum(input[1]);
+    let x2 = toNum(input[2]);
+    let y2 = toNum(input[3]);
+
+    if (![x1, y1, x2, y2].every(Number.isFinite)) return { x1: 0, y1: 0, x2: 0, y2: 0 };
+
+    const alreadyUnit = [x1, y1, x2, y2].every((n) => n >= 0 && n <= 1);
+    if (!alreadyUnit) {
+      x1 = x1 / base.width;
+      y1 = y1 / base.height;
+      x2 = x2 / base.width;
+      y2 = y2 / base.height;
+    }
+    return { x1: clamp01(x1), y1: clamp01(y1), x2: clamp01(x2), y2: clamp01(y2) };
+  }
+
+  // Object-like formats
+  const rawX = toNum(input?.x ?? input?.left ?? input?.x0 ?? input?.x1 ?? input?.startX ?? input?.minX);
+  const rawY = toNum(input?.y ?? input?.top ?? input?.y0 ?? input?.y1 ?? input?.startY ?? input?.minY);
+  let rawX2 = toNum(input?.x2 ?? input?.right ?? input?.maxX);
+  let rawY2 = toNum(input?.y2 ?? input?.bottom ?? input?.maxY);
+
+  const rawW = toNum(input?.width ?? input?.w);
+  const rawH = toNum(input?.height ?? input?.h);
+
+  // Derive x2/y2 if missing
+  if (!Number.isFinite(rawX2) && Number.isFinite(rawX) && Number.isFinite(rawW)) rawX2 = rawX + rawW;
+  if (!Number.isFinite(rawY2) && Number.isFinite(rawY) && Number.isFinite(rawH)) rawY2 = rawY + rawH;
+
+  if (![rawX, rawY, rawX2, rawY2].every(Number.isFinite)) return { x1: 0, y1: 0, x2: 0, y2: 0 };
+
+  let x1 = rawX;
+  let y1 = rawY;
+  let x2 = rawX2;
+  let y2 = rawY2;
+
+  const alreadyUnit = [x1, y1, x2, y2].every((n) => n >= 0 && n <= 1);
+  if (!alreadyUnit) {
+    x1 = x1 / base.width;
+    y1 = y1 / base.height;
+    x2 = x2 / base.width;
+    y2 = y2 / base.height;
+  }
+
+  return {
+    x1: clamp01(x1),
+    y1: clamp01(y1),
+    x2: clamp01(x2),
+    y2: clamp01(y2),
+  };
+}
+
+function edgesToPxRect(edges: { x1: number; y1: number; x2: number; y2: number }) {
+  const base = getBaseDims();
+  const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+  const x1 = clamp01(edges.x1);
+  const y1 = clamp01(edges.y1);
+  const x2 = clamp01(edges.x2);
+  const y2 = clamp01(edges.y2);
+  const x = x1 * base.width;
+  const y = y1 * base.height;
+  const width = Math.max(0, x2 - x1) * base.width;
+  const height = Math.max(0, y2 - y1) * base.height;
+  return { x, y, width, height };
+}
+
 const getBaseDims = () => {
   // Only use the base viewport (scale = 1) to avoid double-scaling.
   const base = baseViewportRef.current;
@@ -1077,14 +1154,16 @@ const toPxBox = (box: WideBox): WideBox => {
           {allBoxes.length > 0 && baseReady && canvasSize.width > 0 && canvasSize.height > 0 && (
             <>
               {allBoxes.map((box, idx) => {
-                // Unify pipeline with hover highlight: normalize first, then project
                 const text: string | undefined =
                   (box as any)?.value || (box as any)?.label || undefined;
 
-                const nb = normalizeWideBox(box as any);
-                if (!nb) return null;
-
-                const bb = toPxBox(nb as any);
+                // Use normalized edges (x1,y1,x2,y2) for projection
+                const edges = toUnitEdgesTopLeft(box);
+                // Guard zero-size boxes
+                if (!Number.isFinite(edges.x1) || !Number.isFinite(edges.y1) || !Number.isFinite(edges.x2) || !Number.isFinite(edges.y2) || edges.x2 <= edges.x1 || edges.y2 <= edges.y1) {
+                  return null;
+                }
+                const rect = edgesToPxRect(edges);
 
                 return (
                   <>
@@ -1092,10 +1171,10 @@ const toPxBox = (box: WideBox): WideBox => {
                       key={`box-${idx}`}
                       className="absolute pointer-events-none rounded-sm"
                       style={{
-                        left: `${bb.x * zoom}px`,
-                        top: `${bb.y * zoom}px`,
-                        width: `${bb.width * zoom}px`,
-                        height: `${bb.height * zoom}px`,
+                        left: `${rect.x * zoom}px`,
+                        top: `${rect.y * zoom}px`,
+                        width: `${rect.width * zoom}px`,
+                        height: `${rect.height * zoom}px`,
                         boxShadow: "0 0 0 1px rgba(59,130,246,0.8), 0 0 0 6px rgba(59,130,246,0.18)",
                         background: "rgba(59,130,246,0.05)",
                         zIndex: 10,
@@ -1107,8 +1186,8 @@ const toPxBox = (box: WideBox): WideBox => {
                           <div
                             className="absolute z-[12] px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-background/85 border shadow-sm max-w-[50%] truncate pointer-events-auto cursor-help"
                             style={{
-                              left: `${bb.x * zoom}px`,
-                              top: `${bb.y * zoom}px`,
+                              left: `${rect.x * zoom}px`,
+                              top: `${rect.y * zoom}px`,
                             }}
                           >
                             {String(text)}
@@ -1120,15 +1199,9 @@ const toPxBox = (box: WideBox): WideBox => {
                             <div className="text-muted-foreground">
                               {
                                 (() => {
-                                  const unit = toUnitBoxTopLeft(nb as any);
-                                  const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
-                                  const x1 = clamp01(unit.x);
-                                  const y1 = clamp01(unit.y);
-                                  const x2 = clamp01(unit.x + unit.width);
-                                  const y2 = clamp01(unit.y + unit.height);
                                   const fmt = (n: number) => n.toFixed(4);
-                                  const pageStr = (nb as any)?.page ? `, p:${(nb as any).page}` : "";
-                                  return `x1:${fmt(x1)}, y1:${fmt(y1)}, x2:${fmt(x2)}, y2:${fmt(y2)}${pageStr}`;
+                                  const pageStr = (box as any)?.page ? `, p:${(box as any).page}` : "";
+                                  return `x1:${fmt(edges.x1)}, y1:${fmt(edges.y1)}, x2:${fmt(edges.x2)}, y2:${fmt(edges.y2)}${pageStr}`;
                                 })()
                               }
                             </div>
@@ -1144,9 +1217,11 @@ const toPxBox = (box: WideBox): WideBox => {
 
           {/* Hover highlight overlay (normalized to base pixels) with dynamic color */}
           {highlightBox && baseReady && (() => {
-            const hbNorm = normalizeWideBox(highlightBox as any) as WideBox | null;
-            if (!hbNorm) return null;
-            const hb = toPxBox(hbNorm);
+            const hbEdges = toUnitEdgesTopLeft(highlightBox as any);
+            if (!Number.isFinite(hbEdges.x1) || !Number.isFinite(hbEdges.y1) || !Number.isFinite(hbEdges.x2) || !Number.isFinite(hbEdges.y2) || hbEdges.x2 <= hbEdges.x1 || hbEdges.y2 <= hbEdges.y1) {
+              return null;
+            }
+            const hbRect = edgesToPxRect(hbEdges);
 
             const withAlpha = (hex: string, alphaHex: string) => {
               if (typeof hex === 'string' && /^#([0-9a-f]{6})$/i.test(hex)) {
@@ -1165,7 +1240,7 @@ const toPxBox = (box: WideBox): WideBox => {
               (highlightBox as any)?.text;
             const label = fieldText
               ? String(fieldText)
-              : `x:${Math.round(hb.x)}, y:${Math.round(hb.y)}, w:${Math.round(hb.width)}, h:${Math.round(hb.height)}${(hbNorm as any).page ? `, p:${(hbNorm as any).page}` : ""}`;
+              : `x1:${Math.round(hbEdges.x1 * 1000) / 1000}, y1:${Math.round(hbEdges.y1 * 1000) / 1000}, x2:${Math.round(hbEdges.x2 * 1000) / 1000}, y2:${Math.round(hbEdges.y2 * 1000) / 1000}${(highlightBox as any)?.page ? `, p:${(highlightBox as any).page}` : ""}`;
 
             return (
               <>
@@ -1175,10 +1250,10 @@ const toPxBox = (box: WideBox): WideBox => {
                   exit={{ opacity: 0 }}
                   className="absolute pointer-events-none rounded-md z-50"
                   style={{
-                    left: `${hb.x * zoom}px`,
-                    top: `${hb.y * zoom}px`,
-                    width: `${hb.width * zoom}px`,
-                    height: `${hb.height * zoom}px`,
+                    left: `${hbRect.x * zoom}px`,
+                    top: `${hbRect.y * zoom}px`,
+                    width: `${hbRect.width * zoom}px`,
+                    height: `${hbRect.height * zoom}px`,
                     boxShadow: `0 0 0 4px ${ring}, 0 0 0 8px ${glow}`,
                     background: fill,
                     filter: "drop-shadow(0 10px 28px rgba(0,0,0,0.30))",
@@ -1190,8 +1265,8 @@ const toPxBox = (box: WideBox): WideBox => {
                     <div
                       className="absolute z-[60] px-2 py-1 rounded-md text-[10px] font-medium bg-background/85 border shadow-sm pointer-events-auto cursor-help"
                       style={{
-                        left: `${hb.x * zoom}px`,
-                        top: `${hb.y * zoom}px`,
+                        left: `${hbRect.x * zoom}px`,
+                        top: `${hbRect.y * zoom}px`,
                         transform: "translateY(-4px)",
                         whiteSpace: "nowrap",
                         borderColor: ring,
@@ -1206,15 +1281,9 @@ const toPxBox = (box: WideBox): WideBox => {
                       <div className="text-muted-foreground">
                         {
                           (() => {
-                            const unit = toUnitBoxTopLeft(hbNorm as any);
-                            const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
-                            const x1 = clamp01(unit.x);
-                            const y1 = clamp01(unit.y);
-                            const x2 = clamp01(unit.x + unit.width);
-                            const y2 = clamp01(unit.y + unit.height);
                             const fmt = (n: number) => n.toFixed(4);
-                            const pageStr = (hbNorm as any)?.page ? `, p:${(hbNorm as any).page}` : "";
-                            return `x1:${fmt(x1)}, y1:${fmt(y1)}, x2:${fmt(x2)}, y2:${fmt(y2)}${pageStr}`;
+                            const pageStr = (highlightBox as any)?.page ? `, p:${(highlightBox as any).page}` : "";
+                            return `x1:${fmt(hbEdges.x1)}, y1:${fmt(hbEdges.y1)}, x2:${fmt(hbEdges.x2)}, y2:${fmt(hbEdges.y2)}${pageStr}`;
                           })()
                         }
                       </div>
