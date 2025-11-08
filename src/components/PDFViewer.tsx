@@ -55,8 +55,8 @@ const suppressZoomEffectRef = useRef(false);
 // Add: normalize/scale helpers and current page state
 type WideBox = BoundingBox & { page?: number; color?: string };
 
-// Add: small Y calibration to correct slight vertical drift
-const Y_CALIBRATION_PX = -2;
+// Remove Y calibration drift correction (not needed; align strictly to PDF top-left)
+// const Y_CALIBRATION_PX = -2;
 
 // Normalize incoming bounding boxes to a standard shape for rendering
 function normalizeBoxAny(input: any): (BoundingBox & { page?: number }) | null {
@@ -185,6 +185,7 @@ const getBaseDims = () => {
   return { width: 0, height: 0 };
 };
 
+// Replace projector to normalize first, then scale by canvas size from PDF top-left
 const toPxBox = (box: WideBox): WideBox => {
   // Guard missing values
   if (
@@ -200,7 +201,7 @@ const toPxBox = (box: WideBox): WideBox => {
   const base = getBaseDims();
   if (!base.width || !base.height) return box;
 
-  // Heuristic: if coords are <= 1, treat as normalized [0..1]
+  // If coords are <= 1, treat as normalized [0..1]
   const isNormalized =
     box.x >= 0 &&
     box.y >= 0 &&
@@ -211,20 +212,23 @@ const toPxBox = (box: WideBox): WideBox => {
     box.width <= 1 &&
     box.height <= 1;
 
-  // Auto-detect the source coordinate space (e.g., OCR pixel space)
+  // Determine source space for non-normalized inputs
   const src = sourceDimsRef.current;
   const srcW = src?.width && src.width > 0 ? src.width : base.width;
   const srcH = src?.height && src.height > 0 ? src.height : base.height;
 
-  // Map source -> canvas base pixels
-  let pxX = isNormalized ? box.x * base.width : (box.x / srcW) * base.width;
-  let pxY = isNormalized ? box.y * base.height : (box.y / srcH) * base.height;
-  let pxW = isNormalized ? box.width * base.width : (box.width / srcW) * base.width;
-  let pxH = isNormalized ? box.height * base.height : (box.height / srcH) * base.height;
+  // Normalize first (relative to source), then scale to canvas pixels
+  const normX = isNormalized ? box.x : box.x / srcW;
+  const normY = isNormalized ? box.y : box.y / srcH;
+  const normW = isNormalized ? box.width : box.width / srcW;
+  const normH = isNormalized ? box.height : box.height / srcH;
 
-  // Apply small calibration offset on Y to correct slight vertical drift
-  pxY += Y_CALIBRATION_PX;
+  const pxX = normX * base.width;
+  const pxY = normY * base.height;
+  const pxW = normW * base.width;
+  const pxH = normH * base.height;
 
+  // Strictly render from PDF top-left (no extra offsets)
   return { x: pxX, y: pxY, width: pxW, height: pxH, page: (box as any).page, color: (box as any).color } as WideBox;
 };
 
