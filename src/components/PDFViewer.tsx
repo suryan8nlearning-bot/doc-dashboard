@@ -258,6 +258,20 @@ const toPxBox = (box: WideBox): WideBox => {
   const EPSILON = 0.005; // ~0.5% tolerance
   const roundScale2 = (s: number) => Number(clampZoom(s).toFixed(2));
 
+  // Helper: direct fetch fallback for PDFs (arrayBuffer from browser with CORS)
+  async function fetchPdfDirectBuffer(url: string): Promise<ArrayBuffer> {
+    if (!url) throw new Error("No PDF URL provided");
+    const resp = await fetch(url, { mode: "cors" });
+    if (!resp.ok) {
+      throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
+    }
+    const buf = await resp.arrayBuffer();
+    if (!buf || buf.byteLength === 0) {
+      throw new Error("Empty PDF buffer from direct fetch");
+    }
+    return buf;
+  }
+
   // Helper: update zoom and keep the visual center stable while scrolling
   const updateZoom = (nextZoom: number, silent = false) => {
     const container = containerRef.current;
@@ -542,13 +556,9 @@ const toPxBox = (box: WideBox): WideBox => {
             contentType: result.success ? result.contentType : null,
           });
 
-          if (!result.success) {
-            console.warn('PDFViewer: Backend proxy failed, will try direct fetch fallback:', result.error);
-            // Don't throw immediately; let the catch block handle fallback
-            throw new Error(result.error || 'Failed to fetch PDF via proxy');
-          }
-          if (!result.data) {
-            throw new Error('No PDF data returned from backend');
+          if (!result.success || !result.data) {
+            // Fall through to catch to try direct fetch
+            throw new Error(result?.error || 'Proxy did not return PDF data');
           }
 
           // base64 -> Uint8Array -> ArrayBuffer (create a copy to avoid detachment)
@@ -557,25 +567,25 @@ const toPxBox = (box: WideBox): WideBox => {
           for (let i = 0; i < binaryString.length; i++) {
             bytes[i] = binaryString.charCodeAt(i);
           }
-          // Create a new ArrayBuffer copy to prevent detachment issues
           const arrayBuffer = bytes.buffer.slice(0);
-          
-          // Store as a new Uint8Array to ensure buffer stays attached
           const safeCopy = new Uint8Array(arrayBuffer);
-          setPdfArrayBuffer(safeCopy.buffer);
-
-          if (bytes.byteLength === 0) {
-            throw new Error('PDF data buffer is empty (0 bytes)');
+          if (safeCopy.byteLength === 0) {
+            throw new Error('PDF data buffer is empty (0 bytes) from proxy');
           }
-
-          // Defer hiding loader and onLoad until the first page is fully rendered to avoid flicker
-          // setIsLoading(false);
-          // if (onLoad) onLoad();
+          setPdfArrayBuffer(safeCopy.buffer);
+          // Do NOT set isLoading(false) here; we hide loader after first page render
         })
-        .catch((err: any) => {
-          console.error('PDFViewer: PDF fetch error:', err);
-          setError(`Failed to load PDF: ${err.message}`);
-          setIsLoading(false);
+        .catch(async (err: any) => {
+          console.warn('PDFViewer: Proxy fetch failed, attempting direct fetch fallback...', err);
+          try {
+            const buf = await fetchPdfDirectBuffer(pdfUrl);
+            setPdfArrayBuffer(buf);
+            // Do NOT set isLoading(false); first page render will hide loader
+          } catch (err2: any) {
+            console.error('PDFViewer: Direct fetch fallback failed:', err2);
+            setError(`Failed to load PDF: ${err2?.message || String(err2)}`);
+            setIsLoading(false);
+          }
         });
     } else {
       console.error('PDFViewer: No PDF URL provided to component');
