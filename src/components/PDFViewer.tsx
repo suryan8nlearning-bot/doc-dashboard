@@ -58,22 +58,19 @@ type WideBox = BoundingBox & { page?: number; color?: string };
 // Remove Y calibration drift correction (not needed; align strictly to PDF top-left)
 // const Y_CALIBRATION_PX = -2;
 
-// Normalize incoming bounding boxes to a standard shape for rendering
+/**
+ * Simplified normalization:
+ * - Do NOT apply magnitude-based scaling (no 100/1000 heuristics).
+ * - Accept either [x1,y1,x2,y2] or [x,y,w,h] array forms.
+ * - For objects, prefer x2/y2 if provided; otherwise use width/height.
+ * - Leave values in their original units; toPxBox will normalize if <= 1, else scale using sourceDims.
+ */
 function normalizeBoxAny(input: any): (BoundingBox & { page?: number }) | null {
   if (!input) return null;
+
   const toNum = (v: any) => (v === null || v === undefined || v === "" ? NaN : Number(v));
 
-  // Helper: choose scale factor with default = 1000 (unless clearly normalized < 1)
-  const scaleFactorFor = (...vals: number[]) => {
-    const nums = vals.filter((n) => Number.isFinite(n)) as number[];
-    if (!nums.length) return 1000; // default to 1000 if no signal
-    const maxv = Math.max(...nums.map((n) => Math.abs(n)));
-    if (maxv < 1) return 1;        // normalized [0..1]
-    if (maxv >= 1000) return 1000; // 1000x
-    if (maxv >= 100) return 100;   // 100x
-    return 1000;                   // default to 1000x
-  };
-
+  // Array formats: [x1, y1, x2, y2, (page?)] OR [x, y, w, h, (page?)]
   if (Array.isArray(input)) {
     if (input.length < 4) return null;
     const x1 = toNum(input[0]);
@@ -82,68 +79,63 @@ function normalizeBoxAny(input: any): (BoundingBox & { page?: number }) | null {
     const b2 = toNum(input[3]);
     const page = toNum(input[4]);
 
-    // Prefer [x1, y1, x2, y2, (page?)] with scaling
-    let factor = scaleFactorFor(x1, y1, a2, b2);
-    const sx1 = Number.isFinite(x1) ? x1 / factor : NaN;
-    const sy1 = Number.isFinite(y1) ? y1 / factor : NaN;
-    const sx2 = Number.isFinite(a2) ? a2 / factor : NaN;
-    const sy2 = Number.isFinite(b2) ? b2 / factor : NaN;
+    if ([x1, y1, a2, b2].every(Number.isFinite)) {
+      // Prefer interpreting as x2,y2 when they are greater than x1,y1
+      const x2y2Likely = a2 > x1 && b2 > y1;
+      const width = x2y2Likely ? a2 - x1 : a2;
+      const height = x2y2Likely ? b2 - y1 : b2;
 
-    let width = sx2 - sx1;
-    let height = sy2 - sy1;
-
-    // Fallback: [x, y, w, h, (page?)] with appropriate scaling
-    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
-      factor = scaleFactorFor(x1, y1, a2, b2);
-      const sw = Number.isFinite(a2) ? a2 / factor : NaN;
-      const sh = Number.isFinite(b2) ? b2 / factor : NaN;
-      if ([sx1, sy1, sw, sh].every(Number.isFinite) && sw > 0 && sh > 0) {
-        return { x: sx1, y: sy1, width: sw, height: sh, page: Number.isFinite(page) ? page : undefined };
+      if (width > 0 && height > 0) {
+        return {
+          x: x1,
+          y: y1,
+          width,
+          height,
+          page: Number.isFinite(page) ? page : undefined,
+        };
       }
-      return null;
-    }
-
-    if ([sx1, sy1, width, height].every(Number.isFinite) && width > 0 && height > 0) {
-      return { x: sx1, y: sy1, width, height, page: Number.isFinite(page) ? page : undefined };
     }
     return null;
   }
 
-  // Object-like: allow many synonyms
+  // Object-like formats
   const rawX = toNum(input.x ?? input.left ?? input.x0 ?? input.x1 ?? input.startX ?? input.minX);
   const rawY = toNum(input.y ?? input.top ?? input.y0 ?? input.y1 ?? input.startY ?? input.minY);
-  let rawW = toNum(input.width ?? input.w);
-  let rawH = toNum(input.height ?? input.h);
-
-  // If width/height not present, try x2/y2 and compute w/h
+  const rawW = toNum(input.width ?? input.w);
+  const rawH = toNum(input.height ?? input.h);
   const rawX2 = toNum(input.x2 ?? input.right ?? input.maxX);
   const rawY2 = toNum(input.y2 ?? input.bottom ?? input.maxY);
 
-  // Choose scale factor based on what fields exist
-  const hasWH = Number.isFinite(rawW) && Number.isFinite(rawH);
-  const factor = hasWH
-    ? scaleFactorFor(rawX, rawY, rawW, rawH)
-    : scaleFactorFor(rawX, rawY, rawX2, rawY2);
+  let x = rawX;
+  let y = rawY;
+  let width = rawW;
+  let height = rawH;
 
-  const x = Number.isFinite(rawX) ? rawX / factor : NaN;
-  const y = Number.isFinite(rawY) ? rawY / factor : NaN;
-
-  let width = Number.isFinite(rawW) ? rawW / factor : NaN;
-  let height = Number.isFinite(rawH) ? rawH / factor : NaN;
-
+  // If width/height missing, try deriving from x2/y2
   if (!Number.isFinite(width) || !Number.isFinite(height)) {
-    const sx2 = Number.isFinite(rawX2) ? rawX2 / factor : NaN;
-    const sy2 = Number.isFinite(rawY2) ? rawY2 / factor : NaN;
-    if (Number.isFinite(x) && Number.isFinite(sx2)) width = sx2 - x;
-    if (Number.isFinite(y) && Number.isFinite(sy2)) height = sy2 - y;
+    if ([rawX2, rawY2].every(Number.isFinite) && Number.isFinite(x) && Number.isFinite(y)) {
+      width = rawX2 - x;
+      height = rawY2 - y;
+    }
   }
 
   const rawPage = input.page ?? input.page_number ?? input.pageIndex ?? input.p;
   const page = toNum(rawPage);
 
-  if ([x, y, width, height].every(Number.isFinite) && width > 0 && height > 0) {
-    return { x, y, width, height, page: Number.isFinite(page) ? page : undefined };
+  if (
+    [x, y, width, height].every(Number.isFinite) &&
+    (width as number) > 0 &&
+    (height as number) > 0
+  ) {
+    return {
+      x: x as number,
+      y: y as number,
+      width: width as number,
+      height: height as number,
+      page: Number.isFinite(page) ? page : undefined,
+    };
   }
+
   return null;
 }
 
