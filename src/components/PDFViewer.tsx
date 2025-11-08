@@ -178,49 +178,10 @@ const baseReady = !!(baseViewportRef.current?.width && baseViewportRef.current?.
 
 // Helper: recompute whether incoming boxes use a bottom-left origin (PDF native)
 const recomputeOriginGuess = () => {
-  const src = sourceDimsRef.current;
-  if (!src?.width || !src?.height || !Array.isArray(allBoxes) || allBoxes.length === 0) {
-    originBottomLeftRef.current = false;
-    return;
-  }
-  const srcW = src.width;
-  const srcH = src.height;
-
-  let topHalfCountTopLeft = 0;
-  let topHalfCountFlipped = 0;
-  let samples = 0;
-
-  for (const b of allBoxes as any[]) {
-    const x = typeof (b as any)?.x === "number" ? (b as any).x : NaN;
-    const y = typeof (b as any)?.y === "number" ? (b as any).y : NaN;
-    const h = typeof (b as any)?.height === "number" ? (b as any).height : NaN;
-    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(h)) continue;
-
-    const yTopLeftNorm = y / srcH;
-    const yFlippedNorm = (srcH - (y + h)) / srcH;
-
-    if (Number.isFinite(yTopLeftNorm) && Number.isFinite(yFlippedNorm)) {
-      const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
-      const y1 = clamp01(yTopLeftNorm);
-      const y2 = clamp01(yFlippedNorm);
-      if (y1 < 0.4) topHalfCountTopLeft++;
-      if (y2 < 0.4) topHalfCountFlipped++;
-      samples++;
-    }
-  }
-
-  if (samples === 0) {
-    originBottomLeftRef.current = false;
-    return;
-  }
-
-  const ratioTopLeft = topHalfCountTopLeft / samples;
-  const ratioFlipped = topHalfCountFlipped / samples;
-  originBottomLeftRef.current = ratioFlipped > ratioTopLeft + 0.1;
+  originBottomLeftRef.current = false;
 };
 
-// Returns a normalized (0..1) top-left origin box for a given input box,
-// respecting sourceDimsRef and originBottomLeftRef.
+// Returns a normalized (0..1) top-left origin box for a given input box
 const toUnitBoxTopLeft = (
   box: WideBox
 ): { x: number; y: number; width: number; height: number } => {
@@ -235,7 +196,10 @@ const toUnitBoxTopLeft = (
   }
 
   const base = getBaseDims();
-  // If coords are already normalized (0..1), use as-is; else normalize using source dims (fallback to base dims)
+  if (!base.width || !base.height) {
+    return { x: 0, y: 0, width: 0, height: 0 };
+  }
+
   const isNormalized =
     box.x >= 0 &&
     box.y >= 0 &&
@@ -247,8 +211,8 @@ const toUnitBoxTopLeft = (
     box.height <= 1;
 
   const src = sourceDimsRef.current;
-  const srcW = src?.width && src.width > 0 ? src.width : base.width || 1;
-  const srcH = src?.height && src.height > 0 ? src.height : base.height || 1;
+  const srcW = src?.width && src.width > 0 ? src.width : base.width;
+  const srcH = src?.height && src.height > 0 ? src.height : base.height;
 
   const normX = isNormalized ? box.x : box.x / srcW;
   const normW = isNormalized ? box.width : box.width / srcW;
@@ -257,12 +221,10 @@ const toUnitBoxTopLeft = (
   let normH: number;
   if (isNormalized) {
     normH = box.height;
-    normY = originBottomLeftRef.current ? 1 - (box.y + box.height) : box.y;
+    normY = box.y; // no inversion
   } else {
     normH = box.height / srcH;
-    normY = originBottomLeftRef.current
-      ? (srcH - (box.y + box.height)) / srcH
-      : box.y / srcH;
+    normY = box.y / srcH; // no inversion
   }
 
   const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
@@ -274,9 +236,8 @@ const toUnitBoxTopLeft = (
   };
 };
 
-// Replace projector to normalize first, then scale by canvas size from PDF top-left
+// Project to pixels from normalized top-left origin (no inversion)
 const toPxBox = (box: WideBox): WideBox => {
-  // Guard missing values
   if (
     box == null ||
     typeof box.x !== "number" ||
@@ -290,7 +251,6 @@ const toPxBox = (box: WideBox): WideBox => {
   const base = getBaseDims();
   if (!base.width || !base.height) return box;
 
-  // If coords are <= 1, treat as normalized [0..1]
   const isNormalized =
     box.x >= 0 &&
     box.y >= 0 &&
@@ -301,43 +261,37 @@ const toPxBox = (box: WideBox): WideBox => {
     box.width <= 1 &&
     box.height <= 1;
 
-  // Determine source space for non-normalized inputs
   const src = sourceDimsRef.current;
   const srcW = src?.width && src.width > 0 ? src.width : base.width;
   const srcH = src?.height && src.height > 0 ? src.height : base.height;
 
-  // Normalize first (relative to source)
   const normX = isNormalized ? box.x : box.x / srcW;
   const normW = isNormalized ? box.width : box.width / srcW;
 
-  // If the source appears to be bottom-left origin, flip Y before scaling
   let normY: number;
   let normH: number;
   if (isNormalized) {
     normH = box.height;
-    if (originBottomLeftRef.current) {
-      normY = 1 - (box.y + box.height);
-    } else {
-      normY = box.y;
-    }
+    normY = box.y; // no inversion
   } else {
     normH = box.height / srcH;
-    if (originBottomLeftRef.current) {
-      normY = (srcH - (box.y + box.height)) / srcH;
-    } else {
-      normY = box.y / srcH;
-    }
+    normY = box.y / srcH; // no inversion
   }
 
-  // Clamp normalized values defensively
   const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
   const pxX = clamp01(normX) * base.width;
   const pxY = clamp01(normY) * base.height;
   const pxW = clamp01(normW) * base.width;
   const pxH = clamp01(normH) * base.height;
 
-  // Strictly render from PDF top-left (no extra offsets)
-  return { x: pxX, y: pxY, width: pxW, height: pxH, page: (box as any).page, color: (box as any).color } as WideBox;
+  return {
+    x: pxX,
+    y: pxY,
+    width: pxW,
+    height: pxH,
+    page: (box as any).page,
+    color: (box as any).color,
+  } as WideBox;
 };
 
   const fetchPdfProxy = useAction(api.documents.fetchPdfProxy);
