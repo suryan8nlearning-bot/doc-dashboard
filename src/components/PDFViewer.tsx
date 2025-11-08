@@ -55,10 +55,6 @@ const manualZoomRef = useRef(false);
 // Add: suppress zoom-effect-triggered render during first page render to avoid flicker
 const suppressZoomEffectRef = useRef(false);
 
-// Add: debugging and Y-axis handling state
-const [invertY, setInvertY] = useState(false); // Default to top-left origin per spec
-const [debugMode, setDebugMode] = useState(false);
-
 // Add: normalize/scale helpers and current page state
 type WideBox = BoundingBox & { page?: number; color?: string };
 
@@ -228,11 +224,6 @@ const toPxBox = (box: WideBox): WideBox => {
   let pxY = isNormalized ? box.y * base.height : (box.y / srcH) * base.height;
   let pxW = isNormalized ? box.width * base.width : (box.width / srcW) * base.width;
   let pxH = isNormalized ? box.height * base.height : (box.height / srcH) * base.height;
-
-  // Optional bottom-left → top-left conversion
-  if (invertY) {
-    pxY = base.height - (pxY + pxH);
-  }
 
   // Apply small calibration offset on Y to correct slight vertical drift
   pxY += Y_CALIBRATION_PX;
@@ -785,7 +776,6 @@ const toPxBox = (box: WideBox): WideBox => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === '+' || e.key === '=') {
         e.preventDefault();
-        // Use updateZoom for consistent behavior and scroll-centering
         updateZoom(zoom + 0.25);
       }
       if (e.key === '-' || e.key === '_') {
@@ -796,15 +786,7 @@ const toPxBox = (box: WideBox): WideBox => {
         e.preventDefault();
         handleResetZoom();
       }
-      // Debug shortcuts
-      if (e.key.toLowerCase() === 'd') {
-        setDebugMode((v) => !v);
-      }
-      if (e.shiftKey && e.key.toLowerCase() === 'i') {
-        setInvertY((v) => !v);
-        console.log('PDFViewer: invertY set to', !invertY);
-      }
-      // Add: arrow key navigation
+      // Page navigation
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
         handlePrevPage();
@@ -816,7 +798,7 @@ const toPxBox = (box: WideBox): WideBox => {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [invertY, currentPage, totalPages, zoom]); // extend deps for nav
+  }, [currentPage, totalPages, zoom]);
 
   // Keep hover-centering but do NOT auto-zoom when a box is highlighted
   useEffect(() => {
@@ -964,28 +946,6 @@ const toPxBox = (box: WideBox): WideBox => {
         >
           <ChevronRight className="h-4 w-4" />
         </Button>
-
-        {/* Debug + Invert Y toggles */}
-        <Button
-          variant="outline"
-          size="sm"
-          className="ml-2 h-8 px-2 rounded-full"
-          onClick={() => setDebugMode((v) => !v)}
-          title="Toggle debug overlays (D)"
-        >
-          {debugMode ? 'Debug: On' : 'Debug: Off'}
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 px-2 rounded-full"
-          onClick={() => setInvertY((v) => !v)}
-          title="Invert Y axis (Shift+I)"
-        >
-          Y:{invertY ? '↓' : '↑'}
-        </Button>
-
-        {/* Detection & OCR controls removed */}
       </div>
 
       {/* Scroll to top button inside PDF container */}
@@ -999,32 +959,6 @@ const toPxBox = (box: WideBox): WideBox => {
       >
         <ArrowUp className="h-4 w-4" />
       </Button>
-
-      {/* Add: compact debug panel to inspect sizes */}
-      {debugMode && (
-        <div className="absolute bottom-4 left-4 z-20 rounded-md border bg-background/85 backdrop-blur px-3 py-2 text-xs shadow-sm">
-          <div className="font-medium mb-1">Debug: Dimensions</div>
-          <div className="space-y-0.5 text-muted-foreground">
-            <div>Canvas: {canvasSize.width} × {canvasSize.height}px</div>
-            <div>Base @1x: {baseViewportRef.current?.width ?? 0} × {baseViewportRef.current?.height ?? 0}px</div>
-            <div>PDF View (user units): {pdfViewDimsRef.current?.width ?? 0} × {pdfViewDimsRef.current?.height ?? 0}</div>
-            <div>Source (bbox default): {sourceDimsRef.current?.width ?? 0} × {sourceDimsRef.current?.height ?? 0}</div>
-            <div>Zoom: {Number.isFinite(zoom) ? Math.round(zoom * 100) : 100}% | Y-Invert: {invertY ? 'on' : 'off'}</div>
-            {highlightBox && (() => {
-              const hbNorm = normalizeWideBox(highlightBox as any);
-              if (!hbNorm) return null;
-              const hbPx = toPxBox(hbNorm);
-              return (
-                <div className="pt-1 space-y-0.5">
-                  <div className="font-medium text-foreground">Highlight</div>
-                  <div>Norm: x:{Math.round(hbNorm.x*1000)/1000}, y:{Math.round(hbNorm.y*1000)/1000}, w:{Math.round(hbNorm.width*1000)/1000}, h:{Math.round(hbNorm.height*1000)/1000}{hbNorm.page ? `, p:${hbNorm.page}` : ''}</div>
-                  <div>Px: x:{Math.round(hbPx.x)}, y:{Math.round(hbPx.y)}, w:{Math.round(hbPx.width)}, h:{Math.round(hbPx.height)}</div>
-                </div>
-              );
-            })()}
-          </div>
-        </div>
-      )}
 
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-background/60 z-20">
@@ -1053,7 +987,6 @@ const toPxBox = (box: WideBox): WideBox => {
           />
 
           {/* Subtle overlays for all boxes (normalized to base pixels, then scaled by zoom) */}
-          {/* Show all bounding boxes by default - ensure canvas is ready for visibility */}
           {allBoxes.length > 0 && canvasSize.width > 0 && canvasSize.height > 0 && (
             <>
               {allBoxes.map((box, idx) => {
@@ -1061,10 +994,7 @@ const toPxBox = (box: WideBox): WideBox => {
                 const pad = 2;
                 const text: string | undefined =
                   (box as any)?.value || (box as any)?.label || undefined;
-                // Optional: only render when debugMode OR always – we keep them always visible for now
-                if (debugMode) {
-                  console.debug('PDFViewer: box', idx, { bb, zoom, canvasSize });
-                }
+
                 return (
                   <>
                     <div
