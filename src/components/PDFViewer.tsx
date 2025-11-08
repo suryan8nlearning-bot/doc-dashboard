@@ -558,17 +558,27 @@ const toPxBox = (box: WideBox): WideBox => {
       boxes.find((b: any) => b.label && keyLabels.test(String(b.label))) || null;
 
     // Compute source coordinate space guess from raw boxes before scaling
+    // Only consider non-normalized boxes (>1) to avoid collapsing to [0..1] when normalized inputs exist.
     let maxRight = 0;
     let maxBottom = 0;
     for (const b of boxes) {
+      const isNormalized =
+        b.x >= 0 && b.y >= 0 && b.width > 0 && b.height > 0 &&
+        b.x <= 1 && b.y <= 1 && b.width <= 1 && b.height <= 1;
+      if (isNormalized) continue;
       const r = b.x + b.width;
       const bt = b.y + b.height;
       if (Number.isFinite(r) && r > maxRight) maxRight = r;
       if (Number.isFinite(bt) && bt > maxBottom) maxBottom = bt;
     }
-    // Fallbacks to avoid zeros
-    if (!Number.isFinite(maxRight) || maxRight <= 0) maxRight = 1;
-    if (!Number.isFinite(maxBottom) || maxBottom <= 0) maxBottom = 1;
+    // Fallbacks to avoid zeros; if everything is normalized, prefer the PDF base viewport.
+    const base = baseViewportRef.current;
+    if (!Number.isFinite(maxRight) || maxRight <= 1) {
+      maxRight = (base?.width && base.width > 0) ? base.width : 1;
+    }
+    if (!Number.isFinite(maxBottom) || maxBottom <= 1) {
+      maxBottom = (base?.height && base.height > 0) ? base.height : 1;
+    }
 
     result.mergedBoxes = merged;
     result.focusBox = keyBox ? { x: keyBox.x, y: keyBox.y, width: keyBox.width, height: keyBox.height } : null;
@@ -668,8 +678,7 @@ const toPxBox = (box: WideBox): WideBox => {
 
         const baseViewport = page.getViewport({ scale: 1 });
         baseViewportRef.current = { width: baseViewport.width, height: baseViewport.height };
-        // Ensure source dimensions always match the PDF base viewport (avoid guessing from boxes)
-        sourceDimsRef.current = { width: baseViewport.width, height: baseViewport.height };
+        // Do NOT override sourceDimsRef here; prefer data-derived source dims when available.
 
         // Compute initial scale (fit-to-width if requested)
         let initialScale = 1;
@@ -716,8 +725,7 @@ const toPxBox = (box: WideBox): WideBox => {
       pageRef.current = page;
       const base = page.getViewport({ scale: 1 });
       baseViewportRef.current = { width: base.width, height: base.height };
-      // Keep source dims tied to base viewport for consistent projection
-      sourceDimsRef.current = { width: base.width, height: base.height };
+      // Do NOT override sourceDimsRef here; keep using data-derived dims when present.
       setCurrentPage(clamped);
       await renderPage(zoom);
     } catch (e) {
