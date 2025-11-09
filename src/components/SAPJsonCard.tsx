@@ -330,7 +330,7 @@ export function SAPJsonCard({
     return SAP_SECTION_COLORS[key] ?? FALLBACK_COLORS[hashKeyToIndex(key)];
   }
 
-  // NEW: Render array of objects as accordion items instead of table
+  // NEW: Render array of objects with all fields in row and sub-objects as collapsible sections
   const ArrayOfObjectsAccordion = ({
     items,
     basePath,
@@ -341,139 +341,154 @@ export function SAPJsonCard({
     depth: number;
   }) => {
     return (
-      <div className="space-y-2">
+      <div className="space-y-3">
         {items.map((item, idx) => {
           const itemPath = `${basePath}.[${idx}]`;
           const itemKeys = Object.keys(item);
+          
+          // Separate primitive fields from sub-objects
+          const primitiveFields: Array<[string, any]> = [];
+          const subObjects: Array<[string, any]> = [];
+          
+          itemKeys.forEach((key) => {
+            const val = item[key];
+            if (val !== null && typeof val === "object") {
+              subObjects.push([key, val]);
+            } else {
+              primitiveFields.push([key, val]);
+            }
+          });
+
           const itemBox = getRowUnionBoxForArrayObject(basePath, idx, itemKeys, hoverMapping);
           const itemHasMapping = Boolean(itemBox);
 
           return (
-            <Accordion
-              key={itemPath}
-              type="single"
-              collapsible
-              value={expanded.has(itemPath) ? itemPath : ""}
-              onValueChange={(val) => {
-                setExpanded((prev: Set<string>) => {
-                  const next = new Set(prev);
-                  if (val) next.add(itemPath);
-                  else next.delete(itemPath);
-                  return next;
-                });
-              }}
-            >
-              <AccordionItem value={itemPath} className="border rounded-lg">
-                <AccordionTrigger
-                  className="px-4 py-3 hover:bg-muted/50 transition-colors"
-                  style={{
-                    ...(hoveredPath === itemPath
-                      ? {
-                          backgroundColor: "rgba(59,130,246,0.08)",
-                          boxShadow: "inset 0 0 0 1px rgba(59,130,246,0.45)",
-                        }
-                      : {}),
-                  }}
-                  onMouseEnter={() => {
-                    if (itemBox) {
-                      onHideMailHint?.();
-                      handleRowEnter(itemPath, itemBox as any);
-                    } else {
-                      setHoveredPath(itemPath);
-                      onShowMailHint?.();
-                    }
-                  }}
-                  onMouseLeave={() => {
-                    handleRowLeave();
-                    onHideMailHint?.();
-                  }}
-                >
-                  <div className="flex items-center gap-3 w-full">
-                    <span
-                      className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${
-                        itemHasMapping ? "bg-emerald-500" : "bg-rose-500"
-                      }`}
-                      title={itemHasMapping ? "Source found" : "No source mapping"}
-                    />
-                    <span className="text-sm font-medium">Item {idx + 1}</span>
-                    {itemKeys.slice(0, 3).map((key) => {
-                      const val = item[key];
-                      if (val == null || typeof val === "object") return null;
-                      return (
-                        <span key={key} className="text-xs text-muted-foreground truncate">
-                          {key}: {String(val)}
-                        </span>
-                      );
-                    })}
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="px-4 pb-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                    {itemKeys.map((key) => {
-                      const val = item[key];
-                      const fieldPath = `${itemPath}.${key}`;
-                      const fieldBox = hoverMapping ? hoverMapping[fieldPath] || null : null;
-                      const fieldHasMapping = Boolean(fieldBox);
-
-                      if (val !== null && typeof val === "object") {
-                        return (
-                          <div key={key} className="col-span-full">
-                            <TreeNode label={key} value={val} path={fieldPath} depth={depth + 2} />
-                          </div>
-                        );
+            <div key={itemPath} className="border rounded-lg bg-card">
+              {/* Main row with all primitive fields */}
+              <div
+                className="p-3 flex items-center gap-3 flex-wrap"
+                style={{
+                  ...(hoveredPath === itemPath
+                    ? {
+                        backgroundColor: "rgba(59,130,246,0.08)",
+                        boxShadow: "inset 0 0 0 1px rgba(59,130,246,0.45)",
                       }
+                    : {}),
+                }}
+                onMouseEnter={() => {
+                  if (itemBox) {
+                    onHideMailHint?.();
+                    handleRowEnter(itemPath, itemBox as any);
+                  } else {
+                    setHoveredPath(itemPath);
+                    onShowMailHint?.();
+                  }
+                }}
+                onMouseLeave={() => {
+                  handleRowLeave();
+                  onHideMailHint?.();
+                }}
+              >
+                <span
+                  className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${
+                    itemHasMapping ? "bg-emerald-500" : "bg-rose-500"
+                  }`}
+                  title={itemHasMapping ? "Source found" : "No source mapping"}
+                />
+                <span className="text-sm font-semibold text-foreground min-w-[60px]">#{idx + 1}</span>
+                
+                {primitiveFields.map(([key, val]) => {
+                  const fieldPath = `${itemPath}.${key}`;
+                  const fieldBox = hoverMapping ? hoverMapping[fieldPath] || null : null;
+                  const fieldHasMapping = Boolean(fieldBox);
 
-                      return (
-                        <div
-                          key={key}
-                          className="rounded-md border bg-card p-3"
-                          style={{
-                            ...(hoveredPath === fieldPath
-                              ? {
-                                  backgroundColor: "rgba(59,130,246,0.08)",
-                                  boxShadow: "inset 0 0 0 1px rgba(59,130,246,0.45)",
-                                }
-                              : {}),
-                          }}
-                          onMouseEnter={() => {
-                            if (fieldBox) {
-                              onHideMailHint?.();
-                              handleRowEnter(fieldPath, fieldBox as any);
-                            } else {
-                              setHoveredPath(fieldPath);
-                              onShowMailHint?.();
-                            }
-                          }}
-                          onMouseLeave={() => {
-                            handleRowLeave();
-                            onHideMailHint?.();
-                          }}
+                  return (
+                    <div
+                      key={key}
+                      className="flex items-center gap-2 min-w-[120px] max-w-[200px]"
+                      onMouseEnter={() => {
+                        if (fieldBox) {
+                          onHideMailHint?.();
+                          handleRowEnter(fieldPath, fieldBox as any);
+                        } else {
+                          setHoveredPath(fieldPath);
+                          onShowMailHint?.();
+                        }
+                      }}
+                      onMouseLeave={() => {
+                        handleRowLeave();
+                        onHideMailHint?.();
+                      }}
+                    >
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${
+                          fieldHasMapping ? "bg-emerald-400" : "bg-rose-400"
+                        }`}
+                      />
+                      <label className="text-xs font-medium text-muted-foreground whitespace-nowrap">{key}:</label>
+                      {typeof val === "boolean" ? (
+                        <input type="checkbox" defaultChecked={val} className="h-3.5 w-3.5" />
+                      ) : (
+                        <input
+                          type={typeof val === "number" ? "number" : "text"}
+                          defaultValue={val === null || val === undefined ? "" : String(val)}
+                          className="flex-1 min-w-0 rounded border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Sub-objects as collapsible sections below */}
+              {subObjects.length > 0 && (
+                <div className="border-t">
+                  {subObjects.map(([key, val]) => {
+                    const subPath = `${itemPath}.${key}`;
+                    const isSubExpanded = expanded.has(subPath);
+                    const isArrayOfObjects =
+                      Array.isArray(val) &&
+                      (val as any[]).length > 0 &&
+                      (val as any[]).every((row) => row && typeof row === "object" && !Array.isArray(row));
+
+                    return (
+                      <div key={key} className="border-b last:border-b-0">
+                        <button
+                          onClick={() => togglePath(subPath)}
+                          className="w-full px-4 py-2 flex items-center justify-between hover:bg-muted/30 transition-colors text-left"
                         >
-                          <div className="flex items-center gap-2 mb-1.5">
-                            <span
-                              className={`h-2 w-2 rounded-full ${
-                                fieldHasMapping ? "bg-emerald-500" : "bg-rose-500"
+                          <div className="flex items-center gap-2">
+                            <ChevronRight
+                              className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${
+                                isSubExpanded ? "rotate-90" : ""
                               }`}
-                              title={fieldHasMapping ? "Source found" : "No source mapping"}
                             />
-                            <label className="text-xs font-medium text-muted-foreground">{key}</label>
+                            <span className="text-xs font-semibold text-foreground">{key}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {Array.isArray(val) ? `(${val.length} items)` : "(object)"}
+                            </span>
                           </div>
-                          {typeof val === "boolean" ? (
-                            <input type="checkbox" defaultChecked={val} className="h-4 w-4" />
-                          ) : (
-                            <input
-                              type={typeof val === "number" ? "number" : "text"}
-                              defaultValue={val === null || val === undefined ? "" : String(val)}
-                              className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                            />
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
+                        </button>
+                        
+                        {isSubExpanded && (
+                          <div className="px-4 pb-3 bg-muted/20">
+                            {isArrayOfObjects ? (
+                              <ArrayOfObjectsAccordion
+                                items={val as Array<Record<string, any>>}
+                                basePath={subPath}
+                                depth={depth + 1}
+                              />
+                            ) : (
+                              <TreeNode label="" value={val} path={subPath} depth={depth + 1} />
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           );
         })}
       </div>
