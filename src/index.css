@@ -293,17 +293,31 @@
   background-clip: padding-box !important;
   position: relative !important;
   z-index: 1 !important;
+  /* Force GPU acceleration for stable rendering */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-font-smoothing: subpixel-antialiased;
 }
 
 /* On focus, raise above neighbors and force its own layer to prevent visual clipping */
 [data-sap-interactive] :is(input, textarea):focus {
   position: relative !important;
-  z-index: 100 !important;
+  z-index: 9999 !important;
   outline: 2px solid var(--ring) !important;
   background-color: var(--background) !important;
   transform: translateZ(0) !important;
   will-change: transform !important;
   isolation: isolate !important;
+  /* Ensure caret is always visible */
+  caret-color: var(--foreground) !important;
+}
+
+/* Force parent table cells to allow overflow when input is focused */
+[data-sap-interactive] td:has(input:focus),
+[data-sap-interactive] td:has(textarea:focus) {
+  overflow: visible !important;
+  position: relative !important;
+  z-index: 9999 !important;
 }
 
 /* Allow horizontal overflow within nested ScrollArea containers for wide tables */

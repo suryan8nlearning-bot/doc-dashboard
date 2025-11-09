@@ -454,14 +454,22 @@ export function SAPJsonCard({
                 style={{
                   position: "relative",
                   zIndex: 1,
+                  caretColor: "var(--foreground)",
                 }}
                 onFocus={(e) => {
-                  e.currentTarget.style.zIndex = "100";
+                  e.currentTarget.style.position = "relative";
+                  e.currentTarget.style.zIndex = "9999";
                   e.currentTarget.style.isolation = "isolate";
+                  e.currentTarget.style.transform = "translateZ(0)";
+                  e.currentTarget.style.willChange = "transform";
+                  e.currentTarget.style.caretColor = "var(--foreground)";
+                  e.currentTarget.style.backgroundColor = "var(--background)";
                 }}
                 onBlur={(e) => {
                   e.currentTarget.style.zIndex = "1";
                   e.currentTarget.style.isolation = "";
+                  e.currentTarget.style.transform = "";
+                  e.currentTarget.style.willChange = "";
                 }}
               />
             )}
@@ -625,14 +633,36 @@ export function SAPJsonCard({
                                         style={{
                                           position: "relative",
                                           zIndex: 1,
+                                          caretColor: "var(--foreground)",
                                         }}
                                         onFocus={(e) => {
-                                          e.currentTarget.style.zIndex = "100";
+                                          e.currentTarget.style.position = "relative";
+                                          e.currentTarget.style.zIndex = "9999";
                                           e.currentTarget.style.isolation = "isolate";
+                                          e.currentTarget.style.transform = "translateZ(0)";
+                                          e.currentTarget.style.willChange = "transform";
+                                          e.currentTarget.style.caretColor = "var(--foreground)";
+                                          e.currentTarget.style.backgroundColor = "var(--background)";
+                                          // Force parent cell to allow overflow
+                                          const cell = e.currentTarget.closest("td");
+                                          if (cell instanceof HTMLElement) {
+                                            cell.style.overflow = "visible";
+                                            cell.style.position = "relative";
+                                            cell.style.zIndex = "9999";
+                                          }
                                         }}
                                         onBlur={(e) => {
                                           e.currentTarget.style.zIndex = "1";
                                           e.currentTarget.style.isolation = "";
+                                          e.currentTarget.style.transform = "";
+                                          e.currentTarget.style.willChange = "";
+                                          // Reset parent cell
+                                          const cell = e.currentTarget.closest("td");
+                                          if (cell instanceof HTMLElement) {
+                                            cell.style.overflow = "";
+                                            cell.style.position = "";
+                                            cell.style.zIndex = "";
+                                          }
                                         }}
                                       />
                                     )}
