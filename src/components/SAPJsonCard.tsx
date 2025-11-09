@@ -45,7 +45,7 @@ function extractJsonFromText(input: string): any | null {
 
 export function SAPJsonCard({
   data,
-  title = "SAP JSON",
+  title = "SAP Data",
   className,
   defaultCollapsed = false,
   // Add: new props
@@ -541,11 +541,11 @@ export function SAPJsonCard({
           <CardTitle className="text-base">{title}</CardTitle>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleCopy} aria-label="Copy JSON">
+          <Button variant="outline" size="sm" className="hidden" onClick={handleCopy} aria-label="Copy JSON">
             <Copy className="h-4 w-4 mr-2" />
             Copy
           </Button>
-          <Button variant="outline" size="sm" onClick={handleDownload} aria-label="Download JSON">
+          <Button variant="outline" size="sm" className="hidden" onClick={handleDownload} aria-label="Download JSON">
             <Download className="h-4 w-4 mr-2" />
             Download
           </Button>
