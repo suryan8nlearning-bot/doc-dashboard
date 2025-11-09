@@ -99,77 +99,60 @@ export default function Landing() {
         let sapSource: any = undefined;
         let sourceFieldName = '';
         
-        console.log('🔍 DEBUG: Full row data loaded:', data);
-        console.log('🔍 DEBUG: Available field names:', Object.keys(data || {}));
-        
         // Check SAP_JSON_from_APP first
         if (data?.['SAP_JSON_from_APP']) {
           sapSource = data['SAP_JSON_from_APP'];
           sourceFieldName = 'SAP_JSON_from_APP';
-          console.log('✅ Using SAP_JSON_from_APP');
         } 
         // Fall back to SAP JSON
         else if (data?.['SAP JSON']) {
           sapSource = data['SAP JSON'];
           sourceFieldName = 'SAP JSON';
-          console.log('✅ Using SAP JSON');
         }
-
-        console.log('🔍 DEBUG: SAP source field:', sourceFieldName);
-        console.log('🔍 DEBUG: SAP source type:', typeof sapSource);
-        console.log('🔍 DEBUG: SAP source value (first 300 chars):', 
-          sapSource ? (typeof sapSource === 'string' ? sapSource.substring(0, 300) : JSON.stringify(sapSource).substring(0, 300)) : 'null/undefined'
-        );
 
         // Convert to string, handling both string and object types
         let sap = '';
         try {
           if (!sapSource) {
-            console.warn('⚠️ No SAP data found, using default structure');
             sap = '{\n  "output": {\n    "to_Item": []\n  }\n}';
           } else if (typeof sapSource === 'string') {
-            sap = sapSource;
+            // Parse to check if it needs output wrapper
+            const parsed = JSON.parse(sapSource);
+            if (!parsed.output) {
+              // Wrap in output if missing
+              sap = JSON.stringify({ output: parsed }, null, 2);
+            } else {
+              sap = sapSource;
+            }
           } else if (typeof sapSource === 'object') {
-            sap = JSON.stringify(sapSource, null, 2);
+            // Check if it needs output wrapper
+            if (!sapSource.output) {
+              sap = JSON.stringify({ output: sapSource }, null, 2);
+            } else {
+              sap = JSON.stringify(sapSource, null, 2);
+            }
           } else {
-            console.error('❌ Unexpected SAP source type:', typeof sapSource);
             sap = '{\n  "output": {\n    "to_Item": []\n  }\n}';
           }
         } catch (err) {
-          console.error('❌ Error converting SAP source:', err);
+          console.error('Failed to parse SAP data:', err);
           sap = '{\n  "output": {\n    "to_Item": []\n  }\n}';
         }
-
-        console.log('🔍 DEBUG: SAP string length:', sap.length);
 
         setRawJson(current);
         
         // Parse and reorder SAP JSON
         let orderedSap = sap;
         try {
-          console.log('🔍 Attempting to parse SAP JSON...');
           const parsed = JSON.parse(sap);
-          console.log('✅ Parsed SAP object keys:', Object.keys(parsed));
-          
-          console.log('🔍 Attempting to reorder SAP payload...');
           const reordered = reorderSapPayload(parsed);
-          console.log('✅ Reordered SAP object keys:', Object.keys(reordered));
-          
           orderedSap = JSON.stringify(reordered, null, 2);
-          console.log('✅ Final SAP JSON length:', orderedSap.length);
         } catch (err) {
-          console.error('❌ Failed to parse/reorder SAP JSON:', err);
-          console.error('❌ Original SAP string:', sap.substring(0, 500));
+          console.error('Failed to parse/reorder SAP JSON:', err);
         }
         
-        console.log('🔍 Setting SAP JSON in state...');
         setSapJson(orderedSap);
         setEditorValue(showSap ? orderedSap : current);
-        
-        console.log('✅ Data loading complete');
-        console.log('  - showSap:', showSap);
-        console.log('  - sapJson length:', orderedSap.length);
-        console.log('  - editorValue length:', (showSap ? orderedSap : current).length);
       } catch (e: any) {
         console.error('❌ Failed to load row', e);
         toast.error(`Failed to load row: ${e?.message || e}`);
