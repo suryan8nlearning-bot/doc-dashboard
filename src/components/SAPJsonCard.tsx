@@ -331,7 +331,7 @@ export function SAPJsonCard({
   }
 
   // NEW: Render array of objects with all fields in row and sub-objects as collapsible sections
-  const ArrayOfObjectsAccordion = ({
+  const ArrayOfObjectsAccordion = (({
     items,
     basePath,
     depth,
@@ -340,260 +340,294 @@ export function SAPJsonCard({
     basePath: string;
     depth: number;
   }) => {
+    if (!items || items.length === 0) return null;
+
+    // Collect all unique primitive field keys across all items
+    const allPrimitiveKeys = new Set<string>();
+    items.forEach((item) => {
+      Object.keys(item).forEach((key) => {
+        const val = item[key];
+        if (val === null || val === undefined || typeof val !== "object") {
+          allPrimitiveKeys.add(key);
+        }
+      });
+    });
+    const primitiveColumns = Array.from(allPrimitiveKeys);
+
     return (
-      <div className="space-y-3">
-        {items.map((item, idx) => {
-          const itemPath = `${basePath}.[${idx}]`;
-          const itemKeys = Object.keys(item);
-          
-          // Separate primitive fields from sub-objects
-          const primitiveFields: Array<[string, any]> = [];
-          const subObjects: Array<[string, any]> = [];
-          
-          itemKeys.forEach((key) => {
-            const val = item[key];
-            if (val !== null && typeof val === "object") {
-              subObjects.push([key, val]);
-            } else {
-              primitiveFields.push([key, val]);
-            }
-          });
+      <div className="w-full overflow-x-auto">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="border-b bg-muted/30">
+              <th className="px-3 py-2 text-left text-xs font-semibold">#</th>
+              {primitiveColumns.map((col) => (
+                <th key={col} className="px-3 py-2 text-left text-xs font-semibold whitespace-nowrap">
+                  {col}
+                </th>
+              ))}
+              <th className="px-3 py-2 text-left text-xs font-semibold">Sub-Objects</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item, idx) => {
+              const itemPath = `${basePath}.[${idx}]`;
+              const itemKeys = Object.keys(item);
+              
+              // Separate sub-objects
+              const subObjects: Array<[string, any]> = [];
+              itemKeys.forEach((key) => {
+                const val = item[key];
+                if (val !== null && typeof val === "object") {
+                  subObjects.push([key, val]);
+                }
+              });
 
-          const itemBox = getRowUnionBoxForArrayObject(basePath, idx, itemKeys, hoverMapping);
-          const itemHasMapping = Boolean(itemBox);
+              const itemBox = getRowUnionBoxForArrayObject(basePath, idx, itemKeys, hoverMapping);
+              const itemHasMapping = Boolean(itemBox);
 
-          return (
-            <div key={itemPath} className="border rounded-lg bg-card">
-              {/* Main row with all primitive fields */}
-              <div
-                className="p-3 flex items-center gap-3 flex-wrap"
-                style={{
-                  ...(hoveredPath === itemPath
-                    ? {
-                        backgroundColor: "rgba(59,130,246,0.08)",
-                        boxShadow: "inset 0 0 0 1px rgba(59,130,246,0.45)",
-                      }
-                    : {}),
-                }}
-              >
-                <span
-                  className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${
-                    itemHasMapping ? "bg-emerald-500" : "bg-rose-500"
-                  }`}
-                  title={itemHasMapping ? "Source found" : "No source mapping"}
-                  onMouseEnter={() => {
-                    if (itemBox) {
-                      onHideMailHint?.();
-                      handleRowEnter(itemPath, itemBox as any);
-                    } else {
-                      setHoveredPath(itemPath);
-                      onShowMailHint?.();
-                    }
-                  }}
-                  onMouseLeave={() => {
-                    handleRowLeave();
-                    onHideMailHint?.();
-                  }}
-                />
-                <span className="text-sm font-semibold text-foreground min-w-[60px]">#{idx + 1}</span>
-                
-                {primitiveFields.map(([key, val]) => {
-                  const fieldPath = `${itemPath}.${key}`;
-                  const fieldBox = hoverMapping ? hoverMapping[fieldPath] || null : null;
-                  const fieldHasMapping = Boolean(fieldBox);
-
-                  return (
-                    <div
-                      key={key}
-                      className="flex items-center gap-2 min-w-[120px] max-w-[200px]"
-                    >
-                      <span
-                        className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${
-                          fieldHasMapping ? "bg-emerald-400" : "bg-rose-400"
-                        }`}
-                        onMouseEnter={() => {
-                          if (fieldBox) {
-                            onHideMailHint?.();
-                            handleRowEnter(fieldPath, fieldBox as any);
-                          } else {
-                            setHoveredPath(fieldPath);
-                            onShowMailHint?.();
+              return (
+                <>
+                  {/* Main row with primitive fields */}
+                  <tr
+                    key={itemPath}
+                    className="border-b hover:bg-muted/20 transition-colors"
+                    style={{
+                      ...(hoveredPath === itemPath
+                        ? {
+                            backgroundColor: "rgba(59,130,246,0.08)",
+                            boxShadow: "inset 0 0 0 1px rgba(59,130,246,0.45)",
                           }
-                        }}
-                        onMouseLeave={() => {
-                          handleRowLeave();
-                          onHideMailHint?.();
-                        }}
-                      />
-                      <label className="text-xs font-medium text-muted-foreground whitespace-nowrap">{key}:</label>
-                      {typeof val === "boolean" ? (
-                        <input 
-                          type="checkbox" 
-                          defaultChecked={val} 
-                          className="h-3.5 w-3.5"
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      ) : (
-                        <input
-                          type={typeof val === "number" ? "number" : "text"}
-                          defaultValue={val === null || val === undefined ? "" : String(val)}
-                          className="flex-1 min-w-0 rounded border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-                          onClick={(e) => e.stopPropagation()}
-                          onFocus={(e) => {
-                            e.currentTarget.style.position = 'relative';
-                            e.currentTarget.style.zIndex = '9999';
+                        : {}),
+                    }}
+                  >
+                    <td className="px-3 py-2 align-top">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${
+                            itemHasMapping ? "bg-emerald-500" : "bg-rose-500"
+                          }`}
+                          title={itemHasMapping ? "Source found" : "No source mapping"}
+                          onMouseEnter={() => {
+                            if (itemBox) {
+                              onHideMailHint?.();
+                              handleRowEnter(itemPath, itemBox as any);
+                            } else {
+                              setHoveredPath(itemPath);
+                              onShowMailHint?.();
+                            }
                           }}
-                          onBlur={(e) => {
-                            e.currentTarget.style.position = '';
-                            e.currentTarget.style.zIndex = '';
+                          onMouseLeave={() => {
+                            handleRowLeave();
+                            onHideMailHint?.();
                           }}
                         />
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+                        <span className="text-sm font-semibold">{idx + 1}</span>
+                      </div>
+                    </td>
+                    
+                    {primitiveColumns.map((col) => {
+                      const val = item[col];
+                      const fieldPath = `${itemPath}.${col}`;
+                      const fieldBox = hoverMapping ? hoverMapping[fieldPath] || null : null;
+                      const fieldHasMapping = Boolean(fieldBox);
 
-              {/* Sub-objects as collapsible sections below */}
-              {subObjects.length > 0 && (
-                <div className="border-t">
-                  {subObjects.map(([key, val]) => {
-                    const subPath = `${itemPath}.${key}`;
-                    const isSubExpanded = expanded.has(subPath);
-                    const isArrayOfObjects =
-                      Array.isArray(val) &&
-                      (val as any[]).length > 0 &&
-                      (val as any[]).every((row) => row && typeof row === "object" && !Array.isArray(row));
-
-                    return (
-                      <div key={key} className="border-b last:border-b-0">
-                        <button
-                          onClick={() => togglePath(subPath)}
-                          className="w-full px-4 py-2 flex items-center justify-between hover:bg-muted/30 transition-colors text-left"
-                        >
+                      return (
+                        <td key={col} className="px-3 py-2 align-top">
                           <div className="flex items-center gap-2">
-                            <ChevronRight
-                              className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${
-                                isSubExpanded ? "rotate-90" : ""
+                            <span
+                              className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${
+                                fieldHasMapping ? "bg-emerald-400" : "bg-rose-400"
                               }`}
+                              onMouseEnter={() => {
+                                if (fieldBox) {
+                                  onHideMailHint?.();
+                                  handleRowEnter(fieldPath, fieldBox as any);
+                                } else {
+                                  setHoveredPath(fieldPath);
+                                  onShowMailHint?.();
+                                }
+                              }}
+                              onMouseLeave={() => {
+                                handleRowLeave();
+                                onHideMailHint?.();
+                              }}
                             />
-                            <span className="text-xs font-semibold text-foreground">{key}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {Array.isArray(val) ? `(${val.length} items)` : "(object)"}
-                            </span>
-                          </div>
-                        </button>
-                        
-                        {isSubExpanded && (
-                          <div className="px-4 pb-3 bg-muted/20">
-                            {isArrayOfObjects ? (
-                              <ArrayOfObjectsAccordion
-                                items={val as Array<Record<string, any>>}
-                                basePath={subPath}
-                                depth={depth + 1}
+                            {typeof val === "boolean" ? (
+                              <input 
+                                type="checkbox" 
+                                defaultChecked={val} 
+                                className="h-3.5 w-3.5"
+                                onClick={(e) => e.stopPropagation()}
                               />
-                            ) : Array.isArray(val) ? (
-                              <div className="space-y-2">
-                                {(val as any[]).map((item, idx) => (
-                                  <div key={idx} className="flex items-center gap-2 p-2 rounded border bg-background">
-                                    <span className="text-xs font-medium text-muted-foreground min-w-[40px]">#{idx + 1}</span>
-                                    {typeof item === "object" && item !== null ? (
-                                      <div className="flex-1 grid grid-cols-2 gap-2">
-                                        {Object.entries(item).map(([k, v]) => (
-                                          <div key={k} className="flex items-center gap-1">
-                                            <label className="text-xs text-muted-foreground whitespace-nowrap">{k}:</label>
-                                            {typeof v === "boolean" ? (
-                                              <input 
-                                                type="checkbox" 
-                                                defaultChecked={v} 
-                                                className="h-3.5 w-3.5"
-                                                onClick={(e) => e.stopPropagation()}
-                                              />
-                                            ) : (
-                                              <input
-                                                type={typeof v === "number" ? "number" : "text"}
-                                                defaultValue={v === null || v === undefined ? "" : String(v)}
-                                                className="flex-1 min-w-0 rounded border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-                                                onClick={(e) => e.stopPropagation()}
-                                                onFocus={(e) => {
-                                                  e.currentTarget.style.position = 'relative';
-                                                  e.currentTarget.style.zIndex = '9999';
-                                                }}
-                                                onBlur={(e) => {
-                                                  e.currentTarget.style.position = '';
-                                                  e.currentTarget.style.zIndex = '';
-                                                }}
-                                              />
-                                            )}
-                                          </div>
-                                        ))}
-                                      </div>
-                                    ) : (
-                                      <input
-                                        type={typeof item === "number" ? "number" : "text"}
-                                        defaultValue={item === null || item === undefined ? "" : String(item)}
-                                        className="flex-1 rounded border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-                                        onClick={(e) => e.stopPropagation()}
-                                        onFocus={(e) => {
-                                          e.currentTarget.style.position = 'relative';
-                                          e.currentTarget.style.zIndex = '9999';
-                                        }}
-                                        onBlur={(e) => {
-                                          e.currentTarget.style.position = '';
-                                          e.currentTarget.style.zIndex = '';
-                                        }}
-                                      />
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            ) : typeof val === "object" && val !== null ? (
-                              <div className="space-y-2">
-                                {Object.entries(val).map(([k, v]) => (
-                                  <div key={k} className="flex items-center gap-2 p-2 rounded border bg-background">
-                                    <label className="text-xs font-medium text-muted-foreground min-w-[120px]">{k}:</label>
-                                    {typeof v === "boolean" ? (
-                                      <input 
-                                        type="checkbox" 
-                                        defaultChecked={v} 
-                                        className="h-3.5 w-3.5"
-                                        onClick={(e) => e.stopPropagation()}
-                                      />
-                                    ) : (
-                                      <input
-                                        type={typeof v === "number" ? "number" : "text"}
-                                        defaultValue={v === null || v === undefined ? "" : String(v)}
-                                        className="flex-1 rounded border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-                                        onClick={(e) => e.stopPropagation()}
-                                        onFocus={(e) => {
-                                          e.currentTarget.style.position = 'relative';
-                                          e.currentTarget.style.zIndex = '9999';
-                                        }}
-                                        onBlur={(e) => {
-                                          e.currentTarget.style.position = '';
-                                          e.currentTarget.style.zIndex = '';
-                                        }}
-                                      />
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
                             ) : (
-                              <TreeNode label="" value={val} path={subPath} depth={depth + 1} />
+                              <input
+                                type={typeof val === "number" ? "number" : "text"}
+                                defaultValue={val === null || val === undefined ? "" : String(val)}
+                                className="w-full min-w-[80px] rounded border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                                onClick={(e) => e.stopPropagation()}
+                                onFocus={(e) => {
+                                  e.currentTarget.style.position = 'relative';
+                                  e.currentTarget.style.zIndex = '9999';
+                                }}
+                                onBlur={(e) => {
+                                  e.currentTarget.style.position = '';
+                                  e.currentTarget.style.zIndex = '';
+                                }}
+                              />
                             )}
                           </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })}
+                        </td>
+                      );
+                    })}
+
+                    <td className="px-3 py-2 align-top">
+                      {subObjects.length > 0 && (
+                        <button
+                          onClick={() => togglePath(itemPath)}
+                          className="text-xs text-primary hover:underline flex items-center gap-1"
+                        >
+                          <ChevronRight
+                            className={`h-3 w-3 transition-transform ${
+                              expanded.has(itemPath) ? "rotate-90" : ""
+                            }`}
+                          />
+                          {subObjects.length} sub-object{subObjects.length > 1 ? "s" : ""}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+
+                  {/* Sub-objects row (expanded) */}
+                  {expanded.has(itemPath) && subObjects.length > 0 && (
+                    <tr key={`${itemPath}-sub`}>
+                      <td colSpan={primitiveColumns.length + 2} className="px-6 py-3 bg-muted/10">
+                        <div className="space-y-3">
+                          {subObjects.map(([key, val]) => {
+                            const subPath = `${itemPath}.${key}`;
+                            const isArrayOfObjects =
+                              Array.isArray(val) &&
+                              (val as any[]).length > 0 &&
+                              (val as any[]).every((row) => row && typeof row === "object" && !Array.isArray(row));
+
+                            return (
+                              <div key={key} className="border rounded-lg bg-card p-3">
+                                <div className="text-xs font-semibold text-foreground mb-2 flex items-center gap-2">
+                                  <span>{key}</span>
+                                  <span className="text-muted-foreground font-normal">
+                                    {Array.isArray(val) ? `(${val.length} items)` : "(object)"}
+                                  </span>
+                                </div>
+                                
+                                {isArrayOfObjects ? (
+                                  <ArrayOfObjectsAccordion
+                                    items={val as Array<Record<string, any>>}
+                                    basePath={subPath}
+                                    depth={depth + 1}
+                                  />
+                                ) : Array.isArray(val) ? (
+                                  <div className="space-y-2">
+                                    {(val as any[]).map((item, idx) => (
+                                      <div key={idx} className="flex items-center gap-2 p-2 rounded border bg-background">
+                                        <span className="text-xs font-medium text-muted-foreground min-w-[40px]">#{idx + 1}</span>
+                                        {typeof item === "object" && item !== null ? (
+                                          <div className="flex-1 grid grid-cols-2 gap-2">
+                                            {Object.entries(item).map(([k, v]) => (
+                                              <div key={k} className="flex items-center gap-1">
+                                                <label className="text-xs text-muted-foreground whitespace-nowrap">{k}:</label>
+                                                {typeof v === "boolean" ? (
+                                                  <input 
+                                                    type="checkbox" 
+                                                    defaultChecked={v} 
+                                                    className="h-3.5 w-3.5"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                  />
+                                                ) : (
+                                                  <input
+                                                    type={typeof v === "number" ? "number" : "text"}
+                                                    defaultValue={v === null || v === undefined ? "" : String(v)}
+                                                    className="flex-1 min-w-0 rounded border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    onFocus={(e) => {
+                                                      e.currentTarget.style.position = 'relative';
+                                                      e.currentTarget.style.zIndex = '9999';
+                                                    }}
+                                                    onBlur={(e) => {
+                                                      e.currentTarget.style.position = '';
+                                                      e.currentTarget.style.zIndex = '';
+                                                    }}
+                                                  />
+                                                )}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        ) : (
+                                          <input
+                                            type={typeof item === "number" ? "number" : "text"}
+                                            defaultValue={item === null || item === undefined ? "" : String(item)}
+                                            className="flex-1 rounded border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                                            onClick={(e) => e.stopPropagation()}
+                                            onFocus={(e) => {
+                                              e.currentTarget.style.position = 'relative';
+                                              e.currentTarget.style.zIndex = '9999';
+                                            }}
+                                            onBlur={(e) => {
+                                              e.currentTarget.style.position = '';
+                                              e.currentTarget.style.zIndex = '';
+                                            }}
+                                          />
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : typeof val === "object" && val !== null ? (
+                                  <div className="space-y-2">
+                                    {Object.entries(val).map(([k, v]) => (
+                                      <div key={k} className="flex items-center gap-2 p-2 rounded border bg-background">
+                                        <label className="text-xs font-medium text-muted-foreground min-w-[120px]">{k}:</label>
+                                        {typeof v === "boolean" ? (
+                                          <input 
+                                            type="checkbox" 
+                                            defaultChecked={v} 
+                                            className="h-3.5 w-3.5"
+                                            onClick={(e) => e.stopPropagation()}
+                                          />
+                                        ) : (
+                                          <input
+                                            type={typeof v === "number" ? "number" : "text"}
+                                            defaultValue={v === null || v === undefined ? "" : String(v)}
+                                            className="flex-1 rounded border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                                            onClick={(e) => e.stopPropagation()}
+                                            onFocus={(e) => {
+                                              e.currentTarget.style.position = 'relative';
+                                              e.currentTarget.style.zIndex = '9999';
+                                            }}
+                                            onBlur={(e) => {
+                                              e.currentTarget.style.position = '';
+                                              e.currentTarget.style.zIndex = '';
+                                            }}
+                                          />
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <TreeNode label="" value={val} path={subPath} depth={depth + 1} />
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     );
-  };
+  });
 
   const TreeNode = ({
     label,
