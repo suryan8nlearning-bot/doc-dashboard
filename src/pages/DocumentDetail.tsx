@@ -135,6 +135,9 @@ export default function DocumentDetail() {
     ]);
   };
 
+  // Add state to control "From Mail instruction" hint above the PDF
+  const [mailHint, setMailHint] = useState(false);
+
   useEffect(() => {
     // Remove any user confirmation dialogs globally on this page by auto-accepting confirm()
     const originalConfirm = window.confirm;
@@ -2071,6 +2074,12 @@ export default function DocumentDetail() {
           // Full page PDF view
           <div className="flex-1 flex overflow-hidden">
             <div className="relative h-full min-w-0 flex-1 overflow-hidden">
+              {/* New: small popup shown only when mapping is missing */}
+              {mailHint && (
+                <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-900 shadow">
+                  From Mail instruction
+                </div>
+              )}
               {/* PDF loading overlay */}
               {pdfBooting && (
                 <div className="absolute inset-0 z-20 grid place-items-center bg-background/60 backdrop-blur-sm">
@@ -2111,6 +2120,12 @@ export default function DocumentDetail() {
                 ref={leftPanelRef}
                 className="relative h-full min-w-0 overflow-hidden"
               >
+                {/* New: small popup shown only when mapping is missing */}
+                {mailHint && (
+                  <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-900 shadow">
+                    From Mail instruction
+                  </div>
+                )}
                 {/* PDF loading overlay */}
                 {pdfBooting && (
                   <div className="absolute inset-0 z-20 grid place-items-center bg-background/60 backdrop-blur-sm">
@@ -2176,9 +2191,14 @@ export default function DocumentDetail() {
                                 <SAPJsonCard
                                   data={(doc as any)?.sap_json ?? (doc as any)?.sap ?? (doc as any)?.sap_data ?? (doc as any)?.sap_output ?? {}}
                                   className=""
-                                  // defaultCollapsed={false}  // Remove forcing expanded; use component default (collapsed)
+                                  // Ensure the embedded card content is expanded and header hidden to avoid duplicate titles
+                                  defaultCollapsed={false}
+                                  hideHeader
                                   sourceDocumentData={doc.document_data}
                                   onHoverHighlight={(box) => setHighlightBox(box)}
+                                  // New: show/hide the mail hint popup above the PDF when no mapping exists
+                                  onShowMailHint={() => setMailHint(true)}
+                                  onHideMailHint={() => setMailHint(false)}
                                 />
                               </div>
                             ) : (

@@ -131,7 +131,6 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
     label,
     value,
     boundingBox,
-    // Add: optional color to paint the left border and highlight overlay
     color,
   }: {
     label: string;
@@ -144,7 +143,8 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
       ? `x:${Math.round(bb.x)} y:${Math.round(bb.y)} w:${Math.round(bb.width)} h:${Math.round(bb.height)} p:${bb.page ?? page.page_number}`
       : 'x:— y:— w:— h:— p:—';
 
-    // Add: raw bounding box debug helpers
+    // Remove: mail instruction placeholder UI (should not appear in document fields)
+    // const boxesCount ... keep existing code for debug calculation
     const boxesCount = Array.isArray(boundingBox) ? boundingBox.length : 0;
     let rawLabel = '[]';
     try {
@@ -153,14 +153,9 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
       rawLabel = '[unserializable]';
     }
 
-    // Add: fallback to "From the EMail instructions" + tooltip when source value is missing
-    const isMissing = !value || (typeof value === 'string' && value.trim() === '');
-    const displayValue = isMissing ? 'From the EMail instructions' : value;
-
     return (
       <motion.div
         className="py-2.5 px-3 cursor-pointer rounded-lg transition-all border bg-card/50 hover:bg-primary/5 hover:border-primary/30 hover:shadow-sm border-l-2"
-        // Add: colorize left border and pass color to PDF hover
         style={{ borderLeftColor: color || 'transparent' }}
         onMouseEnter={() =>
           bb && onFieldHover({ ...bb, page: bb.page ?? page.page_number, ...(color ? { color } : {}) })
@@ -168,25 +163,13 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
         onMouseLeave={() => onFieldHover(null)}
       >
         <div className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-2">
-          {/* Add: small color dot */}
           {color && <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: color }} />}
           {label}
         </div>
-        {isMissing ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="text-sm font-medium text-muted-foreground italic break-words whitespace-pre-wrap">
-                {displayValue}
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>
-              Missing in source; please refer to Email instructions.
-            </TooltipContent>
-          </Tooltip>
-        ) : (
-          <div className="text-sm font-medium text-foreground break-words whitespace-pre-wrap">{displayValue}</div>
-        )}
-        {/* Debug details */}
+        {/* Show actual value only; do not show "From the EMail instructions" here */}
+        <div className="text-sm font-medium text-foreground break-words whitespace-pre-wrap">
+          {value && String(value).trim() ? value : '—'}
+        </div>
         {showDebug && (
           <div className="mt-1 text-[10px] text-muted-foreground font-mono">{dbg}</div>
         )}

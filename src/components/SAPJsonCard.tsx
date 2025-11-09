@@ -17,9 +17,13 @@ type SAPJsonCardProps = {
   title?: string;
   className?: string;
   defaultCollapsed?: boolean;
-  // Add: optional hover highlight + source doc for mapping
   onHoverHighlight?: (box: (BoundingBox & { page?: number; color?: string }) | null) => void;
   sourceDocumentData?: DocumentData;
+  // New: hide built-in Card header when embedding inside another accordion
+  hideHeader?: boolean;
+  // New: notify when a field has no mapping (to show "From Mail instruction" hint above PDF)
+  onShowMailHint?: () => void;
+  onHideMailHint?: () => void;
 };
 
 // Add: robust JSON extraction helpers to handle string inputs containing JSON
@@ -45,14 +49,15 @@ function extractJsonFromText(input: string): any | null {
 
 export function SAPJsonCard({
   data,
-  // Rename the default title
   title = "SAP Data",
   className,
-  // Load collapsed by default
   defaultCollapsed = true,
-  // Ensure these props are available for hover + mapping
   onHoverHighlight,
   sourceDocumentData,
+  // New props
+  hideHeader,
+  onShowMailHint,
+  onHideMailHint,
 }: SAPJsonCardProps) {
   const [collapsed, setCollapsed] = useState<boolean>(defaultCollapsed);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set<string>());
@@ -306,19 +311,27 @@ export function SAPJsonCard({
       : [];
 
     if (!isComplex) {
-      // Render leaf as simple editable field: label on left, value on right (editable for all types)
       return (
         <div
           className="py-2.5 px-3 rounded-md"
           style={indentStyle}
-          // Add: hover highlight behavior using mapping
+          // Update: show mail hint when no mapping is found; otherwise highlight
           onMouseEnter={() => {
-            if (onHoverHighlight && hoverMapping) {
+            if (hoverMapping) {
               const box = hoverMapping[path] || null;
-              onHoverHighlight(box as any);
+              if (box) {
+                onHideMailHint?.();
+                onHoverHighlight?.(box as any);
+              } else {
+                onHoverHighlight?.(null);
+                onShowMailHint?.();
+              }
             }
           }}
-          onMouseLeave={() => onHoverHighlight?.(null)}
+          onMouseLeave={() => {
+            onHoverHighlight?.(null);
+            onHideMailHint?.();
+          }}
         >
           <div className="grid grid-cols-[180px_minmax(0,1fr)] gap-3 items-center">
             <label className="text-xs font-medium text-muted-foreground">{label}</label>
@@ -416,15 +429,24 @@ export function SAPJsonCard({
                                 <TableCell
                                   key={`${path}-row-${idx}-col-${col}`}
                                   className="align-top truncate"
-                                  // Add: hover highlight for table cells (array of objects)
+                                  // Update: hover mapping for table cell; show mail hint if missing
                                   onMouseEnter={() => {
-                                    if (onHoverHighlight && hoverMapping) {
-                                      const cellPath = `${path}.[${idx}].${col}`;
+                                    const cellPath = `${path}.[${idx}].${col}`;
+                                    if (hoverMapping) {
                                       const box = hoverMapping[cellPath] || null;
-                                      onHoverHighlight(box as any);
+                                      if (box) {
+                                        onHideMailHint?.();
+                                        onHoverHighlight?.(box as any);
+                                      } else {
+                                        onHoverHighlight?.(null);
+                                        onShowMailHint?.();
+                                      }
                                     }
                                   }}
-                                  onMouseLeave={() => onHoverHighlight?.(null)}
+                                  onMouseLeave={() => {
+                                    onHoverHighlight?.(null);
+                                    onHideMailHint?.();
+                                  }}
                                 >
                                   {t === "boolean" ? (
                                     <input type="checkbox" defaultChecked={Boolean(cell)} className="h-4 w-4" />
@@ -530,32 +552,34 @@ export function SAPJsonCard({
 
   return (
     <Card className={className}>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-expanded={!collapsed}
-            aria-controls="sap-json-content"
-            onClick={() => setCollapsed((v) => !v)}
-            className="h-8 w-8"
-            title={collapsed ? "Expand" : "Collapse"}
-          >
-            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </Button>
-          <CardTitle className="text-base">{title}</CardTitle>
-        </div>
-        <div className="hidden">
-          <Button variant="outline" size="sm" onClick={handleCopy} aria-label="Copy JSON">
-            <Copy className="h-4 w-4 mr-2" />
-            Copy
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleDownload} aria-label="Download JSON">
-            <Download className="h-4 w-4 mr-2" />
-            Download
-          </Button>
-        </div>
-      </CardHeader>
+      {!hideHeader && (
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-expanded={!collapsed}
+              aria-controls="sap-json-content"
+              onClick={() => setCollapsed((v) => !v)}
+              className="h-8 w-8"
+              title={collapsed ? "Expand" : "Collapse"}
+            >
+              {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
+            <CardTitle className="text-base">{title}</CardTitle>
+          </div>
+          <div className="hidden">
+            <Button variant="outline" size="sm" onClick={handleCopy} aria-label="Copy JSON">
+              <Copy className="h-4 w-4 mr-2" />
+              Copy
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleDownload} aria-label="Download JSON">
+              <Download className="h-4 w-4 mr-2" />
+              Download
+            </Button>
+          </div>
+        </CardHeader>
+      )}
 
       {!collapsed && (
         <CardContent id="sap-json-content" className="pt-0">
