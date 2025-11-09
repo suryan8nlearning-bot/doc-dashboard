@@ -1036,58 +1036,99 @@ function hideHoverPreview() {
     }
   }, [documentData, currentPage, zoom, canvasSize.width, canvasSize.height, totalPages]);
 
-  // Fetch PDF via backend proxy; convert to ArrayBuffer for pdf.js
+  // Fetch PDF (URL-first for streaming) with proxy fallback; hide loader after first page render
   useEffect(() => {
-    if (pdfUrl) {
-      console.log('PDFViewer: Starting PDF fetch via backend proxy (for pdfjs):', pdfUrl);
-      setIsLoading(true);
-      setError(null);
+    let cancelled = false;
 
-      fetchPdfProxy({ pdfUrl })
-        .then((result: any) => {
-          console.log('PDFViewer: Backend proxy response:', {
-            success: result.success,
-            size: result.success ? result.size : 0,
-            contentType: result.success ? result.contentType : null,
-          });
-
-          if (!result.success || !result.data) {
-            // Fall through to catch to try direct fetch
-            throw new Error(result?.error || 'Proxy did not return PDF data');
-          }
-
-          // base64 -> Uint8Array -> ArrayBuffer (create a copy to avoid detachment)
-          const binaryString = atob(result.data);
-          const bytes = new Uint8Array(binaryString.length);
-          for (let i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-          }
-          const arrayBuffer = bytes.buffer.slice(0);
-          const safeCopy = new Uint8Array(arrayBuffer);
-          if (safeCopy.byteLength === 0) {
-            throw new Error('PDF data buffer is empty (0 bytes) from proxy');
-          }
-          setPdfArrayBuffer(safeCopy.buffer);
-          // Do NOT set isLoading(false) here; we hide loader after first page render
-        })
-        .catch(async (err: any) => {
-          console.warn('PDFViewer: Proxy fetch failed, attempting direct fetch fallback...', err);
-          try {
-            const buf = await fetchPdfDirectBuffer(pdfUrl);
-            setPdfArrayBuffer(buf);
-            // Do NOT set isLoading(false); first page render will hide loader
-          } catch (err2: any) {
-            console.error('PDFViewer: Direct fetch fallback failed:', err2);
-            setError(`Failed to load PDF: ${err2?.message || String(err2)}`);
-            setIsLoading(false);
-          }
-        });
-    } else {
+    if (!pdfUrl) {
       console.error('PDFViewer: No PDF URL provided to component');
       setError('No PDF URL available');
       setIsLoading(false);
+      return;
     }
-  }, [pdfUrl, fetchPdfProxy, onLoad]);
+
+    setIsLoading(true);
+    setError(null);
+
+    (async () => {
+      try {
+        // Fast path: let pdf.js stream the PDF over HTTP with range requests
+        const loadingTask = pdfjsLib.getDocument({ url: pdfUrl } as any);
+        const pdf = await loadingTask.promise;
+        if (cancelled) return;
+
+        pdfDocRef.current = pdf;
+        setTotalPages(pdf.numPages);
+
+        const page = await pdf.getPage(1);
+        if (cancelled) return;
+
+        pageRef.current = page;
+        setCurrentPage(1);
+
+        const baseViewport = page.getViewport({ scale: 1 });
+        baseViewportRef.current = { width: baseViewport.width, height: baseViewport.height };
+
+        // Compute initial scale (fit-to-width if requested)
+        let initialScale = 1;
+        if (fitToWidthInitially && containerRef.current && baseViewport.width) {
+          const containerWidth = containerRef.current.clientWidth || 0;
+          if (containerWidth) {
+            initialScale = clampZoom(containerWidth / baseViewport.width);
+            didFitToWidthRef.current = true;
+          }
+        }
+
+        // Suppress the zoom effect during the first render to avoid double render flicker
+        suppressZoomEffectRef.current = true;
+        setZoom(initialScale);
+        await renderPage(initialScale);
+        suppressZoomEffectRef.current = false;
+
+        setIsLoading(false);
+        if (onLoad) onLoad();
+        return; // Done: URL streaming path succeeded
+      } catch (err) {
+        console.warn('PDFViewer: Direct URL load failed, falling back to proxy...', err);
+        // Fall through to proxy fetch below
+      }
+
+      try {
+        const result: any = await fetchPdfProxy({ pdfUrl });
+        console.log('PDFViewer: Backend proxy response:', {
+          success: result.success,
+          size: result.success ? result.size : 0,
+          contentType: result.success ? result.contentType : null,
+        });
+
+        if (!result.success || !result.data) {
+          throw new Error(result?.error || 'Proxy did not return PDF data');
+        }
+
+        // base64 -> Uint8Array -> ArrayBuffer (create a copy to avoid detachment)
+        const binaryString = atob(result.data);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const arrayBuffer = bytes.buffer.slice(0);
+        const safeCopy = new Uint8Array(arrayBuffer);
+        if (safeCopy.byteLength === 0) {
+          throw new Error('PDF data buffer is empty (0 bytes) from proxy');
+        }
+        setPdfArrayBuffer(safeCopy.buffer);
+        // Do NOT set isLoading(false) here; we hide loader after first page render in the buffer loader effect
+      } catch (err2: any) {
+        console.error('PDFViewer: Proxy fetch failed:', err2);
+        setError(`Failed to load PDF: ${err2?.message || String(err2)}`);
+        setIsLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pdfUrl, fetchPdfProxy, onLoad, fitToWidthInitially]);
 
   // Load PDF and first page once per ArrayBuffer and cache for fast zoom renders
   useEffect(() => {
