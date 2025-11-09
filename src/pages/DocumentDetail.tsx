@@ -2074,10 +2074,15 @@ export default function DocumentDetail() {
                           </AccordionTrigger>
                           <AccordionContent className="overflow-visible">
                             {showSAP ? (
-                              <div className="pr-1">
+                              <div
+                                className="pr-1 break-words whitespace-pre-wrap"
+                                // Ensure dropdowns/selects inside the SAP card are clickable and not swallowed by parent handlers
+                                onClick={(e) => e.stopPropagation()}
+                                onPointerDownCapture={(e) => e.stopPropagation()}
+                              >
                                 <SAPJsonCard
                                   data={sapOut ?? {}}
-                                  className=""
+                                  className="break-words whitespace-pre-wrap"
                                   // Ensure the embedded card content is expanded and header hidden to avoid duplicate titles
                                   defaultCollapsed={false}
                                   hideHeader
