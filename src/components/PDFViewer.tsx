@@ -193,6 +193,9 @@ const [detecting, setDetecting] = useState(false);
 // Add: OCR results state (word-level boxes)
 const [ocrWords, setOcrWords] = useState<Array<{ x: number; y: number; w: number; h: number; text: string; conf: number }>>([]);
 
+// Add: lightweight debug toggle for Item #1
+const [showDebug, setShowDebug] = useState(false);
+
 // Add: robust normalized edges helper that unifies arrays/objects and fixes inverted X
 /**
  * Normalize any input into unit-space edges [x1,y1,x2,y2] with a top-left origin.
@@ -787,6 +790,124 @@ const toPxBox = (box: WideBox): WideBox => {
     recomputeOriginGuess();
   }, [allBoxes, sourceDims?.width, sourceDims?.height, currentPage]);
 
+  // Add: comprehensive debug snapshot for Item #1 (first item on current page)
+  const item1Debug = useMemo(() => {
+    try {
+      if (!documentData?.document?.pages?.length) return null;
+      const pages: any[] = documentData.document.pages;
+      const pageObj: any = pages.find((p: any) => p?.page_number === currentPage) ?? pages[0];
+      if (!pageObj) return null;
+
+      const item = Array.isArray(pageObj?.items) ? pageObj.items[0] : undefined;
+      if (!item) return null;
+
+      const rawBoxes: any[] = Array.isArray(item?.bounding_box) ? item.bounding_box : [];
+
+      // Parsed boxes using the same function as overlays
+      const parsedBoxes = rawBoxes.map((b) => normalizeBoxAny(b));
+
+      // Normalized unit edges used by overlays/tooltips
+      const unitEdges = parsedBoxes.map((pb) => robustUnitEdges(pb));
+
+      // Pixel rectangles (base) and at current zoom used for screen placement
+      const pxRectsAtBase = unitEdges.map((e) => edgesToPxRect(e));
+      const pxRectsAtZoom = pxRectsAtBase.map((r) => ({
+        x: r.x * zoom,
+        y: r.y * zoom,
+        width: r.width * zoom,
+        height: r.height * zoom,
+      }));
+
+      // Merged row box calculation for item (leftmost top-left + farthest bottom-right)
+      let leftmostX = Number.POSITIVE_INFINITY;
+      let leftmostY = Number.POSITIVE_INFINITY;
+      let haveLeft = false;
+      let maxRight = Number.NEGATIVE_INFINITY;
+      let maxBottom = Number.NEGATIVE_INFINITY;
+
+      rawBoxes.forEach((b) => {
+        const nb = normalizeBoxAny(b);
+        if (!nb) return;
+        const x1 = nb.x;
+        const y1 = nb.y;
+        const x2 = nb.x + nb.width;
+        const y2 = nb.y + nb.height;
+
+        if (Number.isFinite(x1) && x1 < leftmostX) {
+          leftmostX = x1;
+          leftmostY = Number.isFinite(y1) ? y1 : leftmostY;
+          haveLeft = true;
+        }
+        if (Number.isFinite(x2) && x2 > maxRight) maxRight = x2;
+        if (Number.isFinite(y2) && y2 > maxBottom) maxBottom = y2;
+      });
+
+      const merged =
+        haveLeft &&
+        Number.isFinite(maxRight) &&
+        Number.isFinite(maxBottom) &&
+        maxRight > leftmostX &&
+        maxBottom > leftmostY
+          ? {
+              x: leftmostX,
+              y: leftmostY,
+              width: maxRight - leftmostX,
+              height: maxBottom - leftmostY,
+            }
+          : null;
+
+      // Convert merged to unit edges following the same pipeline the overlays use
+      const mergedEdgesUnit = merged
+        ? robustUnitEdges([merged.x, merged.y, merged.x + merged.width, merged.y + merged.height])
+        : null;
+      const mergedPxRectAtBase = mergedEdgesUnit ? edgesToPxRect(mergedEdgesUnit) : null;
+      const mergedPxRectAtZoom = mergedPxRectAtBase
+        ? {
+            x: mergedPxRectAtBase.x * zoom,
+            y: mergedPxRectAtBase.y * zoom,
+            width: mergedPxRectAtBase.width * zoom,
+            height: mergedPxRectAtBase.height * zoom,
+          }
+        : null;
+
+      const baseDims = getBaseDims();
+      const debug = {
+        page_number: pageObj?.page_number ?? null,
+        currentPage,
+        totalPages,
+        baseDims,
+        canvasSize,
+        zoom,
+        sourceDimsGuess: sourceDimsRef.current ?? null,
+
+        itemIndex: 0,
+        rawBoxes,
+        parsedBoxes,
+        unitEdges, // These are the values shown in tooltips (x1,y1,x2,y2) and used for rendering
+        pxRectsAtBase,
+        pxRectsAtZoom,
+
+        mergedRow: {
+          leftmostX,
+          leftmostY,
+          maxRight,
+          maxBottom,
+          mergedBox: merged,
+          mergedEdgesUnit,
+          mergedPxRectAtBase,
+          mergedPxRectAtZoom,
+        },
+      };
+
+      // Emit to console too for easy dev inspection
+      console.debug("PDFViewer:item1-debug", debug);
+      return debug;
+    } catch (e) {
+      console.warn("PDFViewer:item1-debug failed", e);
+      return null;
+    }
+  }, [documentData, currentPage, zoom, canvasSize.width, canvasSize.height, totalPages]);
+
   // Fetch PDF via backend proxy; convert to ArrayBuffer for pdf.js
   useEffect(() => {
     if (pdfUrl) {
@@ -1244,7 +1365,6 @@ const toPxBox = (box: WideBox): WideBox => {
           <RotateCcw className="h-4 w-4" />
         </Button>
 
-        {/* Add: Page navigation controls */}
         <div className="mx-2 h-5 w-px bg-border" />
         <Button
           variant="outline"
@@ -1272,7 +1392,18 @@ const toPxBox = (box: WideBox): WideBox => {
           <ChevronRight className="h-4 w-4" />
         </Button>
 
-        {/* Detection & OCR controls removed */}
+        {/* Add: Debug toggle */}
+        <div className="mx-2 h-5 w-px bg-border" />
+        <Button
+          variant="outline"
+          size="sm"
+          className="rounded-full h-7 px-2 text-[10px] font-mono"
+          onClick={() => setShowDebug((v) => !v)}
+          aria-label="Toggle Item 1 Debug"
+          title="Toggle Item 1 Debug"
+        >
+          DBG
+        </Button>
       </div>
 
       {/* Scroll to top button inside PDF container */}
@@ -1591,6 +1722,35 @@ const toPxBox = (box: WideBox): WideBox => {
           )}
         </div>
       </div>
+
+      {/* Add: Item #1 debug panel */}
+      {showDebug && item1Debug && (
+        <div className="absolute bottom-4 left-4 z-20 max-h-64 w-[min(420px,90vw)] overflow-auto rounded-md border bg-background/90 backdrop-blur p-2 text-xs font-mono">
+          <div className="flex items-center justify-between mb-2">
+            <span className="font-semibold">Item #1 Debug</span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7"
+                onClick={() => {
+                  try {
+                    navigator.clipboard?.writeText(JSON.stringify(item1Debug, null, 2));
+                  } catch {}
+                }}
+              >
+                Copy
+              </Button>
+              <Button variant="outline" size="sm" className="h-7" onClick={() => setShowDebug(false)}>
+                Close
+              </Button>
+            </div>
+          </div>
+          <pre className="whitespace-pre-wrap break-all">
+            {JSON.stringify(item1Debug, null, 2)}
+          </pre>
+        </div>
+      )}
     </div>
   );
 }
