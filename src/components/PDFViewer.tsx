@@ -1062,11 +1062,14 @@ const toPxBox = (box: WideBox): WideBox => {
     if (!highlightBox || !containerRef.current) return;
 
     const maybeSwitchPageAndCenter = async () => {
-      const normalized = normalizeWideBox(highlightBox as any);
-      if (!normalized) return;
+      // Extract target page directly from the highlight input to avoid any shape coercion
+      const getPageFrom = (b: any): number | undefined => {
+        const p = Number(b?.page ?? b?.page_number ?? b?.pageIndex ?? b?.p);
+        return Number.isFinite(p) ? p : undefined;
+      };
+      const rawPage = getPageFrom(highlightBox as any);
 
-      // Clamp page to [1, totalPages] and handle 0-based page indices
-      const rawPage = (normalized as any).page as number | undefined;
+      // Clamp page to [1, totalPages] and handle 0-based page indices or missing pages
       const targetPage =
         typeof rawPage === "number"
           ? Math.min(Math.max(rawPage <= 0 ? 1 : rawPage, 1), totalPages)
@@ -1081,7 +1084,7 @@ const toPxBox = (box: WideBox): WideBox => {
           setCurrentPage(targetPage);
           await renderPage(zoom);
 
-          // Ensure the origin inversion state matches the new page before projecting the highlight
+          // Ensure the origin state is recalculated for the new page
           recomputeOriginGuess();
         } catch (e) {
           console.warn('Failed to switch page for highlight box:', e);
@@ -1097,14 +1100,32 @@ const toPxBox = (box: WideBox): WideBox => {
         return;
       }
 
-      const pxBox = toPxBox(normalized as any);
-      const boxCenterX = pxBox.x + pxBox.width / 2;
-      const boxCenterY = pxBox.y + pxBox.height / 2;
-      container.scrollTo({
-        left: boxCenterX * zoom - container.clientWidth / 2,
-        top: boxCenterY * zoom - container.clientHeight / 2,
-        behavior: 'smooth',
-      });
+      // IMPORTANT: Use the exact same edges pipeline as bounding boxes
+      const hbEdges = robustUnitEdges(highlightBox as any);
+      if (
+        !Number.isFinite(hbEdges.x1) ||
+        !Number.isFinite(hbEdges.y1) ||
+        !Number.isFinite(hbEdges.x2) ||
+        !Number.isFinite(hbEdges.y2) ||
+        hbEdges.x2 <= hbEdges.x1 ||
+        hbEdges.y2 <= hbEdges.y1
+      ) {
+        return;
+      }
+      const hbRect = edgesToPxRect(hbEdges);
+
+      // Enforce default 100% zoom, do not auto-zoom in
+      const desiredZoom = clampZoom(1);
+      setZoom(desiredZoom);
+      setTimeout(() => {
+        const cx = hbRect.x + hbRect.width / 2;
+        const cy = hbRect.y + hbRect.height / 2;
+        container.scrollTo({
+          left: cx * desiredZoom - container.clientWidth / 2,
+          top: cy * desiredZoom - container.clientHeight / 2,
+          behavior: 'smooth',
+        });
+      }, 180);
     };
 
     void maybeSwitchPageAndCenter();
