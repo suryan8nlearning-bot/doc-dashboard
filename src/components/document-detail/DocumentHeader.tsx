@@ -5,9 +5,9 @@ import { ArrowLeft, FileText, Loader2, User } from 'lucide-react';
 import { useNavigate } from 'react-router';
 
 interface DocumentHeaderProps {
-  title: string;
+  title?: string;
   status?: string;
-  userEmail: string;
+  userEmail?: string;
   showSAP: boolean;
   onToggleSAP: (value: boolean) => void;
   onSignOut: () => Promise<void>;
@@ -154,7 +154,7 @@ export function DocumentHeader({
               <DropdownMenuLabel className="font-normal">
                 <div className="flex flex-col space-y-1">
                   <p className="text-xs text-muted-foreground">Signed in as</p>
-                  <p className="text-sm font-medium leading-none">{userEmail || 'User'}</p>
+                  <p className="text-sm font-medium leading-none">{userEmail ?? 'User'}</p>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
