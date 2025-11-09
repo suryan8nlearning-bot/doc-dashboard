@@ -219,6 +219,62 @@
   overscroll-behavior: contain;
 }
 
+/* SAP interactive pane: make values fully visible and keep cursor stable */
+[data-sap-interactive] table {
+  table-layout: auto;
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0.25rem;
+}
+
+[data-sap-interactive] th,
+[data-sap-interactive] td {
+  /* Don't clip content; allow wrapping */
+  white-space: normal;
+  word-break: break-word;
+  overflow: visible;
+  min-width: 0;
+  max-width: none;
+  vertical-align: top;
+}
+
+[data-sap-interactive] .sap-cell,
+[data-sap-interactive] .sap-value {
+  /* Extra guards for deeply nested cells */
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow: visible;
+  min-width: 0;
+}
+
+[data-sap-interactive] input,
+[data-sap-interactive] textarea {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Keep the text cursor from visually disappearing under neighboring columns */
+[data-sap-interactive] input:focus,
+[data-sap-interactive] textarea:focus {
+  position: relative;
+  z-index: 30;
+  outline: 2px solid var(--ring);
+  background-color: var(--background);
+}
+
+/* Ensure all interactive controls inside the SAP pane are clickable */
+[data-sap-interactive] button,
+[data-sap-interactive] [role="button"],
+[data-sap-interactive] summary {
+  pointer-events: auto;
+}
+
+/* Prevent unexpected horizontal scrollbars inside nested scroll areas */
+[data-sap-interactive] .scroll-area,
+[data-sap-interactive] .scroll-area > div {
+  overflow-x: hidden !important;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
