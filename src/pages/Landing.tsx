@@ -196,6 +196,7 @@ export default function Landing() {
     if (!docId || !hasSupabaseEnv) return;
     setIsRowLoading(true);
     setDebugInfo(null);
+    setRawFetchedData(null);
     try {
       const idFilter = isNaN(Number(docId)) ? docId.trim() : Number(docId);
       const { data, error } = await supabase
@@ -205,12 +206,16 @@ export default function Landing() {
         .single();
       if (error) throw error;
 
+      // Store the complete raw fetched data
+      setRawFetchedData(data);
+
       const allColumns = Object.keys(data || {});
       setDebugInfo({
         rowFound: !!data,
         allColumns,
         sapJsonFromApp: data?.['SAP_JSON_from_APP'],
         sapJson: data?.['SAP JSON'],
+        fullData: data,
       });
 
       let sapSource: any = undefined;
@@ -394,6 +399,7 @@ export default function Landing() {
   };
 
   const [debugInfo, setDebugInfo] = useState<any>(null);
+  const [rawFetchedData, setRawFetchedData] = useState<any>(null);
 
   const handleFieldChange = (path: string[], value: any) => {
     setSapData((prev: any) => {
@@ -853,17 +859,20 @@ export default function Landing() {
                 </div>
               </div>
 
-              {debugInfo && (
+              {/* Always show raw data panel when data is fetched */}
+              {rawFetchedData && (
                 <div className="bg-muted/50 p-4 rounded-lg mb-4 text-xs space-y-2 border border-muted-foreground/20">
-                  <div className="font-semibold">Debug Info:</div>
-                  <div>Row Found: {debugInfo.rowFound ? '✓' : '✗'}</div>
-                  <div>All Columns: {debugInfo.allColumns.join(', ')}</div>
-                  <div>SAP_JSON_from_APP: {debugInfo.sapJsonFromApp ? (typeof debugInfo.sapJsonFromApp === 'string' ? `"${debugInfo.sapJsonFromApp.substring(0, 50)}..."` : '[Object]') : 'null'}</div>
-                  <div>SAP JSON: {debugInfo.sapJson ? (typeof debugInfo.sapJson === 'string' ? `"${debugInfo.sapJson.substring(0, 50)}..."` : '[Object]') : 'null'}</div>
+                  <div className="font-semibold text-base mb-2">🔍 Raw Database Data (Document ID: {docId})</div>
+                  <div className="space-y-1">
+                    <div><strong>Row Found:</strong> {rawFetchedData ? '✓ Yes' : '✗ No'}</div>
+                    <div><strong>All Columns:</strong> {Object.keys(rawFetchedData).join(', ')}</div>
+                    <div><strong>Has SAP_JSON_from_APP:</strong> {rawFetchedData?.['SAP_JSON_from_APP'] ? '✓ Yes' : '✗ No'}</div>
+                    <div><strong>Has SAP JSON:</strong> {rawFetchedData?.['SAP JSON'] ? '✓ Yes' : '✗ No'}</div>
+                  </div>
                   <div className="mt-3 pt-3 border-t border-muted-foreground/20">
-                    <div className="font-semibold mb-2">Full Fetched Data:</div>
-                    <pre className="text-xs bg-background p-2 rounded overflow-x-auto max-h-60">
-                      {JSON.stringify(debugInfo, null, 2)}
+                    <div className="font-semibold mb-2">Complete Raw JSON from Database:</div>
+                    <pre className="text-xs bg-background p-3 rounded overflow-x-auto max-h-96 border">
+                      {JSON.stringify(rawFetchedData, null, 2)}
                     </pre>
                   </div>
                 </div>
