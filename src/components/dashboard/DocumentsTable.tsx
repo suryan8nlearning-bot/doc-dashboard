@@ -415,38 +415,6 @@ export function DocumentsTable({
           {selectedIds.size > 0 && (
             <div className="flex items-center gap-2 pl-2">
               <Button
-                variant="destructive"
-                size="sm"
-                className="bg-red-500/80 hover:bg-red-500"
-                onClick={() => toast("Delete clicked")}
-              >
-                Delete
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="bg-white/5 hover:bg-white/10 border-white/10"
-                onClick={() => toast("Create profile clicked")}
-              >
-                Create Profile
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                className="bg-red-500/80 hover:bg-red-500"
-                onClick={() => toast("Delete selected clicked")}
-              >
-                Delete Selected
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="bg-white/5 hover:bg-white/10 border-white/10"
-                onClick={onToggleSelectAll}
-              >
-                Clear Selection
-              </Button>
-              <Button
                 variant="default"
                 size="sm"
                 onClick={() => toast("Create clicked")}
