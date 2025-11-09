@@ -170,69 +170,43 @@ const [ocrWords, setOcrWords] = useState<Array<{ x: number; y: number; w: number
 function robustUnitEdges(input: any): { x1: number; y1: number; x2: number; y2: number } {
   const base = getBaseDims();
   const zero = { x1: 0, y1: 0, x2: 0, y2: 0 };
-  if (!base.width || !base.height || !input) return zero;
+  if (!base.width || !base.height) return zero;
 
+  // Parse to a normalized box object first (handles arrays/objects + w/h vs x2/y2)
+  const nb = normalizeBoxAny(input);
+  if (!nb) return zero;
+
+  // Convert to edges in original units (could be unit or absolute)
+  let x1 = nb.x;
+  let y1 = nb.y;
+  let x2 = nb.x + nb.width;
+  let y2 = nb.y + nb.height;
+
+  // Determine source dimensions
   const src = sourceDimsRef.current;
   const srcW = src?.width && src.width > 0 ? src.width : base.width;
   const srcH = src?.height && src.height > 0 ? src.height : base.height;
 
-  const toNum = (v: any) => (v === null || v === undefined || v === "" ? NaN : Number(v));
-  const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
-
-  let x1: number, y1: number, x2: number, y2: number;
-
-  if (Array.isArray(input) && input.length >= 4) {
-    // Always interpret arrays as [x1, y1, x2, y2] — never [x, y, w, h]
-    let a0 = toNum(input[0]);
-    let a1 = toNum(input[1]);
-    let a2 = toNum(input[2]);
-    let a3 = toNum(input[3]);
-    if (![a0, a1, a2, a3].every(Number.isFinite)) return zero;
-
-    x1 = a0; y1 = a1; x2 = a2; y2 = a3;
-
-    // Normalize if not in [0,1]
-    const alreadyUnit = [x1, y1, x2, y2].every((n) => n >= 0 && n <= 1);
-    if (!alreadyUnit) {
-      x1 = x1 / srcW;
-      y1 = y1 / srcH;
-      x2 = x2 / srcW;
-      y2 = y2 / srcH;
-    }
-  } else {
-    // Object-like: use x/left + x2/right or width; y/top + y2/bottom or height
-    const rx = toNum(input?.x ?? input?.left ?? input?.x0 ?? input?.x1 ?? input?.minX);
-    const ry = toNum(input?.y ?? input?.top ?? input?.y0 ?? input?.y1 ?? input?.minY);
-    let rx2 = toNum(input?.x2 ?? input?.right ?? input?.maxX);
-    let ry2 = toNum(input?.y2 ?? input?.bottom ?? input?.maxY);
-    const rw = toNum(input?.width ?? input?.w);
-    const rh = toNum(input?.height ?? input?.h);
-
-    if (!Number.isFinite(rx) || !Number.isFinite(ry)) return zero;
-
-    if (!Number.isFinite(rx2) && Number.isFinite(rw)) rx2 = rx + rw;
-    if (!Number.isFinite(ry2) && Number.isFinite(rh)) ry2 = ry + rh;
-    if (!Number.isFinite(rx2) || !Number.isFinite(ry2)) return zero;
-
-    x1 = rx; y1 = ry; x2 = rx2; y2 = ry2;
-
-    const alreadyUnit = [x1, y1, x2, y2].every((n) => n >= 0 && n <= 1);
-    if (!alreadyUnit) {
-      x1 = x1 / srcW;
-      y1 = y1 / srcH;
-      x2 = x2 / srcW;
-      y2 = y2 / srcH;
-    }
+  // If not already unit, normalize
+  const alreadyUnit = [x1, y1, x2, y2].every((n) => n >= 0 && n <= 1);
+  if (!alreadyUnit) {
+    x1 = x1 / srcW;
+    y1 = y1 / srcH;
+    x2 = x2 / srcW;
+    y2 = y2 / srcH;
   }
 
-  // Enforce proper ordering in case of inverted edges
+  // Fix inverted edges and clamp
   if (x2 < x1) [x1, x2] = [x2, x1];
   if (y2 < y1) [y1, y2] = [y2, y1];
 
-  // Clamp and guard
-  x1 = clamp01(x1); y1 = clamp01(y1); x2 = clamp01(x2); y2 = clamp01(y2);
-  if (x2 <= x1 || y2 <= y1) return zero;
+  const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+  x1 = clamp01(x1);
+  y1 = clamp01(y1);
+  x2 = clamp01(x2);
+  y2 = clamp01(y2);
 
+  if (x2 <= x1 || y2 <= y1) return zero;
   return { x1, y1, x2, y2 };
 }
 
@@ -584,14 +558,58 @@ const toPxBox = (box: WideBox): WideBox => {
     // Items (merge each item's bounding_box)
     if (Array.isArray(page?.items)) {
       page.items.forEach((item: any, idx: number) => {
+        // Push each provided box as-is (parsed via normalizeBoxAny), with a readable value
         if (item?.bounding_box?.length) {
           item.bounding_box.forEach((b: any) => {
             const nb = normalizeBoxAny(b);
-            // Include a brief value if available (item.description is a string in your schema)
             const desc: string = typeof item?.description === 'string' ? item.description : '';
             const value = desc ? `Item ${idx + 1}: ${desc}` : `Item ${idx + 1}`;
             if (nb) boxes.push({ ...nb, label: `Item ${idx + 1}`, value });
           });
+        }
+
+        // NEW: Compute a single merged "row" box for this item by unioning all its boxes
+        if (item?.bounding_box?.length) {
+          let minX = Number.POSITIVE_INFINITY;
+          let minY = Number.POSITIVE_INFINITY;
+          let maxX = Number.NEGATIVE_INFINITY;
+          let maxY = Number.NEGATIVE_INFINITY;
+
+          for (const b of item.bounding_box) {
+            const edges = robustUnitEdges(b);
+            if (
+              Number.isFinite(edges.x1) &&
+              Number.isFinite(edges.y1) &&
+              Number.isFinite(edges.x2) &&
+              Number.isFinite(edges.y2) &&
+              edges.x2 > edges.x1 &&
+              edges.y2 > edges.y1
+            ) {
+              if (edges.x1 < minX) minX = edges.x1;
+              if (edges.y1 < minY) minY = edges.y1;
+              if (edges.x2 > maxX) maxX = edges.x2;
+              if (edges.y2 > maxY) maxY = edges.y2;
+            }
+          }
+
+          if (
+            Number.isFinite(minX) &&
+            Number.isFinite(minY) &&
+            Number.isFinite(maxX) &&
+            Number.isFinite(maxY) &&
+            maxX > minX &&
+            maxY > minY
+          ) {
+            const rowBox = {
+              x: minX,
+              y: minY,
+              width: maxX - minX,
+              height: maxY - minY,
+              label: `Item Row ${idx + 1}`,
+              value: typeof item?.description === 'string' ? item.description : undefined,
+            } as any;
+            boxes.push(rowBox);
+          }
         }
       });
     }
