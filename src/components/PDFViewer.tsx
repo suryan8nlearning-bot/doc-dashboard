@@ -16,6 +16,8 @@ import type { BoundingBox, DocumentData as ExtractedDocumentData } from '@/lib/s
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 // Add: toast for quick feedback
 import { toast } from "sonner";
+// Add: global debug flag
+import { debugEnabled } from "@/lib/debug";
 
 interface PDFViewerProps {
   pdfUrl: string;
@@ -1456,18 +1458,22 @@ function unitEdgesFromInput(input: any): { x1: number; y1: number; x2: number; y
           <ChevronRight className="h-4 w-4" />
         </Button>
 
-        {/* Add: Debug toggle */}
-        <div className="mx-2 h-5 w-px bg-border" />
-        <Button
-          variant="outline"
-          size="sm"
-          className="rounded-full h-7 px-2 text-[10px] font-mono"
-          onClick={() => setShowDebug((v) => !v)}
-          aria-label="Toggle Item 1 Debug"
-          title="Toggle Item 1 Debug"
-        >
-          DBG
-        </Button>
+        {/* Debug toggle only when debug is enabled */}
+        {debugEnabled && (
+          <>
+            <div className="mx-2 h-5 w-px bg-border" />
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-full h-7 px-2 text-[10px] font-mono"
+              onClick={() => setShowDebug((v) => !v)}
+              aria-label="Toggle Item 1 Debug"
+              title="Toggle Item 1 Debug"
+            >
+              DBG
+            </Button>
+          </>
+        )}
 
         {/* Origin fixed label */}
         <span
@@ -1803,7 +1809,7 @@ function unitEdgesFromInput(input: any): { x1: number; y1: number; x2: number; y
       </div>
 
       {/* Add: Item #1 debug panel */}
-      {showDebug && item1Debug && (
+      {debugEnabled && showDebug && item1Debug && (
         <div className="absolute bottom-4 left-4 z-20 max-h-64 w-[min(420px,90vw)] overflow-auto rounded-md border bg-background/90 backdrop-blur p-2 text-xs font-mono">
           <div className="flex items-center justify-between mb-2">
             <span className="font-semibold">Item #1 Debug</span>
