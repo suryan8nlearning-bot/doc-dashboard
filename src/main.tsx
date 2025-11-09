@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { InstrumentationProvider } from "@/instrumentation.tsx";
 import { StrictMode, useEffect, useState, lazy, Suspense, createContext, useContext, ReactNode } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Route, Routes, useLocation } from "react-router";
+import { BrowserRouter, Route, Routes, useLocation, Navigate } from "react-router";
 import "./index.css";
 import "./types/global.d.ts";
 import { useAuth } from "@/hooks/use-auth";
@@ -103,11 +103,11 @@ function IdleSessionProvider({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-function Protected({ children }: { children: ReactNode }) {
+function Protected({ children, redirectAfterAuth }: { children: ReactNode; redirectAfterAuth?: string }) {
   const { isLoading, isAuthenticated } = useAuth();
   if (isLoading) return <RouteFallback />;
 
-  return isAuthenticated ? <>{children}</> : <AuthPage redirectAfterAuth="/dashboard" />;
+  return isAuthenticated ? <>{children}</> : <AuthPage redirectAfterAuth={redirectAfterAuth ?? "/dashboard"} />;
 }
 
 function RouteFallback() {
@@ -206,11 +206,11 @@ createRoot(document.getElementById("root")!).render(
                 <RouteSyncer />
                 <Suspense fallback={<RouteFallback />}>
                   <Routes>
-                    <Route path="/" element={<Protected><Dashboard /></Protected>} />
+                    <Route path="/" element={<Protected redirectAfterAuth="/"><Documents /></Protected>} />
                     <Route path="/auth" element={<AuthPage redirectAfterAuth="/dashboard" />} />
                     <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
                     <Route path="/document/:documentId" element={<Protected><DocumentDetail /></Protected>} />
-                    <Route path="/documents" element={<Protected><Documents /></Protected>} />
+                    <Route path="/documents" element={<Navigate to="/" replace />} />
                     <Route path="/profile" element={<Protected><Profile /></Protected>} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
