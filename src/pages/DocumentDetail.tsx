@@ -2075,8 +2075,7 @@ export default function DocumentDetail() {
                   <Card className="bg-card/60">
                     <CardHeader>
                       <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-semibold tracking-tight">SAP and Document Data</h3>
-                        {/* Removed duplicate Expand/Collapse button per request */}
+                        <h3 className="text-sm font-semibold tracking-tight">Document Data</h3>
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-3">
@@ -2085,39 +2084,6 @@ export default function DocumentDetail() {
                         value={openHierarchySections}
                         onValueChange={setOpenHierarchySections}
                       >
-                        <AccordionItem value="sap">
-                          <AccordionTrigger className="text-base font-semibold">
-                            SAP Data
-                          </AccordionTrigger>
-                          <AccordionContent className="overflow-visible">
-                            {showSAP ? (
-                              <div
-                                data-sap-interactive
-                                className="w-full min-w-0 pr-1 break-words whitespace-pre-wrap overflow-x-hidden [word-break:anywhere] [overflow-wrap:anywhere] pointer-events-auto"
-                                onClick={(e) => e.stopPropagation()}
-                                onPointerDownCapture={(e) => e.stopPropagation()}
-                                onPointerUpCapture={(e) => e.stopPropagation()}
-                                onMouseDown={(e) => e.stopPropagation()}
-                              >
-                                <SAPJsonCard
-                                  data={sapOut ?? {}}
-                                  className="break-words whitespace-pre-wrap"
-                                  defaultCollapsed={false}
-                                  hideHeader
-                                  sourceDocumentData={doc.document_data}
-                                  onHoverHighlight={onSapHover}
-                                  onShowMailHint={() => setMailHint(true)}
-                                  onHideMailHint={() => setMailHint(false)}
-                                />
-                              </div>
-                            ) : (
-                              <div className="text-sm text-muted-foreground">
-                                SAP data hidden. Enable it from the user menu.
-                              </div>
-                            )}
-                          </AccordionContent>
-                        </AccordionItem>
-
                         <AccordionItem value="doc">
                           <AccordionTrigger className="text-base font-semibold">
                             Document Data
