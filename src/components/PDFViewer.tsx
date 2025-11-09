@@ -200,20 +200,25 @@ const [showDebug, setShowDebug] = useState(false);
 // Origin is fixed to top-left. No toggle required.
 const ORIGIN = "top-left" as const;
 
-// Normalize any input into unit-space edges [x1,y1,x2,y2] using the PDF base viewport only
+/**
+ * Updated normalization:
+ * - If incoming edges look like a 0–1000 space (values >1 and <=1000), divide by 1000 to get unit space.
+ * - Otherwise, fall back to PDF base viewport normalization.
+ * - Arrays are [x1,y1,x2,y2]; objects can be edges or x,y,w,h.
+ * - Origin is top-left.
+ */
 function robustUnitEdges(input: any): { x1: number; y1: number; x2: number; y2: number } {
   const base = getBaseDims();
   const zero = { x1: 0, y1: 0, x2: 0, y2: 0 };
   if (!input || !base.width || !base.height) return zero;
 
   const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
-  // Force normalization to use the PDF base viewport (scale=1) — never use guessed source dims
+  const toNum = (v: any) => (v === null || v === undefined || v === "" ? NaN : Number(v));
   const srcW = base.width;
   const srcH = base.height;
 
-  // Arrays: ALWAYS interpret as [x1, y1, x2, y2]
+  // Arrays: [x1, y1, x2, y2]
   if (Array.isArray(input) && input.length >= 4) {
-    const toNum = (v: any) => (v === null || v === undefined || v === "" ? NaN : Number(v));
     let x1 = toNum(input[0]);
     let y1 = toNum(input[1]);
     let x2 = toNum(input[2]);
@@ -224,25 +229,40 @@ function robustUnitEdges(input: any): { x1: number; y1: number; x2: number; y2: 
     if (y2 < y1) [y1, y2] = [y2, y1];
 
     const alreadyUnit = [x1, y1, x2, y2].every((n) => n >= 0 && n <= 1);
-    let ux1 = alreadyUnit ? x1 : x1 / srcW;
-    let uy1 = alreadyUnit ? y1 : y1 / srcH;
-    let ux2 = alreadyUnit ? x2 : x2 / srcW;
-    let uy2 = alreadyUnit ? y2 : y2 / srcH;
+    // Heuristic: 0–1000 coordinate space (common extractor output)
+    const looksLikeThousandScale =
+      !alreadyUnit &&
+      [x1, y1, x2, y2].every((n) => Math.abs(n) <= 1000) &&
+      [x1, y1, x2, y2].some((n) => Math.abs(n) > 1);
 
-    ux1 = clamp01(ux1); uy1 = clamp01(uy1); ux2 = clamp01(ux2); uy2 = clamp01(uy2);
+    let ux1: number, uy1: number, ux2: number, uy2: number;
+    if (looksLikeThousandScale) {
+      ux1 = x1 / 1000;
+      uy1 = y1 / 1000;
+      ux2 = x2 / 1000;
+      uy2 = y2 / 1000;
+    } else {
+      ux1 = alreadyUnit ? x1 : x1 / srcW;
+      uy1 = alreadyUnit ? y1 : y1 / srcH;
+      ux2 = alreadyUnit ? x2 : x2 / srcW;
+      uy2 = alreadyUnit ? y2 : y2 / srcH;
+    }
+
+    ux1 = clamp01(ux1);
+    uy1 = clamp01(uy1);
+    ux2 = clamp01(ux2);
+    uy2 = clamp01(uy2);
     if (ux2 <= ux1 || uy2 <= uy1) return zero;
     return { x1: ux1, y1: uy1, x2: ux2, y2: uy2 };
   }
 
-  // NEW: Object edges fast-path: { x1, y1, x2, y2 }
+  // Object edges fast-path: { x1, y1, x2, y2 }
   if (typeof input === "object" && input !== null) {
     const x1o = (input as any).x1;
     const y1o = (input as any).y1;
     const x2o = (input as any).x2;
     const y2o = (input as any).y2;
-    if (
-      [x1o, y1o, x2o, y2o].every((v) => typeof v === "number" && Number.isFinite(v))
-    ) {
+    if ([x1o, y1o, x2o, y2o].every((v) => typeof v === "number" && Number.isFinite(v))) {
       let x1 = x1o as number;
       let y1 = y1o as number;
       let x2 = x2o as number;
@@ -251,15 +271,28 @@ function robustUnitEdges(input: any): { x1: number; y1: number; x2: number; y2: 
       if (y2 < y1) [y1, y2] = [y2, y1];
 
       const alreadyUnit = [x1, y1, x2, y2].every((n) => n >= 0 && n <= 1);
-      let ux1 = alreadyUnit ? x1 : x1 / srcW;
-      let uy1 = alreadyUnit ? y1 : y1 / srcH;
-      let ux2 = alreadyUnit ? x2 : x2 / srcW;
-      let uy2 = alreadyUnit ? y2 : y2 / srcH;
+      const looksLikeThousandScale =
+        !alreadyUnit &&
+        [x1, y1, x2, y2].every((n) => Math.abs(n) <= 1000) &&
+        [x1, y1, x2, y2].some((n) => Math.abs(n) > 1);
 
-      ux1 = Math.max(0, Math.min(1, ux1));
-      uy1 = Math.max(0, Math.min(1, uy1));
-      ux2 = Math.max(0, Math.min(1, ux2));
-      uy2 = Math.max(0, Math.min(1, uy2));
+      let ux1: number, uy1: number, ux2: number, uy2: number;
+      if (looksLikeThousandScale) {
+        ux1 = x1 / 1000;
+        uy1 = y1 / 1000;
+        ux2 = x2 / 1000;
+        uy2 = y2 / 1000;
+      } else {
+        ux1 = alreadyUnit ? x1 : x1 / srcW;
+        uy1 = alreadyUnit ? y1 : y1 / srcH;
+        ux2 = alreadyUnit ? x2 : x2 / srcW;
+        uy2 = alreadyUnit ? y2 : y2 / srcH;
+      }
+
+      ux1 = clamp01(ux1);
+      uy1 = clamp01(uy1);
+      ux2 = clamp01(ux2);
+      uy2 = clamp01(uy2);
       if (ux2 <= ux1 || uy2 <= uy1) return zero;
       return { x1: ux1, y1: uy1, x2: ux2, y2: uy2 };
     }
@@ -271,21 +304,34 @@ function robustUnitEdges(input: any): { x1: number; y1: number; x2: number; y2: 
 
   const { x, y, width, height } = nb;
   const isUnit =
-    x >= 0 && y >= 0 && width > 0 && height > 0 &&
-    x <= 1 && y <= 1 && width <= 1 && height <= 1;
+    x >= 0 && y >= 0 && width > 0 && height > 0 && x <= 1 && y <= 1 && width <= 1 && height <= 1;
 
-  let x1u = isUnit ? x : x / srcW;
-  let y1u = isUnit ? y : y / srcH;
-  let x2u = isUnit ? x + width : (x + width) / srcW;
-  let y2u = isUnit ? y + height : (y + height) / srcH;
+  // Heuristic for 0–1000 box space
+  const looksLikeThousandScale =
+    !isUnit &&
+    [x, y, x + width, y + height].every((n) => Math.abs(n) <= 1000) &&
+    [x, y, width, height].some((n) => Math.abs(n) > 1);
+
+  let x1u: number, y1u: number, x2u: number, y2u: number;
+  if (looksLikeThousandScale) {
+    x1u = x / 1000;
+    y1u = y / 1000;
+    x2u = (x + width) / 1000;
+    y2u = (y + height) / 1000;
+  } else {
+    x1u = isUnit ? x : x / srcW;
+    y1u = isUnit ? y : y / srcH;
+    x2u = isUnit ? x + width : (x + width) / srcW;
+    y2u = isUnit ? y + height : (y + height) / srcH;
+  }
 
   if (x2u < x1u) [x1u, x2u] = [x2u, x1u];
   if (y2u < y1u) [y1u, y2u] = [y2u, y1u];
 
-  x1u = Math.max(0, Math.min(1, x1u));
-  y1u = Math.max(0, Math.min(1, y1u));
-  x2u = Math.max(0, Math.min(1, x2u));
-  y2u = Math.max(0, Math.min(1, y2u));
+  x1u = clamp01(x1u);
+  y1u = clamp01(y1u);
+  x2u = clamp01(x2u);
+  y2u = clamp01(y2u);
   if (x2u <= x1u || y2u <= y1u) return zero;
   return { x1: x1u, y1: y1u, x2: x2u, y2: y2u };
 }
@@ -824,8 +870,8 @@ function unitEdgesFromInput(input: any): { x1: number; y1: number; x2: number; y
       // Parsed boxes using the same function as overlays
       const parsedBoxes = rawBoxes.map((b) => normalizeBoxAny(b));
 
-      // CHANGED: use unitEdgesFromInput so origin is respected
-      const unitEdges = parsedBoxes.map((pb) => unitEdgesFromInput(pb));
+      // CHANGED: use robustUnitEdges so origin is respected
+      const unitEdges = parsedBoxes.map((pb) => robustUnitEdges(pb));
 
       // Pixel rectangles (base) and at current zoom used for screen placement
       const baseDimsForDebug = getBaseDims();
@@ -877,7 +923,7 @@ function unitEdgesFromInput(input: any): { x1: number; y1: number; x2: number; y
 
       // Convert merged to unit edges following the same pipeline the overlays use
       const mergedEdgesUnit = merged
-        ? unitEdgesFromInput([merged.x, merged.y, merged.x + merged.width, merged.y + merged.height])
+        ? robustUnitEdges([merged.x, merged.y, merged.x + merged.width, merged.y + merged.height])
         : null;
       const mergedPxRectAtBase = mergedEdgesUnit ? edgesToPxRect(mergedEdgesUnit, baseDimsForDebug) : null;
       const mergedPxRectAtZoom = mergedPxRectAtBase
