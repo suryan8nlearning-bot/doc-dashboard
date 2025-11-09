@@ -556,17 +556,24 @@ export default function DocumentDetail() {
       return out;
     };
 
-    // Direct candidates (common names)
+    // Direct candidates (common names) - prioritize SAP_JSON_FROM_APP variants
     const directCandidates: Array<any> = [
-      // Prefer "SAP_JSON_FROM_APP" first, then fall back to "SAP JSON"
+      // Highest priority: SAP_JSON_FROM_APP and its variants
       row?.SAP_JSON_FROM_APP,
+      row?.SAP_JSON_from_APP,
       row?.sap_json_from_app,
       row?.['SAP JSON from app'],
+      row?.['SAP_JSON_from_APP'],
+      row?.['SAP JSON FROM APP'],
       row?.sap_json_app,
       row?.sap_app_json,
-      row?.['SAP JSON'],  // Fall back to "SAP JSON" if SAP_JSON_FROM_APP is blank
+      
+      // Second priority: SAP JSON field
+      row?.['SAP JSON'],
+      row?.SAP_JSON,
+      row?.sap_json,
 
-      // Then fall back to other common SAP payload fields
+      // Fallback to other common SAP payload fields
       row?.SAP_AI_OUTPUT,
       row?.sap_ai_output,
       row?.['SAP_AI_OUTPUT'],
