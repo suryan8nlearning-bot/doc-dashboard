@@ -9,12 +9,17 @@ import { toast } from "sonner";
 import * as SalesSchema from "@/schemas/salesOrderCreate";
 import { motion } from "framer-motion";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
+import type { DocumentData, BoundingBox } from "@/lib/supabase";
+import { createSapToSourceMapping, type SapToSourceMapping } from "@/lib/mapping";
 
 type SAPJsonCardProps = {
   data: unknown;
   title?: string;
   className?: string;
   defaultCollapsed?: boolean;
+  // Add: optional hover highlight + source doc for mapping
+  onHoverHighlight?: (box: (BoundingBox & { page?: number; color?: string }) | null) => void;
+  sourceDocumentData?: DocumentData;
 };
 
 // Add: robust JSON extraction helpers to handle string inputs containing JSON
@@ -43,11 +48,23 @@ export function SAPJsonCard({
   title = "SAP JSON",
   className,
   defaultCollapsed = false,
+  // Add: new props
+  onHoverHighlight,
+  sourceDocumentData,
 }: SAPJsonCardProps) {
   const [collapsed, setCollapsed] = useState<boolean>(defaultCollapsed);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set<string>());
   const [initExpandedApplied, setInitExpandedApplied] = useState<boolean>(false);
   const [rootExpanded, setRootExpanded] = useState<Set<string>>(() => new Set<string>());
+
+  // Add: build mapping from SAP leaf paths -> source bounding boxes
+  const hoverMapping: SapToSourceMapping | null = useMemo(() => {
+    try {
+      return sourceDocumentData ? createSapToSourceMapping(data, sourceDocumentData) : null;
+    } catch {
+      return null;
+    }
+  }, [data, sourceDocumentData]);
 
   // Insert: derive order tree from backend schema and reordering helpers
   const deriveOrderTreeFromSchema = (schemaMod: any): any => {
@@ -343,7 +360,18 @@ export function SAPJsonCard({
     if (!isComplex) {
       // Render leaf as simple editable field: label on left, value on right (editable for all types)
       return (
-        <div className="py-2.5 px-3 rounded-md" style={indentStyle}>
+        <div
+          className="py-2.5 px-3 rounded-md"
+          style={indentStyle}
+          // Add: hover highlight behavior using mapping
+          onMouseEnter={() => {
+            if (onHoverHighlight && hoverMapping) {
+              const box = hoverMapping[path] || null;
+              onHoverHighlight(box as any);
+            }
+          }}
+          onMouseLeave={() => onHoverHighlight?.(null)}
+        >
           <div className="grid grid-cols-[180px_minmax(0,1fr)] gap-3 items-center">
             <label className="text-xs font-medium text-muted-foreground">{label}</label>
             {typeof value === "boolean" ? (
@@ -437,7 +465,19 @@ export function SAPJsonCard({
                               const cellKey = `${path}-row-${idx}-col-${col}`;
 
                               return (
-                                <TableCell key={`${path}-row-${idx}-col-${col}`} className="align-top truncate">
+                                <TableCell
+                                  key={`${path}-row-${idx}-col-${col}`}
+                                  className="align-top truncate"
+                                  // Add: hover highlight for table cells (array of objects)
+                                  onMouseEnter={() => {
+                                    if (onHoverHighlight && hoverMapping) {
+                                      const cellPath = `${path}.[${idx}].${col}`;
+                                      const box = hoverMapping[cellPath] || null;
+                                      onHoverHighlight(box as any);
+                                    }
+                                  }}
+                                  onMouseLeave={() => onHoverHighlight?.(null)}
+                                >
                                   {t === "boolean" ? (
                                     <input type="checkbox" defaultChecked={Boolean(cell)} className="h-4 w-4" />
                                   ) : isObjCell ? (

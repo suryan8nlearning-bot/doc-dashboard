@@ -23,6 +23,7 @@ import { toast } from 'sonner';
 import { useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SAPJsonCard } from "@/components/SAPJsonCard";
 
 import PDFViewer from '@/components/PDFViewer'; // Add: correct default import for the PDF viewer
 
@@ -2170,7 +2171,13 @@ export default function DocumentDetail() {
                           <AccordionContent className="overflow-visible">
                             {showSAP ? (
                               <div className="pr-1">
-                                {renderSapEditable()}
+                                <SAPJsonCard
+                                  data={(doc as any)?.sap_json ?? (doc as any)?.sap ?? (doc as any)?.sap_data ?? (doc as any)?.sap_output ?? {}}
+                                  className=""
+                                  defaultCollapsed={false}
+                                  sourceDocumentData={doc.document_data}
+                                  onHoverHighlight={(box) => setHighlightBox(box)}
+                                />
                               </div>
                             ) : (
                               <div className="text-sm text-muted-foreground">
