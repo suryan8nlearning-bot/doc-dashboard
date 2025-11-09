@@ -451,13 +451,17 @@ export function SAPJsonCard({
                 type={typeof value === "number" ? "number" : "text"}
                 defaultValue={value === null || value === undefined ? "" : String(value)}
                 className="w-full rounded-md border bg-background px-2 py-1 text-sm"
+                style={{
+                  position: "relative",
+                  zIndex: 1,
+                }}
                 onFocus={(e) => {
-                  // Force caret visibility with explicit z-index
-                  e.currentTarget.style.position = "relative";
                   e.currentTarget.style.zIndex = "100";
+                  e.currentTarget.style.isolation = "isolate";
                 }}
                 onBlur={(e) => {
-                  e.currentTarget.style.zIndex = "";
+                  e.currentTarget.style.zIndex = "1";
+                  e.currentTarget.style.isolation = "";
                 }}
               />
             )}
@@ -618,13 +622,17 @@ export function SAPJsonCard({
                                         type={t === "number" ? "number" : "text"}
                                         defaultValue={cell == null ? "" : String(cell)}
                                         className="w-full rounded-md border bg-background px-2 py-1 text-sm"
+                                        style={{
+                                          position: "relative",
+                                          zIndex: 1,
+                                        }}
                                         onFocus={(e) => {
-                                          // Ensure caret is visible and stable
-                                          e.currentTarget.style.position = "relative";
                                           e.currentTarget.style.zIndex = "100";
+                                          e.currentTarget.style.isolation = "isolate";
                                         }}
                                         onBlur={(e) => {
-                                          e.currentTarget.style.zIndex = "";
+                                          e.currentTarget.style.zIndex = "1";
+                                          e.currentTarget.style.isolation = "";
                                         }}
                                       />
                                     )}

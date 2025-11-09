@@ -232,10 +232,12 @@
   /* Don't clip content; allow wrapping */
   white-space: normal;
   word-break: break-word;
-  overflow: visible;
+  overflow: visible !important;
   min-width: 0;
   max-width: none;
   vertical-align: top;
+  position: relative;
+  z-index: 0;
 }
 
 [data-sap-interactive] .sap-cell,
@@ -286,19 +288,22 @@
 
 /* Inputs/Textareas: keep caret visible and stable while editing */
 [data-sap-interactive] :is(input, textarea) {
-  caret-color: var(--foreground);
-  background-color: var(--background);
-  background-clip: padding-box;
+  caret-color: var(--foreground) !important;
+  background-color: var(--background) !important;
+  background-clip: padding-box !important;
+  position: relative !important;
+  z-index: 1 !important;
 }
 
 /* On focus, raise above neighbors and force its own layer to prevent visual clipping */
 [data-sap-interactive] :is(input, textarea):focus {
-  position: relative;
-  z-index: 50;
-  outline: 2px solid var(--ring);
-  background-color: var(--background);
-  transform: translateZ(0);
-  will-change: transform;
+  position: relative !important;
+  z-index: 100 !important;
+  outline: 2px solid var(--ring) !important;
+  background-color: var(--background) !important;
+  transform: translateZ(0) !important;
+  will-change: transform !important;
+  isolation: isolate !important;
 }
 
 /* Allow horizontal overflow within nested ScrollArea containers for wide tables */
