@@ -1936,7 +1936,7 @@ export default function DocumentDetail() {
                 variant="outline" 
                 size="sm" 
                 onClick={goPrev} 
-                disabled={currentIndex <= 0 || navLoading !== null}
+                disabled={navLoading !== null}
                 className="px-4"
               >
                 {navLoading === 'prev' ? (
@@ -1952,7 +1952,7 @@ export default function DocumentDetail() {
                 variant="outline"
                 size="sm"
                 onClick={goNext}
-                disabled={currentIndex < 0 || currentIndex >= idList.length - 1 || navLoading !== null}
+                disabled={navLoading !== null}
                 className="px-4"
               >
                 {navLoading === 'next' ? (
@@ -2028,12 +2028,7 @@ export default function DocumentDetail() {
         </div>
       </header>
 
-      {/* Add a small header action with a Dashboard button near the top of the JSX */}
-      <div className="mb-3 flex items-center gap-2">
-        <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")}>
-          Dashboard
-        </Button>
-      </div>
+      
 
       {/* SAP Full-screen (Step 1) */}
       {showSAP && view === 'sap' && (
@@ -2172,7 +2167,7 @@ export default function DocumentDetail() {
                           <AccordionTrigger className="text-base font-semibold">
                             SAP Data
                           </AccordionTrigger>
-                          <AccordionContent>
+                          <AccordionContent className="overflow-visible">
                             {showSAP ? (
                               <div className="pr-1">
                                 {renderSapEditable()}
@@ -2189,7 +2184,7 @@ export default function DocumentDetail() {
                           <AccordionTrigger className="text-base font-semibold">
                             Document Data
                           </AccordionTrigger>
-                          <AccordionContent>
+                          <AccordionContent className="overflow-visible">
                             {doc.document_data && doc.document_data?.document?.pages?.length > 0 ? (
                               <Suspense fallback={<RightPanelSkeleton />}>
                                 <DocumentFieldsLazy
