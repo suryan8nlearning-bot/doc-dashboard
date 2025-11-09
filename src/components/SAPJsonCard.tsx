@@ -584,7 +584,7 @@ export function SAPJsonCard({
       {!collapsed && (
         <CardContent id="sap-json-content" className="pt-0">
           <ScrollArea className="h-auto w-full rounded-md border">
-            {parsed && typeof parsed === "object" ? (
+            {parsed && typeof parsed === "object" && Object.keys(parsed as Record<string, any>).length > 0 ? (
               <div className="p-2">
                 {Array.isArray(parsed) ? (
                   <TreeNode label="[]" value={parsed} path="$" depth={0} />
