@@ -202,59 +202,86 @@ const [showDebug, setShowDebug] = useState(false);
  * Arrays are treated STRICTLY as edges: [x1, y1, x2, y2, (page?)].
  * Objects are parsed via normalizeBoxAny and then converted to edges.
  */
-function robustUnitEdges(input: any, sourceDims?: { width: number; height: number } | null) {
-  const sw = sourceDims?.width ?? 1;
-  const sh = sourceDims?.height ?? 1;
-  const toNum = (v: any) => (v === null || v === undefined || v === "" ? NaN : Number(v));
+function robustUnitEdges(input: any): { x1: number; y1: number; x2: number; y2: number } {
+  // Always return a non-null object to satisfy TS narrowing at all call sites
+  const base = getBaseDims();
+  const ZERO = { x1: 0, y1: 0, x2: 0, y2: 0 };
+  if (!base.width || !base.height) return ZERO;
 
-  let x1: number | null = null;
-  let y1: number | null = null;
-  let x2: number | null = null;
-  let y2: number | null = null;
+  const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+  const src = sourceDimsRef.current;
+  const srcW = src?.width && src.width > 0 ? src.width : base.width;
+  const srcH = src?.height && src.height > 0 ? src.height : base.height;
 
-  // Strictly handle arrays as [x1, y1, x2, y2, (page?)]
-  if (Array.isArray(input)) {
-    if (input.length >= 4) {
-      x1 = toNum(input[0]);
-      y1 = toNum(input[1]);
-      x2 = toNum(input[2]);
-      y2 = toNum(input[3]);
-    }
-  } else if (input && typeof input === "object") {
-    // Prefer explicit edges directly
-    x1 = toNum(input.x1 ?? input.left ?? input.minX);
-    y1 = toNum(input.y1 ?? input.top ?? input.minY);
-    x2 = toNum(input.x2 ?? input.right ?? input.maxX);
-    y2 = toNum(input.y2 ?? input.bottom ?? input.maxY);
+  // Arrays strictly as [x1,y1,x2,y2]
+  if (Array.isArray(input) && input.length >= 4) {
+    const toNum = (v: any) => (v === null || v === undefined || v === "" ? NaN : Number(v));
+    let x1 = toNum(input[0]);
+    let y1 = toNum(input[1]);
+    let x2 = toNum(input[2]);
+    let y2 = toNum(input[3]);
+    if (![x1, y1, x2, y2].every(Number.isFinite)) return ZERO;
 
-    // Fall back to x,y,width,height ONLY if no edges are present
-    if (![x1, y1, x2, y2].every(Number.isFinite)) {
-      const x = toNum(input.x ?? input.left ?? input.x0 ?? input.startX);
-      const y = toNum(input.y ?? input.top ?? input.y0 ?? input.startY);
-      const w = toNum(input.width ?? input.w);
-      const h = toNum(input.height ?? input.h);
-      if ([x, y, w, h].every(Number.isFinite)) {
-        x1 = x;
-        y1 = y;
-        x2 = x + (w as number);
-        y2 = y + (h as number);
-      }
+    if (x2 < x1) [x1, x2] = [x2, x1];
+    if (y2 < y1) [y1, y2] = [y2, y1];
+
+    const alreadyUnit = [x1, y1, x2, y2].every((n) => n >= 0 && n <= 1);
+    let ux1 = alreadyUnit ? x1 : x1 / srcW;
+    let uy1 = alreadyUnit ? y1 : y1 / srcH;
+    let ux2 = alreadyUnit ? x2 : x2 / srcW;
+    let uy2 = alreadyUnit ? y2 : y2 / srcH;
+
+    ux1 = clamp01(ux1); uy1 = clamp01(uy1); ux2 = clamp01(ux2); uy2 = clamp01(uy2);
+    if (ux2 <= ux1 || uy2 <= uy1) return ZERO;
+    return { x1: ux1, y1: uy1, x2: ux2, y2: uy2 };
+  }
+
+  // Object fast-path with x1,y1,x2,y2
+  if (typeof input === "object" && input !== null) {
+    const x1o = (input as any).x1;
+    const y1o = (input as any).y1;
+    const x2o = (input as any).x2;
+    const y2o = (input as any).y2;
+    if ([x1o, y1o, x2o, y2o].every((v) => typeof v === "number" && Number.isFinite(v))) {
+      let x1 = x1o as number;
+      let y1 = y1o as number;
+      let x2 = x2o as number;
+      let y2 = y2o as number;
+      if (x2 < x1) [x1, x2] = [x2, x1];
+      if (y2 < y1) [y1, y2] = [y2, y1];
+
+      const alreadyUnit = [x1, y1, x2, y2].every((n) => n >= 0 && n <= 1);
+      let ux1 = alreadyUnit ? x1 : x1 / srcW;
+      let uy1 = alreadyUnit ? y1 : y1 / srcH;
+      let ux2 = alreadyUnit ? x2 : x2 / srcW;
+      let uy2 = alreadyUnit ? y2 : y2 / srcH;
+
+      ux1 = clamp01(ux1); uy1 = clamp01(uy1); ux2 = clamp01(ux2); uy2 = clamp01(uy2);
+      if (ux2 <= ux1 || uy2 <= uy1) return ZERO;
+      return { x1: ux1, y1: uy1, x2: ux2, y2: uy2 };
     }
   }
 
-  if (![x1, y1, x2, y2].every(Number.isFinite)) return null;
+  // Fallback via normalizeBoxAny -> edges
+  const nb = normalizeBoxAny(input);
+  if (!nb) return ZERO;
 
-  // Enforce ordering
-  if ((x2 as number) < (x1 as number)) [x1, x2] = [x2!, x1!];
-  if ((y2 as number) < (y1 as number)) [y1, y2] = [y2!, y1!];
+  const { x, y, width, height } = nb;
+  const isUnit =
+    x >= 0 && y >= 0 && width > 0 && height > 0 &&
+    x <= 1 && y <= 1 && width <= 1 && height <= 1;
 
-  // Normalize directly from raw input
-  return {
-    x1: (x1 as number) / sw,
-    y1: (y1 as number) / sh,
-    x2: (x2 as number) / sw,
-    y2: (y2 as number) / sh,
-  };
+  let x1u = isUnit ? x : x / srcW;
+  let y1u = isUnit ? y : y / srcH;
+  let x2u = isUnit ? x + width : (x + width) / srcW;
+  let y2u = isUnit ? y + height : (y + height) / srcH;
+
+  if (x2u < x1u) [x1u, x2u] = [x2u, x1u];
+  if (y2u < y1u) [y1u, y2u] = [y2u, y1u];
+
+  x1u = clamp01(x1u); y1u = clamp01(y1u); x2u = clamp01(x2u); y2u = clamp01(y2u);
+  if (x2u <= x1u || y2u <= y1u) return ZERO;
+  return { x1: x1u, y1: y1u, x2: x2u, y2: y2u };
 }
 
 // Add: normalized edges (x1,y1,x2,y2) helpers and projection using base viewport
@@ -606,84 +633,47 @@ const toPxBox = (box: WideBox): WideBox => {
     if (Array.isArray(page?.items)) {
       page.items.forEach((item: any, idx: number) => {
         if (Array.isArray(item?.bounding_box) && item.bounding_box.length) {
-          // NEW: Compute merged row edges directly from raw [x1,y1,x2,y2] or edge-objects.
-          let minX1 = Number.POSITIVE_INFINITY;
-          let minY1 = Number.POSITIVE_INFINITY;
-          let maxX2 = Number.NEGATIVE_INFINITY;
-          let maxY2 = Number.NEGATIVE_INFINITY;
-          let haveAny = false;
+          // Compute merged row box using leftmost x1,y1 and farthest right/bottom x2,y2
+          let leftmostX = Number.POSITIVE_INFINITY;
+          let leftmostY = Number.POSITIVE_INFINITY;
+          let haveLeft = false;
 
-          for (const raw of item.bounding_box as any[]) {
-            let rx1: number | undefined;
-            let ry1: number | undefined;
-            let rx2: number | undefined;
-            let ry2: number | undefined;
+          let maxRight = Number.NEGATIVE_INFINITY;
+          let maxBottom = Number.NEGATIVE_INFINITY;
 
-            if (Array.isArray(raw) && raw.length >= 4) {
-              rx1 = Number(raw[0]);
-              ry1 = Number(raw[1]);
-              rx2 = Number(raw[2]);
-              ry2 = Number(raw[3]);
-            } else if (raw && typeof raw === "object") {
-              const r = raw as any;
-              rx1 = Number(r.x1 ?? r.left ?? r.minX);
-              ry1 = Number(r.y1 ?? r.top ?? r.minY);
-              rx2 = Number(r.x2 ?? r.right ?? r.maxX);
-              ry2 = Number(r.y2 ?? r.bottom ?? r.maxY);
+          item.bounding_box.forEach((b: any) => {
+            const nb = normalizeBoxAny(b);
+            if (!nb) return;
+            const x1 = nb.x;
+            const y1 = nb.y;
+            const x2 = nb.x + nb.width;
+            const y2 = nb.y + nb.height;
+
+            if (Number.isFinite(x1) && x1 < leftmostX) {
+              leftmostX = x1;
+              leftmostY = Number.isFinite(y1) ? y1 : leftmostY;
+              haveLeft = true;
             }
-
-            if (
-              Number.isFinite(rx1) &&
-              Number.isFinite(ry1) &&
-              Number.isFinite(rx2) &&
-              Number.isFinite(ry2)
-            ) {
-              // Enforce ordering
-              if ((rx2 as number) < (rx1 as number)) {
-                const t = rx1 as number;
-                rx1 = rx2 as number;
-                rx2 = t;
-              }
-              if ((ry2 as number) < (ry1 as number)) {
-                const t = ry1 as number;
-                ry1 = ry2 as number;
-                ry2 = t;
-              }
-
-              // Track leftmost x1 and its y1 (tie-break on y1)
-              if ((rx1 as number) < minX1) {
-                minX1 = rx1 as number;
-                minY1 = ry1 as number;
-              } else if ((rx1 as number) === minX1 && (ry1 as number) < minY1) {
-                minY1 = ry1 as number;
-              }
-              if ((rx2 as number) > maxX2) maxX2 = rx2 as number;
-              if ((ry2 as number) > maxY2) maxY2 = ry2 as number;
-              haveAny = true;
-            }
-          }
+            if (Number.isFinite(x2) && x2 > maxRight) maxRight = x2;
+            if (Number.isFinite(y2) && y2 > maxBottom) maxBottom = y2;
+          });
 
           if (
-            haveAny &&
-            Number.isFinite(minX1) &&
-            Number.isFinite(minY1) &&
-            Number.isFinite(maxX2) &&
-            Number.isFinite(maxY2) &&
-            maxX2 > minX1 &&
-            maxY2 > minY1
+            haveLeft &&
+            Number.isFinite(maxRight) &&
+            Number.isFinite(maxBottom) &&
+            maxRight > leftmostX &&
+            maxBottom > leftmostY
           ) {
-            const desc: string = typeof item?.description === "string" ? item.description : "";
+            const desc: string = typeof item?.description === 'string' ? item.description : '';
             const value = desc ? `Item ${idx + 1}: ${desc}` : `Item ${idx + 1}`;
-
-            // Push as BoundingBox for overlay consumption
             boxes.push({
-              x: minX1,
-              y: minY1,
-              width: maxX2 - minX1,
-              height: maxY2 - minY1,
+              x: leftmostX,
+              y: leftmostY,
+              width: maxRight - leftmostX,
+              height: maxBottom - leftmostY,
               label: `Item ${idx + 1} (row)`,
               value,
-              page: page?.page_number,
             } as any);
           }
         }
@@ -812,20 +802,13 @@ const toPxBox = (box: WideBox): WideBox => {
 
       const rawBoxes: any[] = Array.isArray(item?.bounding_box) ? item.bounding_box : [];
 
-      // Choose a single normalization base: prefer guessed source dims, otherwise PDF base viewport
-      const baseDims = getBaseDims();
-      const src = sourceDimsRef.current && sourceDimsRef.current.width && sourceDimsRef.current.height
-        ? sourceDimsRef.current
-        : baseDims;
-      const srcW = src.width || 1;
-      const srcH = src.height || 1;
+      // Parsed boxes using the same function as overlays
+      const parsedBoxes = rawBoxes.map((b) => normalizeBoxAny(b));
 
-      // Normalize directly from raw [x1,y1,x2,y2] or edge-objects
-      const unitEdges = rawBoxes
-        .map((rb) => robustUnitEdges(rb, { width: srcW, height: srcH }))
-        .filter((e): e is { x1: number; y1: number; x2: number; y2: number } => !!e);
+      // Normalized unit edges used by overlays/tooltips
+      const unitEdges = parsedBoxes.map((pb) => robustUnitEdges(pb));
 
-      // Pixel rectangles (base) and at current zoom
+      // Pixel rectangles (base) and at current zoom used for screen placement
       const pxRectsAtBase = unitEdges.map((e) => edgesToPxRect(e));
       const pxRectsAtZoom = pxRectsAtBase.map((r) => ({
         x: r.x * zoom,
@@ -834,76 +817,48 @@ const toPxBox = (box: WideBox): WideBox => {
         height: r.height * zoom,
       }));
 
-      // Merge using raw edges only, then normalize once
-      let minX1 = Number.POSITIVE_INFINITY;
-      let minY1 = Number.POSITIVE_INFINITY;
-      let maxX2 = Number.NEGATIVE_INFINITY;
-      let maxY2 = Number.NEGATIVE_INFINITY;
-      let any = false;
+      // Merged row box calculation for item (leftmost top-left + farthest bottom-right)
+      let leftmostX = Number.POSITIVE_INFINITY;
+      let leftmostY = Number.POSITIVE_INFINITY;
+      let haveLeft = false;
+      let maxRight = Number.NEGATIVE_INFINITY;
+      let maxBottom = Number.NEGATIVE_INFINITY;
 
-      for (const raw of rawBoxes) {
-        let rx1: number | undefined;
-        let ry1: number | undefined;
-        let rx2: number | undefined;
-        let ry2: number | undefined;
+      rawBoxes.forEach((b) => {
+        const nb = normalizeBoxAny(b);
+        if (!nb) return;
+        const x1 = nb.x;
+        const y1 = nb.y;
+        const x2 = nb.x + nb.width;
+        const y2 = nb.y + nb.height;
 
-        if (Array.isArray(raw) && raw.length >= 4) {
-          rx1 = Number(raw[0]);
-          ry1 = Number(raw[1]);
-          rx2 = Number(raw[2]);
-          ry2 = Number(raw[3]);
-        } else if (raw && typeof raw === "object") {
-          const r = raw as any;
-          rx1 = Number(r.x1 ?? r.left ?? r.minX);
-          ry1 = Number(r.y1 ?? r.top ?? r.minY);
-          rx2 = Number(r.x2 ?? r.right ?? r.maxX);
-          ry2 = Number(r.y2 ?? r.bottom ?? r.maxY);
+        if (Number.isFinite(x1) && x1 < leftmostX) {
+          leftmostX = x1;
+          leftmostY = Number.isFinite(y1) ? y1 : leftmostY;
+          haveLeft = true;
         }
+        if (Number.isFinite(x2) && x2 > maxRight) maxRight = x2;
+        if (Number.isFinite(y2) && y2 > maxBottom) maxBottom = y2;
+      });
 
-        if (
-          Number.isFinite(rx1) &&
-          Number.isFinite(ry1) &&
-          Number.isFinite(rx2) &&
-          Number.isFinite(ry2)
-        ) {
-          if ((rx2 as number) < (rx1 as number)) {
-            const t = rx1 as number;
-            rx1 = rx2 as number;
-            rx2 = t;
-          }
-          if ((ry2 as number) < (ry1 as number)) {
-            const t = ry1 as number;
-            ry1 = ry2 as number;
-            ry2 = t;
-          }
-          if ((rx1 as number) < minX1) {
-            minX1 = rx1 as number;
-            minY1 = ry1 as number;
-          } else if ((rx1 as number) === minX1 && (ry1 as number) < minY1) {
-            minY1 = ry1 as number;
-          }
-          if ((rx2 as number) > maxX2) maxX2 = rx2 as number;
-          if ((ry2 as number) > maxY2) maxY2 = ry2 as number;
-          any = true;
-        }
-      }
-
-      const mergedEdgesUnit =
-        any &&
-        Number.isFinite(minX1) &&
-        Number.isFinite(minY1) &&
-        Number.isFinite(maxX2) &&
-        Number.isFinite(maxY2) &&
-        maxX2 > minX1 &&
-        maxY2 > minY1
+      const merged =
+        haveLeft &&
+        Number.isFinite(maxRight) &&
+        Number.isFinite(maxBottom) &&
+        maxRight > leftmostX &&
+        maxBottom > leftmostY
           ? {
-              x1: minX1 / srcW,
-              y1: minY1 / srcH,
-              x2: maxX2 / srcW,
-              y2: maxY2 / srcH,
+              x: leftmostX,
+              y: leftmostY,
+              width: maxRight - leftmostX,
+              height: maxBottom - leftmostY,
             }
           : null;
 
+      // Convert merged to unit edges following the same pipeline the overlays use
+      const mergedEdgesUnit = merged
+        ? robustUnitEdges([merged.x, merged.y, merged.x + merged.width, merged.y + merged.height])
+        : null;
       const mergedPxRectAtBase = mergedEdgesUnit ? edgesToPxRect(mergedEdgesUnit) : null;
       const mergedPxRectAtZoom = mergedPxRectAtBase
         ? {
@@ -914,6 +869,7 @@ const toPxBox = (box: WideBox): WideBox => {
           }
         : null;
 
+      const baseDims = getBaseDims();
       const debug = {
         page_number: pageObj?.page_number ?? null,
         currentPage,
@@ -925,21 +881,24 @@ const toPxBox = (box: WideBox): WideBox => {
 
         itemIndex: 0,
         rawBoxes,
-        unitEdges,
+        parsedBoxes,
+        unitEdges, // These are the values shown in tooltips (x1,y1,x2,y2) and used for rendering
         pxRectsAtBase,
         pxRectsAtZoom,
 
         mergedRow: {
-          leftmostX: Number.isFinite(minX1) ? minX1 : null,
-          leftmostY: Number.isFinite(minY1) ? minY1 : null,
-          maxRight: Number.isFinite(maxX2) ? maxX2 : null,
-          maxBottom: Number.isFinite(maxY2) ? maxY2 : null,
+          leftmostX,
+          leftmostY,
+          maxRight,
+          maxBottom,
+          mergedBox: merged,
           mergedEdgesUnit,
           mergedPxRectAtBase,
           mergedPxRectAtZoom,
         },
       };
 
+      // Emit to console too for easy dev inspection
       console.debug("PDFViewer:item1-debug", debug);
       return debug;
     } catch (e) {
@@ -1277,12 +1236,10 @@ const toPxBox = (box: WideBox): WideBox => {
     if (!highlightBox || !containerRef.current) return;
 
     const maybeSwitchPageAndCenter = async () => {
-      const normDims = sourceDimsRef.current && sourceDimsRef.current.width && sourceDimsRef.current.height
-        ? sourceDimsRef.current
-        : getBaseDims();
-      const hbEdges = robustUnitEdges(highlightBox as any, normDims);
+      // Use the same normalized edges pipeline as overlays
+      const hbEdges = robustUnitEdges(highlightBox as any);
+      // Guard invalid or zero-size
       if (
-        !hbEdges ||
         !Number.isFinite(hbEdges.x1) ||
         !Number.isFinite(hbEdges.y1) ||
         !Number.isFinite(hbEdges.x2) ||
@@ -1494,19 +1451,10 @@ const toPxBox = (box: WideBox): WideBox => {
                 const text: string | undefined =
                   (box as any)?.value || (box as any)?.label || undefined;
 
-                const normDims = sourceDimsRef.current && sourceDimsRef.current.width && sourceDimsRef.current.height
-                  ? sourceDimsRef.current
-                  : getBaseDims();
-                const edges = robustUnitEdges(box, normDims);
-                if (
-                  !edges ||
-                  !Number.isFinite(edges.x1) ||
-                  !Number.isFinite(edges.y1) ||
-                  !Number.isFinite(edges.x2) ||
-                  !Number.isFinite(edges.y2) ||
-                  edges.x2 <= edges.x1 ||
-                  edges.y2 <= edges.y1
-                ) {
+                // Use robust normalized edges helper (handles arrays, width/height, and inverted X)
+                const edges = robustUnitEdges(box);
+                // Guard zero-size boxes
+                if (!Number.isFinite(edges.x1) || !Number.isFinite(edges.y1) || !Number.isFinite(edges.x2) || !Number.isFinite(edges.y2) || edges.x2 <= edges.x1 || edges.y2 <= edges.y1) {
                   return null;
                 }
                 const rect = edgesToPxRect(edges);
@@ -1543,11 +1491,14 @@ const toPxBox = (box: WideBox): WideBox => {
                           <div className="text-xs space-y-1">
                             <div className="font-medium">{String(text)}</div>
                             <div className="text-muted-foreground">
-                              {(() => {
-                                const fmt = (n: number) => n.toFixed(4);
-                                const pageStr = (box as any)?.page ? `, p:${(box as any).page}` : "";
-                                return `x1:${fmt(edges.x1)}, y1:${fmt(edges.y1)}, x2:${fmt(edges.x2)}, y2:${fmt(edges.y2)}${pageStr}`;
-                              })()}
+                              {
+                                (() => {
+                                  const fmt = (n: number) => n.toFixed(4);
+                                  const pageStr = (box as any)?.page ? `, p:${(box as any).page}` : "";
+                                  // Always display the JSON-normalized unit edges
+                                  return `x1:${fmt(edges.x1)}, y1:${fmt(edges.y1)}, x2:${fmt(edges.x2)}, y2:${fmt(edges.y2)}${pageStr}`;
+                                })()
+                              }
                             </div>
                           </div>
                         </TooltipContent>
@@ -1561,19 +1512,8 @@ const toPxBox = (box: WideBox): WideBox => {
 
           {/* Hover highlight overlay (normalized to base pixels) with dynamic color */}
           {highlightBox && baseReady && (() => {
-            const normDims = sourceDimsRef.current && sourceDimsRef.current.width && sourceDimsRef.current.height
-              ? sourceDimsRef.current
-              : getBaseDims();
-            const hbEdges = robustUnitEdges(highlightBox as any, normDims);
-            if (
-              !hbEdges ||
-              !Number.isFinite(hbEdges.x1) ||
-              !Number.isFinite(hbEdges.y1) ||
-              !Number.isFinite(hbEdges.x2) ||
-              !Number.isFinite(hbEdges.y2) ||
-              hbEdges.x2 <= hbEdges.x1 ||
-              hbEdges.y2 <= hbEdges.y1
-            ) {
+            const hbEdges = robustUnitEdges(highlightBox as any);
+            if (!Number.isFinite(hbEdges.x1) || !Number.isFinite(hbEdges.y1) || !Number.isFinite(hbEdges.x2) || !Number.isFinite(hbEdges.y2) || hbEdges.x2 <= hbEdges.x1 || hbEdges.y2 <= hbEdges.y1) {
               return null;
             }
             const hbRect = edgesToPxRect(hbEdges);

@@ -389,33 +389,17 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
                     }
 
                     if (found && Number.isFinite(minX1) && Number.isFinite(minY1) && Number.isFinite(maxX2) && Number.isFinite(maxY2) && maxX2 > minX1 && maxY2 > minY1) {
-                      // Pass edges directly; viewer will normalize once consistently.
-                      onFieldHover(
-                        {
-                          x1: minX1,
-                          y1: minY1,
-                          x2: maxX2,
-                          y2: maxY2,
-                          page: pageNum ?? page.page_number,
-                          color: SECTION_COLORS.items,
-                        } as any
-                      );
+                      // pass only valid finite numbers, avoiding width/height intermediates
+                      onFieldHover?.({
+                        x1: minX1,
+                        y1: minY1,
+                        x2: maxX2,
+                        y2: maxY2,
+                        page: page?.page_number,
+                      } as any);
                     } else {
-                      // Fallback to the first available box, using its edges directly
-                      const first = boxes.find((b) => !!edgesFromAnyRaw(b));
-                      const ed = edgesFromAnyRaw(first);
-                      if (ed) {
-                        onFieldHover(
-                          {
-                            x1: ed.x1,
-                            y1: ed.y1,
-                            x2: ed.x2,
-                            y2: ed.y2,
-                            page: ed.page ?? page.page_number,
-                            color: SECTION_COLORS.items,
-                          } as any
-                        );
-                      }
+                      // invalid edges -> clear hover
+                      onFieldHover?.(null);
                     }
                   }}
                   onMouseLeave={() => onFieldHover(null)}
