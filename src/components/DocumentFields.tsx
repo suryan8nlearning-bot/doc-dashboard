@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 import { ScrollArea } from './ui/scroll-area';
+import { Textarea } from './ui/textarea';
 import type { BoundingBox, DocumentData } from '@/lib/supabase';
 
 // Add: section color palette (hex for stable use in PDF overlay)
@@ -469,6 +470,16 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
             )}
           </div>
         )}
+        
+        {/* Mail Instruction */}
+        <div className="space-y-1.5 bg-card rounded-lg border p-2 overflow-visible">
+          <SectionHeader title="Mail Instruction" id="mail_instruction" color={SECTION_COLORS.other} />
+          {expandedSections.has('mail_instruction') && (
+            <div className="pt-1">
+              <Textarea placeholder="Enter mail instruction..." className="min-h-[90px]" />
+            </div>
+          )}
+        </div>
       </div>
     </ScrollArea>
   );
