@@ -81,6 +81,14 @@ export default function Landing() {
           .single();
         if (error) throw error;
 
+        // Debug: log all available fields
+        console.log('Available fields in row:', Object.keys(data || {}));
+        console.log('SAP-related fields:', Object.keys(data || {}).filter(k => k.toLowerCase().includes('sap')));
+
+        // Debug: log all available fields
+        console.log('Available fields in row:', Object.keys(data || {}));
+        console.log('SAP-related fields:', Object.keys(data || {}).filter(k => k.toLowerCase().includes('sap')));
+
         let current = '';
         const candidates = [data?.pdf_ai_output, data?.document_data];
         for (const c of candidates) {
@@ -94,39 +102,56 @@ export default function Landing() {
         // Prefer SAP JSON saved from the app first; if absent, fall back to SAP JSON field(s)
         const appSapCandidates: any[] = [
           data?.SAP_JSON_FROM_APP,
-          data?.SAP_JSON_from_APP, // Added mixed-case column name to support your schema
+          data?.SAP_JSON_from_APP,
+          data?.['SAP_JSON_from_APP'],
           data?.sap_json_from_app,
           data?.['SAP JSON from app'],
+          data?.['SAP JSON from APP'],
+          data?.['SAP JSON FROM APP'],
           data?.sap_json_app,
           data?.sap_app_json,
+          data?.SAP_JSON_APP,
+          data?.sapJsonFromApp,
+          data?.SapJsonFromApp,
         ];
         let appSap: any = undefined;
         for (const c of appSapCandidates) {
           if (c !== undefined && c !== null && String(c).trim() !== '') {
             appSap = c;
+            console.log('Found SAP data in app field:', typeof c === 'string' ? c.substring(0, 100) : JSON.stringify(c).substring(0, 100));
             break;
           }
+        }
+        if (!appSap) {
+          console.log('No SAP data found in app fields, trying fallback fields...');
         }
 
         // Fallback: load from "SAP JSON" field(s) if present
         let fallbackSap: any = undefined;
         if (appSap == null || String(appSap).trim() === '') {
+          console.log('No SAP data found in app fields, trying fallback fields...');
           const sapJsonFieldCandidates: any[] = [
             data?.SAP_JSON,
             data?.['SAP JSON'],
             data?.sap_json,
             data?.sapJson,
+            data?.sap_ai_output,
+            data?.SAP_AI_OUTPUT,
           ];
           for (const c of sapJsonFieldCandidates) {
             if (c !== undefined && c !== null && String(c).trim() !== '') {
               fallbackSap = c;
+              console.log('Found SAP data in fallback field:', typeof c === 'string' ? c.substring(0, 100) : JSON.stringify(c).substring(0, 100));
               break;
             }
           }
         }
 
         // Last resort: SAP_AI_OUTPUT
-        const sapSource = appSap ?? fallbackSap ?? data?.SAP_AI_OUTPUT;
+        const sapSource = appSap ?? fallbackSap ?? data?.SAP_AI_OUTPUT ?? data?.sap_ai_output;
+
+        console.log('Final SAP source selected:', sapSource ? (typeof sapSource === 'string' ? 'string' : 'object') : 'none (using default)');
+        console.log('SAP source value preview:', sapSource ? JSON.stringify(sapSource).substring(0, 200) : 'null');
 
         const sap =
           sapSource
@@ -134,6 +159,8 @@ export default function Landing() {
                 ? sapSource
                 : JSON.stringify(sapSource, null, 2))
             : '{\n  "output": {\n    "to_Item": []\n  }\n}';
+
+        console.log('SAP JSON length:', sap.length, 'First 200 chars:', sap.substring(0, 200));
 
         setRawJson(current);
         const orderedSap = (() => {
@@ -432,7 +459,7 @@ export default function Landing() {
       // Original card variant we removed earlier
       'div.text-card-foreground.rounded-xl.border.py-6.backdrop-blur.shadow-lg',
       // Attached variant provided (needs escaping for / and :)
-      'div.text-card-foreground.flex.flex-col.gap-6.rounded-xl.py-6.bg-card\\/60.supports-\\[backdrop-filter\\]\\:bg-card\\/60.backdrop-blur.shadow-xl.border.border-white\\/10',
+      'div.text-card-foreground.flex.flex-col.gap-6.rounded-xl.py-6.bg-card\\/60.supports-\\[backdrop-filter\\]:bg-card\\/60.backdrop-blur.shadow-xl.border.border-white\\/10',
     ];
     for (const sel of selectors) {
       try {
