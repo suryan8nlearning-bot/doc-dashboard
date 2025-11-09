@@ -196,6 +196,9 @@ const [ocrWords, setOcrWords] = useState<Array<{ x: number; y: number; w: number
 // Add: lightweight debug toggle for Item #1
 const [showDebug, setShowDebug] = useState(false);
 
+// NEW: coordinate origin toggle (false = top-left, true = bottom-left)
+const [originBL, setOriginBL] = useState(false);
+
 // Normalize any input into unit-space edges [x1,y1,x2,y2] using the PDF base viewport only
 function robustUnitEdges(input: any): { x1: number; y1: number; x2: number; y2: number } {
   const base = getBaseDims();
@@ -498,6 +501,14 @@ const toPxBox = (box: WideBox): WideBox => {
     color: (box as any).color,
   } as WideBox;
 };
+
+// NEW: wrapper that flips Y when input is bottom-left origin
+function unitEdgesFromInput(input: any): { x1: number; y1: number; x2: number; y2: number } {
+  const e = robustUnitEdges(input);
+  if (!originBL) return e; // top-left passthrough
+  // bottom-left -> top-left flip on normalized unit edges
+  return { x1: e.x1, y1: 1 - e.y2, x2: e.x2, y2: 1 - e.y1 };
+}
 
   const fetchPdfProxy = useAction(api.documents.fetchPdfProxy);
 
@@ -815,8 +826,8 @@ const toPxBox = (box: WideBox): WideBox => {
       // Parsed boxes using the same function as overlays
       const parsedBoxes = rawBoxes.map((b) => normalizeBoxAny(b));
 
-      // Normalized unit edges used by overlays/tooltips
-      const unitEdges = parsedBoxes.map((pb) => robustUnitEdges(pb));
+      // CHANGED: use unitEdgesFromInput so origin is respected
+      const unitEdges = parsedBoxes.map((pb) => unitEdgesFromInput(pb));
 
       // Pixel rectangles (base) and at current zoom used for screen placement
       const baseDimsForDebug = getBaseDims();
@@ -868,7 +879,7 @@ const toPxBox = (box: WideBox): WideBox => {
 
       // Convert merged to unit edges following the same pipeline the overlays use
       const mergedEdgesUnit = merged
-        ? robustUnitEdges([merged.x, merged.y, merged.x + merged.width, merged.y + merged.height])
+        ? unitEdgesFromInput([merged.x, merged.y, merged.x + merged.width, merged.y + merged.height])
         : null;
       const mergedPxRectAtBase = mergedEdgesUnit ? edgesToPxRect(mergedEdgesUnit, baseDimsForDebug) : null;
       const mergedPxRectAtZoom = mergedPxRectAtBase
@@ -881,6 +892,7 @@ const toPxBox = (box: WideBox): WideBox => {
         : null;
 
       const debug = {
+        // Keep a single, non-duplicated set of fields
         page_number: pageObj?.page_number ?? null,
         currentPage,
         totalPages,
@@ -892,7 +904,7 @@ const toPxBox = (box: WideBox): WideBox => {
         itemIndex: 0,
         rawBoxes,
         parsedBoxes,
-        unitEdges, // These are the values shown in tooltips (x1,y1,x2,y2) and used for rendering
+        unitEdges,
         pxRectsAtBase,
         pxRectsAtZoom,
 
@@ -906,16 +918,16 @@ const toPxBox = (box: WideBox): WideBox => {
           mergedPxRectAtBase,
           mergedPxRectAtZoom,
         },
+        coordOrigin: originBL ? "bottom-left" : "top-left",
       };
 
-      // Emit to console too for easy dev inspection
       console.debug("PDFViewer:item1-debug", debug);
       return debug;
     } catch (e) {
       console.warn("PDFViewer:item1-debug failed", e);
       return null;
     }
-  }, [documentData, currentPage, zoom, canvasSize.width, canvasSize.height, totalPages]);
+  }, [documentData, currentPage, zoom, canvasSize.width, canvasSize.height, totalPages, originBL]);
 
   // Fetch PDF via backend proxy; convert to ArrayBuffer for pdf.js
   useEffect(() => {
@@ -1145,7 +1157,7 @@ const toPxBox = (box: WideBox): WideBox => {
     };
   }, [fitToWidthOnResize, currentPage, canvasSize.width, zoom]);
 
-  // Auto-focus/zoom into key region once after load if focusBox exists
+  // Auto-focus/zoom into key region once after load if focusBox exists — respect origin
   useEffect(() => {
     if (didAutoFocusRef.current) return;
     if (!focusBox || !containerRef.current || !pdfArrayBuffer) return;
@@ -1160,20 +1172,22 @@ const toPxBox = (box: WideBox): WideBox => {
     didAutoFocusRef.current = true;
     const container = containerRef.current;
 
-    const pxBox = toPxBox(focusBox as WideBox);
-    // Enforce default 100% zoom, do not auto-zoom in
+    // Convert to unit edges with origin handling, then to base px rect
+    const fEdges = unitEdgesFromInput([ (focusBox as any).x, (focusBox as any).y, (focusBox as any).x + (focusBox as any).width, (focusBox as any).y + (focusBox as any).height ]);
+    const fRect = edgesToPxRect(fEdges, base);
+
     const desiredZoom = clampZoom(1);
     setZoom(desiredZoom);
     setTimeout(() => {
-      const cx = pxBox.x + pxBox.width / 2;
-      const cy = pxBox.y + pxBox.height / 2;
+      const cx = fRect.x + fRect.width / 2;
+      const cy = fRect.y + fRect.height / 2;
       container.scrollTo({
         left: cx * desiredZoom - container.clientWidth / 2,
         top: cy * desiredZoom - container.clientHeight / 2,
         behavior: 'smooth',
       });
     }, 180);
-  }, [focusBox, pdfArrayBuffer, canvasSize.width, canvasSize.height]);
+  }, [focusBox, pdfArrayBuffer, canvasSize.width, canvasSize.height, originBL]);
 
   // Remove overriding sourceDimsRef with guessed dimensions from boxes;
   // retain the effect but make it a no-op to avoid accidental overrides.
@@ -1241,14 +1255,12 @@ const toPxBox = (box: WideBox): WideBox => {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [currentPage, totalPages, zoom]); // extend deps for nav
 
-  // Keep hover-centering but do NOT auto-zoom when a box is highlighted
+  // Keep hover-centering when a box is highlighted — respect origin
   useEffect(() => {
     if (!highlightBox || !containerRef.current) return;
 
     const maybeSwitchPageAndCenter = async () => {
-      // Use the same normalized edges pipeline as overlays
-      const hbEdges = robustUnitEdges(highlightBox as any) as { x1: number; y1: number; x2: number; y2: number };
-      // Guard invalid or zero-size
+      const hbEdges = unitEdgesFromInput(highlightBox as any);
       if (
         !Number.isFinite(hbEdges.x1) ||
         !Number.isFinite(hbEdges.y1) ||
@@ -1292,8 +1304,7 @@ const toPxBox = (box: WideBox): WideBox => {
         return;
       }
 
-      // Project using the same edges->px rect as overlays
-      const hbRect = edgesToPxRect(hbEdges);
+      const hbRect = edgesToPxRect(hbEdges, base);
       const boxCenterX = hbRect.x + hbRect.width / 2;
       const boxCenterY = hbRect.y + hbRect.height / 2;
       container.scrollTo({
@@ -1304,7 +1315,7 @@ const toPxBox = (box: WideBox): WideBox => {
     };
 
     void maybeSwitchPageAndCenter();
-  }, [highlightBox, zoom, currentPage, canvasSize.width, canvasSize.height]);
+  }, [highlightBox, zoom, currentPage, canvasSize.width, canvasSize.height, originBL]);
 
   if (error) {
     return (
@@ -1413,6 +1424,18 @@ const toPxBox = (box: WideBox): WideBox => {
         >
           DBG
         </Button>
+
+        {/* NEW: origin toggle */}
+        <Button
+          variant="outline"
+          size="sm"
+          className="rounded-full h-7 px-2 text-[10px] font-mono ml-1"
+          onClick={() => setOriginBL((v) => !v)}
+          aria-label="Toggle coordinate origin"
+          title="Toggle coordinate origin (Top-Left vs Bottom-Left)"
+        >
+          {originBL ? "Origin: BL" : "Origin: TL"}
+        </Button>
       </div>
 
       {/* Scroll to top button inside PDF container */}
@@ -1461,10 +1484,12 @@ const toPxBox = (box: WideBox): WideBox => {
                 const text: string | undefined =
                   (box as any)?.value || (box as any)?.label || undefined;
 
-                // Use robust normalized edges helper (handles arrays, width/height, and inverted X)
-                const edges = robustUnitEdges(box) as { x1: number; y1: number; x2: number; y2: number };
-                // Guard zero-size boxes
-                if (!Number.isFinite(edges.x1) || !Number.isFinite(edges.y1) || !Number.isFinite(edges.x2) || !Number.isFinite(edges.y2) || edges.x2 <= edges.x1 || edges.y2 <= edges.y1) {
+                // CHANGED: respect origin
+                const edges = unitEdgesFromInput(box) as { x1: number; y1: number; x2: number; y2: number };
+                if (
+                  !Number.isFinite(edges.x1) || !Number.isFinite(edges.y1) || !Number.isFinite(edges.x2) || !Number.isFinite(edges.y2) ||
+                  edges.x2 <= edges.x1 || edges.y2 <= edges.y1
+                ) {
                   return null;
                 }
                 const rect = edgesToPxRect(edges, getBaseDims());
@@ -1522,8 +1547,12 @@ const toPxBox = (box: WideBox): WideBox => {
 
           {/* Hover highlight overlay (normalized to base pixels) with dynamic color */}
           {highlightBox && baseReady && (() => {
-            const hbEdges = robustUnitEdges(highlightBox as any) as { x1: number; y1: number; x2: number; y2: number };
-            if (!Number.isFinite(hbEdges.x1) || !Number.isFinite(hbEdges.y1) || !Number.isFinite(hbEdges.x2) || !Number.isFinite(hbEdges.y2) || hbEdges.x2 <= hbEdges.x1 || hbEdges.y2 <= hbEdges.y1) {
+            // CHANGED: respect origin
+            const hbEdges = unitEdgesFromInput(highlightBox as any) as { x1: number; y1: number; x2: number; y2: number };
+            if (
+              !Number.isFinite(hbEdges.x1) || !Number.isFinite(hbEdges.y1) || !Number.isFinite(hbEdges.x2) || !Number.isFinite(hbEdges.y2) ||
+              hbEdges.x2 <= hbEdges.x1 || hbEdges.y2 <= hbEdges.y1
+            ) {
               return null;
             }
             const hbRect = edgesToPxRect(hbEdges, getBaseDims());
