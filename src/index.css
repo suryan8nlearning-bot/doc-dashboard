@@ -275,6 +275,55 @@
   overflow-x: hidden !important;
 }
 
+/* Ensure SAP pane creates its own stacking context to avoid caret/cursor clipping */
+[data-sap-interactive] {
+  isolation: isolate;
+  /* Allow horizontal scroll for wide tables */
+  overflow-x: auto;
+  /* Prevent scroll jumps on layout changes */
+  scroll-behavior: auto;
+}
+
+/* Inputs/Textareas: keep caret visible and stable while editing */
+[data-sap-interactive] :is(input, textarea) {
+  caret-color: var(--foreground);
+  background-color: var(--background);
+  background-clip: padding-box;
+}
+
+/* On focus, raise above neighbors and force its own layer to prevent visual clipping */
+[data-sap-interactive] :is(input, textarea):focus {
+  position: relative;
+  z-index: 50;
+  outline: 2px solid var(--ring);
+  background-color: var(--background);
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+/* Allow horizontal overflow within nested ScrollArea containers for wide tables */
+[data-sap-interactive] .scroll-area,
+[data-sap-interactive] .scroll-area > div {
+  overflow-x: auto !important;
+}
+
+/* Tables: expand naturally for wide content; container provides horizontal scroll */
+[data-sap-interactive] table {
+  width: max-content;
+  min-width: 100%;
+  table-layout: auto;
+  border-collapse: separate;
+  border-spacing: 0.25rem;
+}
+
+/* Make sub-object toggles obviously clickable */
+[data-sap-interactive] details > summary,
+[data-sap-interactive] [data-radix-accordion-trigger],
+[data-sap-interactive] [role="button"] {
+  cursor: pointer;
+  pointer-events: auto !important;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
