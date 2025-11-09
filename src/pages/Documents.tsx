@@ -7,7 +7,6 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
-import { BulkActionsBar } from '@/components/dashboard/BulkActionsBar';
 import { DocumentsTable } from '@/components/dashboard/DocumentsTable';
 import {
   Dialog,
@@ -561,18 +560,7 @@ export default function Documents() {
             <h2 className="text-xl md:text-2xl font-bold tracking-tight">Documents</h2>
           </div>
 
-          <AnimatePresence>
-            {selectedDocuments.size > 0 && (
-              <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
-                <BulkActionsBar
-                  selectedIds={Array.from(selectedDocuments)}
-                  userEmail={user?.email || 'anonymous'}
-                  onProfile={() => navigate('/profile')}
-                  onClearSelection={() => setSelectedDocuments(new Set())}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {/* Removed BulkActionsBar above table per request */}
 
           {!hasSupabaseEnv ? (
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, ease: 'easeOut' }}>
