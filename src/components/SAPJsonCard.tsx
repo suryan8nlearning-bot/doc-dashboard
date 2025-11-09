@@ -49,8 +49,12 @@ export function SAPJsonCard({
   onShowMailHint,
   onHideMailHint,
 }: SAPJsonCardProps) {
-  const [collapsed, setCollapsed] = useState<boolean>(defaultCollapsed);
+  const [hoveredPath, setHoveredPath] = useState<string | null>(null);
+=======
+  const [collapsed, setCollapsed] = useState<boolean>(true);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set<string>());
+  const [hoveredPath, setHoveredPath] = useState<string | null>(null);
+=======
   const [hoveredPath, setHoveredPath] = useState<string | null>(null);
   const [editedValues, setEditedValues] = useState<Record<string, any>>({});
 
@@ -429,20 +433,23 @@ export function SAPJsonCard({
                               <input
                                 type={typeof val === "number" ? "number" : "text"}
                                 value={val === null || val === undefined ? "" : String(val)}
+=======
                                 onChange={(e) => {
                                   const newVal = typeof val === "number" ? parseFloat(e.target.value) || 0 : e.target.value;
                                   setEditedValues(prev => ({...prev, [fieldPath]: newVal}));
                                 }}
+                                onKeyDown={(e) => {
+                                  // Block WASD keys
+                                  if (['w', 'a', 's', 'd', 'W', 'A', 'S', 'D'].includes(e.key) && !e.ctrlKey && !e.metaKey) {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    return;
+                                  }
+                                  e.stopPropagation();
+                                }}
                                 className="w-full min-w-[80px] rounded border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
                                 onClick={(e) => e.stopPropagation()}
-                                onFocus={(e) => {
-                                  e.currentTarget.style.position = 'relative';
-                                  e.currentTarget.style.zIndex = '9999';
-                                }}
-                                onBlur={(e) => {
-                                  e.currentTarget.style.position = '';
-                                  e.currentTarget.style.zIndex = '';
-                                }}
+=======
                               />
                             )}
                           </div>
@@ -484,7 +491,10 @@ export function SAPJsonCard({
                             return (
                               <div key={key} className="border rounded-lg bg-card overflow-hidden">
                                 <button
-                                  onClick={() => togglePath(subObjPath)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    togglePath(subObjPath);
+                                  }}
                                   className="w-full px-3 py-2 flex items-center justify-between bg-muted/30 hover:bg-muted/50 transition-colors"
                                 >
                                   <div className="flex items-center gap-2">
@@ -794,8 +804,24 @@ export function SAPJsonCard({
 
   const sapRootRef = useRef<HTMLDivElement | null>(null);
 
+    const root = sapRootRef.current;
+=======
   const handleKeyDownCapture = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    // Block WASD keys
+    if (['w', 'a', 's', 'd', 'W', 'A', 'S', 'D'].includes(e.key)) {
+      const target = e.target as HTMLElement;
+      if (!(target instanceof HTMLInputElement) && !(target instanceof HTMLTextAreaElement)) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+    }
+    
+    // Handle Tab navigation
     if (e.key !== "Tab") return;
+    
+    const root = sapRootRef.current;
+=======
     const root = sapRootRef.current;
     if (!root) return;
 
