@@ -571,8 +571,8 @@ function showHoverPreview(rectPx: { x: number; y: number; width: number; height:
   const preview = previewCanvasRef.current as HTMLCanvasElement | null;
   if (!canvas || !preview) return;
 
-  // Crop region: expand by 25% around the box, then clamp to canvas bounds
-  const factor = 1.25;
+  // Crop region: expand by 50% around the box (25% on each side), then clamp to canvas bounds
+  const factor = 1.5; // 50% larger total area
   const srcX = rectPx.x * zoom;
   const srcY = rectPx.y * zoom;
   const srcW = rectPx.width * zoom;
@@ -588,11 +588,11 @@ function showHoverPreview(rectPx: { x: number; y: number; width: number; height:
   if (x + w > canvas.width) w = canvas.width - x;
   if (y + h > canvas.height) h = canvas.height - y;
 
-  // Target preview size capped for performance while preserving aspect ratio
-  const maxW = 280, maxH = 220;
+  // Target preview size - larger for better visibility
+  const maxW = 360, maxH = 280;
   const scale = Math.min(maxW / Math.max(1, w), maxH / Math.max(1, h));
-  const dstW = Math.max(120, Math.floor(w * scale));
-  const dstH = Math.max(90, Math.floor(h * scale));
+  const dstW = Math.max(180, Math.floor(w * scale));
+  const dstH = Math.max(140, Math.floor(h * scale));
 
   preview.width = dstW;
   preview.height = dstH;
@@ -604,10 +604,20 @@ function showHoverPreview(rectPx: { x: number; y: number; width: number; height:
   ctx.imageSmoothingQuality = "high";
   ctx.drawImage(canvas, x, y, w, h, 0, 0, dstW, dstH);
 
+  // Draw a subtle border around the original bounding box area within the preview
+  const boxXInPreview = ((srcX - x) / w) * dstW;
+  const boxYInPreview = ((srcY - y) / h) * dstH;
+  const boxWInPreview = (srcW / w) * dstW;
+  const boxHInPreview = (srcH / h) * dstH;
+  
+  ctx.strokeStyle = 'rgba(59, 130, 246, 0.8)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(boxXInPreview, boxYInPreview, boxWInPreview, boxHInPreview);
+
   setHoverPreview({
     visible: true,
-    left: (rectPx.x * zoom) + (rectPx.width * zoom) + 12,
-    top: Math.max(8, (rectPx.y * zoom) - 8),
+    left: (rectPx.x * zoom) + (rectPx.width * zoom) + 16,
+    top: Math.max(12, (rectPx.y * zoom) - 12),
     width: dstW,
     height: dstH,
   });
@@ -1344,6 +1354,16 @@ function hideHoverPreview() {
     // Using the PDF base viewport (scale=1) avoids mis-scaling when boxes don't span the full page.
   }, [sourceDims?.width, sourceDims?.height, currentPage]);
 
+  const [zoomBox, setZoomBox] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    page: number;
+    sourceBox: BoundingBox & { page?: number };
+  } | null>(null);
+  const [isHovering, setIsHovering] = useState(false);
+
   const handleZoomIn = () => {
     const newZoom = clampZoom(zoom + 0.25);
     updateZoom(newZoom);
@@ -1942,13 +1962,21 @@ function hideHoverPreview() {
       {/* Hover magnifier popup canvas */}
       {hoverPreview.visible && (
         <div
-          className="absolute z-[70] rounded-md border bg-background shadow-lg"
-          style={{ left: `${hoverPreview.left}px`, top: `${hoverPreview.top}px` }}
+          className="absolute z-[70] rounded-lg border-2 border-primary/60 bg-background shadow-2xl"
+          style={{ 
+            left: `${hoverPreview.left}px`, 
+            top: `${hoverPreview.top}px`,
+            pointerEvents: 'none'
+          }}
         >
           <canvas
             ref={previewCanvasRef}
+            className="rounded-lg"
             style={{ display: "block", width: `${hoverPreview.width}px`, height: `${hoverPreview.height}px` }}
           />
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 px-2 py-1 bg-background/90 border rounded text-[10px] font-medium">
+            Zoomed View (1.5×)
+          </div>
         </div>
       )}
 
