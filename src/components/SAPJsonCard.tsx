@@ -62,6 +62,8 @@ export function SAPJsonCard({
 }: SAPJsonCardProps) {
   const [collapsed, setCollapsed] = useState<boolean>(defaultCollapsed);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set<string>());
+  // Add: stabilize UI highlight on the right panel
+  const [hoveredPath, setHoveredPath] = useState<string | null>(null);
 
   // Add: build mapping from SAP leaf paths -> source bounding boxes
   const hoverMapping: SapToSourceMapping | null = useMemo(() => {
@@ -84,20 +86,26 @@ export function SAPJsonCard({
     });
   };
 
-  const handleRowEnter = (box: any /* BoundingBox & { page?: number } */) => {
+  // Replace: include path and set a local hovered path for stable UI highlight
+  const handleRowEnter = (pathId: string, box: any /* BoundingBox & { page?: number } */) => {
     if (clearHoverTimeoutRef.current) {
       clearTimeout(clearHoverTimeoutRef.current);
       clearHoverTimeoutRef.current = null;
     }
-    // Ensure a color is always present so PDF highlight uses consistent styling like document data
-    const colored = box && typeof box === "object" && !box.color ? { ...box, color: DEFAULT_HOVER_COLOR } : box;
+    setHoveredPath(pathId);
+    // Ensure a color is always present so PDF highlight uses consistent styling
+    const colored =
+      box && typeof box === "object" && !box.color ? { ...box, color: DEFAULT_HOVER_COLOR } : box;
     emitHover(colored);
   };
 
+  // Replace: slightly longer grace period and also clear local hovered path
   const handleRowLeave = () => {
     if (clearHoverTimeoutRef.current) clearTimeout(clearHoverTimeoutRef.current);
-    // Small delay swallows micro-leaves when moving between nested cells/children to avoid flicker
-    clearHoverTimeoutRef.current = window.setTimeout(() => emitHover(null), 80);
+    clearHoverTimeoutRef.current = window.setTimeout(() => {
+      setHoveredPath(null);
+      emitHover(null);
+    }, 140);
   };
 
   // Insert: derive order tree from backend schema and reordering helpers
@@ -343,18 +351,25 @@ export function SAPJsonCard({
       return (
         <div
           className="py-2.5 px-3 rounded-md"
-          style={indentStyle}
-          // Update: show mail hint when no mapping is found; otherwise highlight
+          // Add: steady visual highlight when active
+          style={{
+            ...indentStyle,
+            ...(hoveredPath === path
+              ? {
+                  backgroundColor: "rgba(79,70,229,0.08)",
+                  boxShadow: "inset 0 0 0 1px rgba(79,70,229,0.45)",
+                }
+              : {}),
+          }}
+          // Update: use path-aware hover enter; keep UI highlight even without mapping
           onMouseEnter={() => {
-            if (hoverMapping) {
-              const box = hoverMapping[path] || null;
-              if (box) {
-                onHideMailHint?.();
-                handleRowEnter(box as any);
-              } else {
-                handleRowLeave();
-                onShowMailHint?.();
-              }
+            const box = hoverMapping ? hoverMapping[path] || null : null;
+            if (box) {
+              onHideMailHint?.();
+              handleRowEnter(path, box as any);
+            } else {
+              setHoveredPath(path);
+              onShowMailHint?.();
             }
           }}
           onMouseLeave={() => {
@@ -454,22 +469,31 @@ export function SAPJsonCard({
                                 cell !== null && t === "object" && !Array.isArray(cell);
                               const cellKey = `${path}-row-${idx}-col-${col}`;
 
+                              const cellPath = `${path}.[${idx}].${col}`;
+
                               return (
                                 <TableCell
                                   key={`${path}-row-${idx}-col-${col}`}
                                   className="align-top truncate"
-                                  // Update: hover mapping for table cell; show mail hint if missing
+                                  // Add: steady visual highlight when active
+                                  style={
+                                    hoveredPath === cellPath
+                                      ? {
+                                          backgroundColor: "rgba(79,70,229,0.08)",
+                                          boxShadow:
+                                            "inset 0 0 0 1px rgba(79,70,229,0.45)",
+                                        }
+                                      : undefined
+                                  }
+                                  // Update: path-aware hover enter; keep UI highlight even without mapping
                                   onMouseEnter={() => {
-                                    const cellPath = `${path}.[${idx}].${col}`;
-                                    if (hoverMapping) {
-                                      const box = hoverMapping[cellPath] || null;
-                                      if (box) {
-                                        onHideMailHint?.();
-                                        handleRowEnter(box as any);
-                                      } else {
-                                        handleRowLeave();
-                                        onShowMailHint?.();
-                                      }
+                                    const box = hoverMapping ? hoverMapping[cellPath] || null : null;
+                                    if (box) {
+                                      onHideMailHint?.();
+                                      handleRowEnter(cellPath, box as any);
+                                    } else {
+                                      setHoveredPath(cellPath);
+                                      onShowMailHint?.();
                                     }
                                   }}
                                   onMouseLeave={() => {
