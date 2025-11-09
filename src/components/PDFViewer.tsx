@@ -819,7 +819,8 @@ const toPxBox = (box: WideBox): WideBox => {
       const unitEdges = parsedBoxes.map((pb) => robustUnitEdges(pb));
 
       // Pixel rectangles (base) and at current zoom used for screen placement
-      const pxRectsAtBase = unitEdges.map((e) => edgesToPxRect(e));
+      const baseDimsForDebug = getBaseDims();
+      const pxRectsAtBase = unitEdges.map((e) => edgesToPxRect(e, baseDimsForDebug));
       const pxRectsAtZoom = pxRectsAtBase.map((r) => ({
         x: r.x * zoom,
         y: r.y * zoom,
@@ -869,7 +870,7 @@ const toPxBox = (box: WideBox): WideBox => {
       const mergedEdgesUnit = merged
         ? robustUnitEdges([merged.x, merged.y, merged.x + merged.width, merged.y + merged.height])
         : null;
-      const mergedPxRectAtBase = mergedEdgesUnit ? edgesToPxRect(mergedEdgesUnit) : null;
+      const mergedPxRectAtBase = mergedEdgesUnit ? edgesToPxRect(mergedEdgesUnit, baseDimsForDebug) : null;
       const mergedPxRectAtZoom = mergedPxRectAtBase
         ? {
             x: mergedPxRectAtBase.x * zoom,
@@ -879,12 +880,11 @@ const toPxBox = (box: WideBox): WideBox => {
           }
         : null;
 
-      const baseDims = getBaseDims();
       const debug = {
         page_number: pageObj?.page_number ?? null,
         currentPage,
         totalPages,
-        baseDims,
+        baseDims: baseDimsForDebug,
         canvasSize,
         zoom,
         sourceDimsGuess: sourceDimsRef.current ?? null,
@@ -1467,7 +1467,7 @@ const toPxBox = (box: WideBox): WideBox => {
                 if (!Number.isFinite(edges.x1) || !Number.isFinite(edges.y1) || !Number.isFinite(edges.x2) || !Number.isFinite(edges.y2) || edges.x2 <= edges.x1 || edges.y2 <= edges.y1) {
                   return null;
                 }
-                const rect = edgesToPxRect(edges);
+                const rect = edgesToPxRect(edges, getBaseDims());
 
                 return (
                   <>
@@ -1526,7 +1526,7 @@ const toPxBox = (box: WideBox): WideBox => {
             if (!Number.isFinite(hbEdges.x1) || !Number.isFinite(hbEdges.y1) || !Number.isFinite(hbEdges.x2) || !Number.isFinite(hbEdges.y2) || hbEdges.x2 <= hbEdges.x1 || hbEdges.y2 <= hbEdges.y1) {
               return null;
             }
-            const hbRect = edgesToPxRect(hbEdges);
+            const hbRect = edgesToPxRect(hbEdges, getBaseDims());
 
             const withAlpha = (hex: string, alphaHex: string) => {
               if (typeof hex === 'string' && /^#([0-9a-f]{6})$/i.test(hex)) {
