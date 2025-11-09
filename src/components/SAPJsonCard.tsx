@@ -8,7 +8,6 @@ import { Copy, Download, ChevronDown, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import * as SalesSchema from "@/schemas/salesOrderCreate";
 import { motion } from "framer-motion";
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import type { DocumentData, BoundingBox } from "@/lib/supabase";
 import { createSapToSourceMapping, type SapToSourceMapping } from "@/lib/mapping";
 
@@ -19,26 +18,18 @@ type SAPJsonCardProps = {
   defaultCollapsed?: boolean;
   onHoverHighlight?: (box: (BoundingBox & { page?: number; color?: string }) | null) => void;
   sourceDocumentData?: DocumentData;
-  // New: hide built-in Card header when embedding inside another accordion
   hideHeader?: boolean;
-  // New: notify when a field has no mapping (to show "From Mail instruction" hint above PDF)
   onShowMailHint?: () => void;
   onHideMailHint?: () => void;
 };
 
-// Add: robust JSON extraction helpers to handle string inputs containing JSON
 function extractJsonFromText(input: string): any | null {
   const s = input.trim();
-
-  // 1) Try fenced blocks 
   const fenced = s.match(/(?:^|[^\\])\{\{(.+?)\}\}/s);
   if (fenced) return JSON.parse(fenced[1]);
-
-  // 2) Try JSON string
   try {
     return JSON.parse(s);
   } catch {
-    // 3) Try JSON string with escaped quotes
     try {
       return JSON.parse(s.replace(/"/g, '"'));
     } catch {
@@ -54,17 +45,14 @@ export function SAPJsonCard({
   defaultCollapsed = true,
   onHoverHighlight,
   sourceDocumentData,
-  // New props
   hideHeader,
   onShowMailHint,
   onHideMailHint,
 }: SAPJsonCardProps) {
   const [collapsed, setCollapsed] = useState<boolean>(defaultCollapsed);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set<string>());
-  // Add: stabilize UI highlight on the right panel
   const [hoveredPath, setHoveredPath] = useState<string | null>(null);
 
-  // Add: build mapping from SAP leaf paths -> source bounding boxes
   const hoverMapping: SapToSourceMapping | null = useMemo(() => {
     try {
       return sourceDocumentData ? createSapToSourceMapping(data, sourceDocumentData) : null;
@@ -73,11 +61,9 @@ export function SAPJsonCard({
     }
   }, [data, sourceDocumentData]);
 
-  // Add: unified, RAF-throttled hover emitters with a short debounce on clear to prevent flicker
-  const DEFAULT_HOVER_COLOR = "#3b82f6"; // unified with PDF/document highlight
+  const DEFAULT_HOVER_COLOR = "#3b82f6";
   const hoverRafRef = useRef<number | null>(null);
   const clearHoverTimeoutRef = useRef<number | null>(null);
-  // Add: RAF for hoveredPath updates to avoid rapid re-renders in dense tables
   const hoveredSetRafRef = useRef<number | null>(null);
 
   const emitHover = (payload: any | null) => {
@@ -87,8 +73,7 @@ export function SAPJsonCard({
     });
   };
 
-  // Replace: include path and set a local hovered path with RAF to stabilize in dense tables
-  const handleRowEnter = (pathId: string, box: any /* BoundingBox & { page?: number } */) => {
+  const handleRowEnter = (pathId: string, box: any) => {
     if (clearHoverTimeoutRef.current) {
       clearTimeout(clearHoverTimeoutRef.current);
       clearHoverTimeoutRef.current = null;
@@ -97,24 +82,20 @@ export function SAPJsonCard({
     hoveredSetRafRef.current = requestAnimationFrame(() => {
       setHoveredPath((prev: string | null) => (prev === pathId ? prev : pathId));
     });
-    // Ensure a color is always present so PDF highlight uses consistent styling
     const colored =
       box && typeof box === "object" && !box.color ? { ...box, color: DEFAULT_HOVER_COLOR } : box;
     emitHover(colored);
   };
 
-  // Replace: slightly longer grace period and also clear local hovered path
   const handleRowLeave = () => {
     if (clearHoverTimeoutRef.current) clearTimeout(clearHoverTimeoutRef.current);
     clearHoverTimeoutRef.current = window.setTimeout(() => {
       setHoveredPath(null);
       emitHover(null);
-    }, 220); // extended to further reduce flicker across dense cells
+    }, 220);
   };
 
-  // Insert: derive order tree from backend schema and reordering helpers
   const deriveOrderTreeFromSchema = (schemaMod: any): any => {
-    // Try common named exports first (include our actual export name)
     const candidates = [
       schemaMod?.fieldOrderTree,
       schemaMod?.orderTree,
@@ -129,10 +110,7 @@ export function SAPJsonCard({
 
     const visit = (node: any): any => {
       if (!node) return null;
-
-      // Handle JSON Schema (object/array) explicitly
       if (typeof node === "object") {
-        // Object schema: { type: "object", properties: {...} }
         if (node.type === "object" && node.properties && typeof node.properties === "object") {
           const out: Record<string, any> = {};
           for (const k of Object.keys(node.properties)) {
@@ -140,13 +118,10 @@ export function SAPJsonCard({
           }
           return out;
         }
-        // Array schema: { type: "array", items: {...} }
         if (node.type === "array" && node.items) {
           return [visit(node.items)];
         }
       }
-
-      // Heuristic for Zod: node._def.shape or node._def.shape()
       try {
         const def = (node as any)?._def;
         const shape = typeof def?.shape === "function" ? def.shape() : def?.shape;
@@ -155,22 +130,15 @@ export function SAPJsonCard({
           for (const k of Object.keys(shape)) out[k] = visit((shape as any)[k]);
           return out;
         }
-      } catch {
-        // ignore
-      }
-
-      // If plain object, use its keys order
+      } catch {}
       if (typeof node === "object" && !Array.isArray(node)) {
         const out: Record<string, any> = {};
         for (const k of Object.keys(node)) out[k] = visit((node as any)[k]);
         return out;
       }
-
-      // If array, use first element as schema for items
       if (Array.isArray(node)) {
         return node.length > 0 ? [visit(node[0])] : [];
       }
-
       return null;
     };
 
@@ -183,35 +151,27 @@ export function SAPJsonCard({
 
   const reorderByOrderTree = (value: any, orderTree: any): any => {
     if (!orderTree) return value;
-
     if (Array.isArray(value)) {
       const elemTree = Array.isArray(orderTree) ? orderTree[0] : orderTree;
       return value.map((v: any) => reorderByOrderTree(v, elemTree));
     }
-
     if (value !== null && typeof value === "object") {
       const ordered: Record<string, any> = {};
       const orderKeys = Array.isArray(orderTree) ? [] : Object.keys(orderTree ?? {});
       const seen = new Set<string>();
-
-      // Place keys that exist in the provided order first
       for (const k of orderKeys) {
         if (k in (value as any)) {
           ordered[k] = reorderByOrderTree((value as any)[k], (orderTree ?? {})[k]);
           seen.add(k);
         }
       }
-
-      // Append any extra keys that aren't in the schema order
       for (const k of Object.keys(value as any)) {
         if (!seen.has(k)) {
           ordered[k] = reorderByOrderTree((value as any)[k], undefined);
         }
       }
-
       return ordered;
     }
-
     return value;
   };
 
@@ -232,7 +192,6 @@ export function SAPJsonCard({
       }
       return JSON.stringify(data, null, 2);
     } catch {
-      // Not JSON-parsable string; show as-is
       return String(data);
     }
   }, [data, orderTree]);
@@ -247,7 +206,6 @@ export function SAPJsonCard({
     }
   }, [data]);
 
-  // Insert: derive a schema-ordered object for the tree view
   const ordered = useMemo(() => {
     if (!parsed || typeof parsed !== "object") return parsed;
     try {
@@ -257,7 +215,6 @@ export function SAPJsonCard({
     }
   }, [parsed, orderTree]);
 
-  // Add: helpers to compute a single "union" box for an item row (array of objects)
   function unionBoxes(
     boxes: Array<BoundingBox & { page?: number }>
   ): (BoundingBox & { page?: number }) | null {
@@ -288,7 +245,6 @@ export function SAPJsonCard({
     return out as BoundingBox & { page?: number };
   }
 
-  // Given a base array path and row index, gather all cell boxes and return one union box
   function getRowUnionBoxForArrayObject(
     basePath: string,
     rowIndex: number,
@@ -343,7 +299,6 @@ export function SAPJsonCard({
   const isObjectLike = (v: unknown) => v !== null && typeof v === "object";
   const isArr = (v: unknown): v is Array<any> => Array.isArray(v);
 
-  // Add: stable section colors + fallback palette for unknown keys
   const SAP_SECTION_COLORS: Record<string, string> = {
     metadata: "#10b981",
     header: "#10b981",
@@ -375,6 +330,156 @@ export function SAPJsonCard({
     return SAP_SECTION_COLORS[key] ?? FALLBACK_COLORS[hashKeyToIndex(key)];
   }
 
+  // NEW: Render array of objects as accordion items instead of table
+  const ArrayOfObjectsAccordion = ({
+    items,
+    basePath,
+    depth,
+  }: {
+    items: Array<Record<string, any>>;
+    basePath: string;
+    depth: number;
+  }) => {
+    return (
+      <div className="space-y-2">
+        {items.map((item, idx) => {
+          const itemPath = `${basePath}.[${idx}]`;
+          const itemKeys = Object.keys(item);
+          const itemBox = getRowUnionBoxForArrayObject(basePath, idx, itemKeys, hoverMapping);
+          const itemHasMapping = Boolean(itemBox);
+
+          return (
+            <Accordion
+              key={itemPath}
+              type="single"
+              collapsible
+              value={expanded.has(itemPath) ? itemPath : ""}
+              onValueChange={(val) => {
+                setExpanded((prev: Set<string>) => {
+                  const next = new Set(prev);
+                  if (val) next.add(itemPath);
+                  else next.delete(itemPath);
+                  return next;
+                });
+              }}
+            >
+              <AccordionItem value={itemPath} className="border rounded-lg">
+                <AccordionTrigger
+                  className="px-4 py-3 hover:bg-muted/50 transition-colors"
+                  style={{
+                    ...(hoveredPath === itemPath
+                      ? {
+                          backgroundColor: "rgba(59,130,246,0.08)",
+                          boxShadow: "inset 0 0 0 1px rgba(59,130,246,0.45)",
+                        }
+                      : {}),
+                  }}
+                  onMouseEnter={() => {
+                    if (itemBox) {
+                      onHideMailHint?.();
+                      handleRowEnter(itemPath, itemBox as any);
+                    } else {
+                      setHoveredPath(itemPath);
+                      onShowMailHint?.();
+                    }
+                  }}
+                  onMouseLeave={() => {
+                    handleRowLeave();
+                    onHideMailHint?.();
+                  }}
+                >
+                  <div className="flex items-center gap-3 w-full">
+                    <span
+                      className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${
+                        itemHasMapping ? "bg-emerald-500" : "bg-rose-500"
+                      }`}
+                      title={itemHasMapping ? "Source found" : "No source mapping"}
+                    />
+                    <span className="text-sm font-medium">Item {idx + 1}</span>
+                    {itemKeys.slice(0, 3).map((key) => {
+                      const val = item[key];
+                      if (val == null || typeof val === "object") return null;
+                      return (
+                        <span key={key} className="text-xs text-muted-foreground truncate">
+                          {key}: {String(val)}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                    {itemKeys.map((key) => {
+                      const val = item[key];
+                      const fieldPath = `${itemPath}.${key}`;
+                      const fieldBox = hoverMapping ? hoverMapping[fieldPath] || null : null;
+                      const fieldHasMapping = Boolean(fieldBox);
+
+                      if (val !== null && typeof val === "object") {
+                        return (
+                          <div key={key} className="col-span-full">
+                            <TreeNode label={key} value={val} path={fieldPath} depth={depth + 2} />
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div
+                          key={key}
+                          className="rounded-md border bg-card p-3"
+                          style={{
+                            ...(hoveredPath === fieldPath
+                              ? {
+                                  backgroundColor: "rgba(59,130,246,0.08)",
+                                  boxShadow: "inset 0 0 0 1px rgba(59,130,246,0.45)",
+                                }
+                              : {}),
+                          }}
+                          onMouseEnter={() => {
+                            if (fieldBox) {
+                              onHideMailHint?.();
+                              handleRowEnter(fieldPath, fieldBox as any);
+                            } else {
+                              setHoveredPath(fieldPath);
+                              onShowMailHint?.();
+                            }
+                          }}
+                          onMouseLeave={() => {
+                            handleRowLeave();
+                            onHideMailHint?.();
+                          }}
+                        >
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <span
+                              className={`h-2 w-2 rounded-full ${
+                                fieldHasMapping ? "bg-emerald-500" : "bg-rose-500"
+                              }`}
+                              title={fieldHasMapping ? "Source found" : "No source mapping"}
+                            />
+                            <label className="text-xs font-medium text-muted-foreground">{key}</label>
+                          </div>
+                          {typeof val === "boolean" ? (
+                            <input type="checkbox" defaultChecked={val} className="h-4 w-4" />
+                          ) : (
+                            <input
+                              type={typeof val === "number" ? "number" : "text"}
+                              defaultValue={val === null || val === undefined ? "" : String(val)}
+                              className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          );
+        })}
+      </div>
+    );
+  };
+
   const TreeNode = ({
     label,
     value,
@@ -389,19 +494,10 @@ export function SAPJsonCard({
     const isComplex = isObjectLike(value);
     const indentStyle = { paddingLeft: `${depth * 16}px` };
 
-    // Dynamically detect array of objects and gather ALL unique columns across all rows
     const isArrayOfObjects =
       Array.isArray(value) &&
       (value as any[]).length > 0 &&
       (value as any[]).every((row) => row && typeof row === "object" && !Array.isArray(row));
-
-    const tableColumns: Array<string> = isArrayOfObjects
-      ? Array.from(
-          new Set(
-            (value as Array<Record<string, any>>).flatMap((row) => Object.keys(row))
-          )
-        )
-      : [];
 
     if (!isComplex) {
       return (
@@ -411,12 +507,11 @@ export function SAPJsonCard({
             ...indentStyle,
             ...(hoveredPath === path
               ? {
-                  backgroundColor: "rgba(59,130,246,0.08)", // unified blue bg
-                  boxShadow: "inset 0 0 0 1px rgba(59,130,246,0.45)", // unified blue ring
+                  backgroundColor: "rgba(59,130,246,0.08)",
+                  boxShadow: "inset 0 0 0 1px rgba(59,130,246,0.45)",
                 }
               : {}),
           }}
-          // Update: use path-aware hover enter; keep UI highlight even without mapping
           onMouseEnter={() => {
             const box = hoverMapping ? hoverMapping[path] || null : null;
             if (box) {
@@ -434,7 +529,6 @@ export function SAPJsonCard({
           }}
         >
           <div className="grid grid-cols-[180px_minmax(0,1fr)] gap-3 items-center">
-            {/* Visual clue: dot shows if this field has a source mapping */}
             <div className="flex items-center gap-2">
               <span
                 className={`h-2.5 w-2.5 rounded-full inline-block ${
@@ -450,27 +544,7 @@ export function SAPJsonCard({
               <input
                 type={typeof value === "number" ? "number" : "text"}
                 defaultValue={value === null || value === undefined ? "" : String(value)}
-                className="w-full rounded-md border bg-background px-2 py-1 text-sm"
-                style={{
-                  position: "relative",
-                  zIndex: 1,
-                  caretColor: "var(--foreground)",
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.position = "relative";
-                  e.currentTarget.style.zIndex = "9999";
-                  e.currentTarget.style.isolation = "isolate";
-                  e.currentTarget.style.transform = "translateZ(0)";
-                  e.currentTarget.style.willChange = "transform";
-                  e.currentTarget.style.caretColor = "var(--foreground)";
-                  e.currentTarget.style.backgroundColor = "var(--background)";
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.zIndex = "1";
-                  e.currentTarget.style.isolation = "";
-                  e.currentTarget.style.transform = "";
-                  e.currentTarget.style.willChange = "";
-                }}
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               />
             )}
           </div>
@@ -483,8 +557,6 @@ export function SAPJsonCard({
       : Object.entries(value as Record<string, any>);
 
     const open = expanded.has(path);
-
-    // Determine when immediate children are all leaves to layout as a responsive 3-column grid
     const allImmediateLeaves = entries.every(([_, v]) => !isObjectLike(v));
 
     return (
@@ -526,201 +598,8 @@ export function SAPJsonCard({
               }
             >
               {isArrayOfObjects ? (
-                <div className="p-1">
-                  <Table className="table-fixed">
-                    <TableHeader>
-                      <TableRow>
-                        {tableColumns.map((col, colIdx) => (
-                          <TableHead
-                            key={col}
-                            className="text-xs font-medium text-muted-foreground whitespace-normal break-words"
-                          >
-                            {colIdx === 0 ? (
-                              <span className="inline-flex items-center gap-2">
-                                <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/40" />
-                                {col}
-                              </span>
-                            ) : (
-                              col
-                            )}
-                          </TableHead>
-                        ))}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {(value as Array<Record<string, any>>).map((row, idx) => {
-                        const rowPath = `${path}.[${idx}]`;
-                        const rowBox =
-                          getRowUnionBoxForArrayObject(path, idx, tableColumns, hoverMapping);
-                        const rowHasMapping = Boolean(rowBox);
-
-                        // Row-level hover to provide ONE visual and ONE PDF overlay
-                        const rowStyle =
-                          hoveredPath === rowPath
-                            ? {
-                                backgroundColor: "rgba(59,130,246,0.08)",
-                                boxShadow: "inset 0 0 0 1px rgba(59,130,246,0.45)",
-                              }
-                            : undefined;
-
-                        const mainRow = (
-                          <TableRow
-                            key={`${path}-row-${idx}`}
-                            style={rowStyle as any}
-                            onMouseEnter={() => {
-                              if (rowBox) {
-                                onHideMailHint?.();
-                                handleRowEnter(rowPath, rowBox as any);
-                              } else {
-                                setHoveredPath(rowPath);
-                                onShowMailHint?.();
-                              }
-                            }}
-                            onMouseLeave={() => {
-                              handleRowLeave();
-                              onHideMailHint?.();
-                            }}
-                          >
-                            {tableColumns.map((col, colIdx) => {
-                              const cell = row?.[col];
-                              const t = typeof cell;
-                              const isObjCell =
-                                cell !== null && t === "object" && !Array.isArray(cell);
-                              const cellKey = `${path}-row-${idx}-col-${col}`;
-
-                              return (
-                                <TableCell key={cellKey} className="align-top">
-                                  <div className="flex items-start gap-1">
-                                    {/* Show a single visual clue per ROW: render dot only in first column */}
-                                    {colIdx === 0 && (
-                                      <span
-                                        className={`mt-1 h-2.5 w-2.5 rounded-full inline-block ${
-                                          rowHasMapping ? "bg-emerald-500" : "bg-rose-500"
-                                        }`}
-                                        title={rowHasMapping ? "Source found" : "No source mapping"}
-                                      />
-                                    )}
-                                    {t === "boolean" ? (
-                                      <input type="checkbox" defaultChecked={Boolean(cell)} className="h-4 w-4" />
-                                    ) : isObjCell ? (
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          setExpanded((prev: Set<string>) => {
-                                            const next = new Set(prev);
-                                            if (next.has(cellKey)) next.delete(cellKey);
-                                            else next.add(cellKey);
-                                            return next;
-                                          })
-                                        }
-                                        className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-                                        aria-expanded={expanded.has(cellKey)}
-                                        aria-controls={`${cellKey}-expanded`}
-                                        title={`View ${col} details`}
-                                      >
-                                        {expanded.has(cellKey) ? (
-                                          <ChevronDown className="h-4 w-4" />
-                                        ) : (
-                                          <ChevronRight className="h-4 w-4" />
-                                        )}
-                                        <span className="truncate">{col}</span>
-                                      </button>
-                                    ) : (
-                                      <input
-                                        type={t === "number" ? "number" : "text"}
-                                        defaultValue={cell == null ? "" : String(cell)}
-                                        className="w-full rounded-md border bg-background px-2 py-1 text-sm"
-                                        style={{
-                                          position: "relative",
-                                          zIndex: 1,
-                                          caretColor: "var(--foreground)",
-                                        }}
-                                        onFocus={(e) => {
-                                          e.currentTarget.style.position = "relative";
-                                          e.currentTarget.style.zIndex = "9999";
-                                          e.currentTarget.style.isolation = "isolate";
-                                          e.currentTarget.style.transform = "translateZ(0)";
-                                          e.currentTarget.style.willChange = "transform";
-                                          e.currentTarget.style.caretColor = "var(--foreground)";
-                                          e.currentTarget.style.backgroundColor = "var(--background)";
-                                          // Force parent cell to allow overflow
-                                          const cell = e.currentTarget.closest("td");
-                                          if (cell instanceof HTMLElement) {
-                                            cell.style.overflow = "visible";
-                                            cell.style.position = "relative";
-                                            cell.style.zIndex = "9999";
-                                          }
-                                        }}
-                                        onBlur={(e) => {
-                                          e.currentTarget.style.zIndex = "1";
-                                          e.currentTarget.style.isolation = "";
-                                          e.currentTarget.style.transform = "";
-                                          e.currentTarget.style.willChange = "";
-                                          // Reset parent cell
-                                          const cell = e.currentTarget.closest("td");
-                                          if (cell instanceof HTMLElement) {
-                                            cell.style.overflow = "";
-                                            cell.style.position = "";
-                                            cell.style.zIndex = "";
-                                          }
-                                        }}
-                                      />
-                                    )}
-                                  </div>
-                                </TableCell>
-                              );
-                            })}
-                          </TableRow>
-                        );
-
-                        const extraRows = tableColumns
-                          .map((col) => {
-                            const cell = row?.[col];
-                            const isObjCell =
-                              cell !== null && typeof cell === "object" && !Array.isArray(cell);
-                            const cellKey = `${path}-row-${idx}-col-${col}`;
-                            if (!isObjCell || !expanded.has(cellKey)) return null;
-
-                            return (
-                              <TableRow key={`${cellKey}-expanded`}>
-                                <TableCell
-                                  id={`${cellKey}-expanded`}
-                                  colSpan={tableColumns.length}
-                                  className="bg-muted/30"
-                                >
-                                  <div className="p-2 space-y-2">
-                                    <div className="text-xs font-semibold text-muted-foreground">
-                                      {col} details
-                                    </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                                      {Object.entries(cell as Record<string, any>).map(([sk, sv]) => (
-                                        <div key={`${cellKey}-${sk}`} className="rounded-md border bg-card p-2">
-                                          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                                            {sk}
-                                          </div>
-                                          {sv !== null && typeof sv === "object" ? (
-                                            <pre className="m-0 mt-1 max-h-48 overflow-auto rounded bg-muted p-2 text-[11px] leading-relaxed">
-                                              {JSON.stringify(sv, null, 2)}
-                                            </pre>
-                                          ) : (
-                                            <div className="mt-1 text-sm break-words">
-                                              {sv == null ? "" : String(sv)}
-                                            </div>
-                                          )}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })
-                          .filter(Boolean) as React.ReactElement[];
-
-                        return [mainRow, ...extraRows];
-                      })}
-                    </TableBody>
-                  </Table>
+                <div className="col-span-full px-2">
+                  <ArrayOfObjectsAccordion items={value as Array<Record<string, any>>} basePath={path} depth={depth} />
                 </div>
               ) : (
                 entries.map(([k, v]) => (
@@ -734,13 +613,8 @@ export function SAPJsonCard({
     );
   };
 
-  // Add a flag to fully hide JSON utilities (copy/download) and raw JSON content
-  const showJsonTools = false;
-
-  // Add: root container ref to scope enhancements to the SAP pane only
   const sapRootRef = useRef<HTMLDivElement | null>(null);
 
-  // Add: Keyboard navigation inside SAP pane to keep Tab within cells (avoid jumping to header)
   const handleKeyDownCapture = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== "Tab") return;
     const root = sapRootRef.current;
@@ -748,7 +622,6 @@ export function SAPJsonCard({
 
     const focusables = Array.from(
       root.querySelectorAll<HTMLElement>(
-        // focusable controls inside SAP pane
         "input, textarea, select, button, [tabindex]:not([tabindex='-1'])"
       )
     ).filter((el) => !el.hasAttribute("disabled") && el.tabIndex !== -1 && el.offsetParent !== null);
@@ -758,7 +631,6 @@ export function SAPJsonCard({
     const active = document.activeElement as HTMLElement | null;
     const idx = active ? focusables.indexOf(active) : -1;
 
-    // Cycle within pane
     e.preventDefault();
     const nextIdx = e.shiftKey
       ? (idx <= 0 ? focusables.length - 1 : idx - 1)
@@ -767,27 +639,20 @@ export function SAPJsonCard({
     const target = focusables[nextIdx];
     if (target) {
       target.focus();
-      // Keep caret stable
       if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
         const len = target.value?.length ?? 0;
-        // place caret at end without selecting text
         try {
           target.setSelectionRange(len, len);
-        } catch {
-          // ignore for types that don't support selection
-        }
+        } catch {}
       }
     }
   }, []);
 
-  // Add: Enhance <details>/<summary> toggles for keyboard access and default-collapsed behavior
   useEffect(() => {
     const root = sapRootRef.current;
     if (!root) return;
 
     const detailsList: Array<HTMLDetailsElement> = Array.from(root.querySelectorAll("details"));
-
-    // Collapse all by default
     for (const d of detailsList) {
       d.open = false;
     }
@@ -802,7 +667,6 @@ export function SAPJsonCard({
       }
     };
 
-    // Make summaries keyboard-accessible and single-trigger styled
     summaries.forEach((s) => {
       s.setAttribute("tabindex", "0");
       s.setAttribute("role", "button");
@@ -818,12 +682,9 @@ export function SAPJsonCard({
     <div
       ref={sapRootRef}
       data-sap-interactive
-      // prevent accidental bubbling that can cause odd scroll/left-corner issues
       onPointerDownCapture={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
-      // keep Tab navigation within cells; prevents jumping to header
       onKeyDownCapture={handleKeyDownCapture}
-      // Ensure wrapping and proper layering in addition to global CSS
       className="relative isolation-auto overflow-x-auto"
     >
       <Card className={className}>
