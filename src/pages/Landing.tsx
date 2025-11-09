@@ -195,6 +195,7 @@ export default function Landing() {
   const loadRow = async () => {
     if (!docId || !hasSupabaseEnv) return;
     setIsRowLoading(true);
+    setDebugInfo(null);
     try {
       const idFilter = isNaN(Number(docId)) ? docId.trim() : Number(docId);
       const { data, error } = await supabase
@@ -204,8 +205,13 @@ export default function Landing() {
         .single();
       if (error) throw error;
 
-      console.log('🔍 Fetched row from Supabase:', data);
-      console.log('🔍 Available columns:', Object.keys(data || {}));
+      const allColumns = Object.keys(data || {});
+      setDebugInfo({
+        rowFound: !!data,
+        allColumns,
+        sapJsonFromApp: data?.['SAP_JSON_from_APP'],
+        sapJson: data?.['SAP JSON'],
+      });
 
       let sapSource: any = undefined;
       let sourceField: string = '';
@@ -222,7 +228,6 @@ export default function Landing() {
 
       try {
         if (!sapSource) {
-          console.warn('⚠️ No SAP data found in expected fields');
           setSapData({ output: {} });
           toast.info('No SAP data found in this document');
         } else {
@@ -387,6 +392,8 @@ export default function Landing() {
       setIsCreating(false);
     }
   };
+
+  const [debugInfo, setDebugInfo] = useState<any>(null);
 
   const handleFieldChange = (path: string[], value: any) => {
     setSapData((prev: any) => {
@@ -845,6 +852,16 @@ export default function Landing() {
                   )}
                 </div>
               </div>
+
+              {debugInfo && (
+                <div className="bg-muted/50 p-4 rounded-lg mb-4 text-xs space-y-2 border border-muted-foreground/20">
+                  <div className="font-semibold">Debug Info:</div>
+                  <div>Row Found: {debugInfo.rowFound ? '✓' : '✗'}</div>
+                  <div>All Columns: {debugInfo.allColumns.join(', ')}</div>
+                  <div>SAP_JSON_from_APP: {debugInfo.sapJsonFromApp ? (typeof debugInfo.sapJsonFromApp === 'string' ? `"${debugInfo.sapJsonFromApp.substring(0, 50)}..."` : '[Object]') : 'null'}</div>
+                  <div>SAP JSON: {debugInfo.sapJson ? (typeof debugInfo.sapJson === 'string' ? `"${debugInfo.sapJson.substring(0, 50)}..."` : '[Object]') : 'null'}</div>
+                </div>
+              )}
 
               {isRowLoading ? (
                 <div className="space-y-2 pt-1">
