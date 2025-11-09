@@ -2052,8 +2052,8 @@ export default function DocumentDetail() {
               {showSAP ? (
                 <ScrollArea className="h-full pr-1 overflow-y-auto no-scrollbar">
                   <SAPJsonCard
-  data={(doc as any)?.sap_json ?? (doc as any)?.sap ?? (doc as any)?.sap_data ?? (doc as any)?.sap_output ?? {}}
-/>
+                    data={(doc as any)?.sap_json ?? (doc as any)?.sap ?? (doc as any)?.sap_data ?? (doc as any)?.sap_output ?? {}}
+                  />
                 </ScrollArea>
               ) : (
                 <div className="text-sm text-muted-foreground">
@@ -2176,7 +2176,7 @@ export default function DocumentDetail() {
                                 <SAPJsonCard
                                   data={(doc as any)?.sap_json ?? (doc as any)?.sap ?? (doc as any)?.sap_data ?? (doc as any)?.sap_output ?? {}}
                                   className=""
-                                  defaultCollapsed={false}
+                                  // defaultCollapsed={false}  // Remove forcing expanded; use component default (collapsed)
                                   sourceDocumentData={doc.document_data}
                                   onHoverHighlight={(box) => setHighlightBox(box)}
                                 />

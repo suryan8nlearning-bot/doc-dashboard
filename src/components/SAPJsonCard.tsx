@@ -47,7 +47,7 @@ export function SAPJsonCard({
   data,
   title = "SAP Data",
   className,
-  defaultCollapsed = false,
+  defaultCollapsed = true,
   // Add: new props
   onHoverHighlight,
   sourceDocumentData,
@@ -523,6 +523,9 @@ export function SAPJsonCard({
     );
   };
 
+  // Add a flag to fully hide JSON utilities (copy/download) and raw JSON content
+  const showJsonTools = false;
+
   return (
     <Card className={className}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
@@ -540,19 +543,21 @@ export function SAPJsonCard({
           </Button>
           <CardTitle className="text-base">{title}</CardTitle>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="hidden" onClick={handleCopy} aria-label="Copy JSON">
-            <Copy className="h-4 w-4 mr-2" />
-            Copy
-          </Button>
-          <Button variant="outline" size="sm" className="hidden" onClick={handleDownload} aria-label="Download JSON">
-            <Download className="h-4 w-4 mr-2" />
-            Download
-          </Button>
-        </div>
+        {showJsonTools && (
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={handleCopy} aria-label="Copy JSON">
+              <Copy className="h-4 w-4 mr-2" />
+              Copy
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleDownload} aria-label="Download JSON">
+              <Download className="h-4 w-4 mr-2" />
+              Download
+            </Button>
+          </div>
+        )}
       </CardHeader>
 
-      {!collapsed && (
+      {!collapsed && showJsonTools && (
         <CardContent id="sap-json-content" className="pt-0">
           <ScrollArea className="h-64 w-full rounded-md border">
             {ordered && typeof ordered === "object" ? (
