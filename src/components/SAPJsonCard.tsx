@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import * as React from "react";
+import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -70,6 +71,34 @@ export function SAPJsonCard({
       return null;
     }
   }, [data, sourceDocumentData]);
+
+  // Add: unified, RAF-throttled hover emitters with a short debounce on clear to prevent flicker
+  const DEFAULT_HOVER_COLOR = "#4f46e5"; // indigo-like to match app theme
+  const hoverRafRef = useRef<number | null>(null);
+  const clearHoverTimeoutRef = useRef<number | null>(null);
+
+  const emitHover = (payload: any | null) => {
+    if (hoverRafRef.current) cancelAnimationFrame(hoverRafRef.current);
+    hoverRafRef.current = requestAnimationFrame(() => {
+      onHoverHighlight?.(payload);
+    });
+  };
+
+  const handleRowEnter = (box: any /* BoundingBox & { page?: number } */) => {
+    if (clearHoverTimeoutRef.current) {
+      clearTimeout(clearHoverTimeoutRef.current);
+      clearHoverTimeoutRef.current = null;
+    }
+    // Ensure a color is always present so PDF highlight uses consistent styling like document data
+    const colored = box && typeof box === "object" && !box.color ? { ...box, color: DEFAULT_HOVER_COLOR } : box;
+    emitHover(colored);
+  };
+
+  const handleRowLeave = () => {
+    if (clearHoverTimeoutRef.current) clearTimeout(clearHoverTimeoutRef.current);
+    // Small delay swallows micro-leaves when moving between nested cells/children to avoid flicker
+    clearHoverTimeoutRef.current = window.setTimeout(() => emitHover(null), 80);
+  };
 
   // Insert: derive order tree from backend schema and reordering helpers
   const deriveOrderTreeFromSchema = (schemaMod: any): any => {
@@ -321,15 +350,15 @@ export function SAPJsonCard({
               const box = hoverMapping[path] || null;
               if (box) {
                 onHideMailHint?.();
-                onHoverHighlight?.(box as any);
+                handleRowEnter(box as any);
               } else {
-                onHoverHighlight?.(null);
+                handleRowLeave();
                 onShowMailHint?.();
               }
             }
           }}
           onMouseLeave={() => {
-            onHoverHighlight?.(null);
+            handleRowLeave();
             onHideMailHint?.();
           }}
         >
@@ -436,15 +465,15 @@ export function SAPJsonCard({
                                       const box = hoverMapping[cellPath] || null;
                                       if (box) {
                                         onHideMailHint?.();
-                                        onHoverHighlight?.(box as any);
+                                        handleRowEnter(box as any);
                                       } else {
-                                        onHoverHighlight?.(null);
+                                        handleRowLeave();
                                         onShowMailHint?.();
                                       }
                                     }
                                   }}
                                   onMouseLeave={() => {
-                                    onHoverHighlight?.(null);
+                                    handleRowLeave();
                                     onHideMailHint?.();
                                   }}
                                 >
