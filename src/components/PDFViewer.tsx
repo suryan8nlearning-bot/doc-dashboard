@@ -196,21 +196,16 @@ const [ocrWords, setOcrWords] = useState<Array<{ x: number; y: number; w: number
 // Add: lightweight debug toggle for Item #1
 const [showDebug, setShowDebug] = useState(false);
 
-// Add: robust normalized edges helper that unifies arrays/objects and fixes inverted X
-/**
- * Normalize any input into unit-space edges [x1,y1,x2,y2] with a top-left origin.
- * Arrays are treated STRICTLY as edges: [x1, y1, x2, y2, (page?)].
- * Objects are parsed via normalizeBoxAny and then converted to edges.
- */
+// Normalize any input into unit-space edges [x1,y1,x2,y2] using the PDF base viewport only
 function robustUnitEdges(input: any): { x1: number; y1: number; x2: number; y2: number } {
   const base = getBaseDims();
   const zero = { x1: 0, y1: 0, x2: 0, y2: 0 };
   if (!input || !base.width || !base.height) return zero;
 
   const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
-  const src = sourceDimsRef.current;
-  const srcW = src?.width && src.width > 0 ? src.width : base.width;
-  const srcH = src?.height && src.height > 0 ? src.height : base.height;
+  // Force normalization to use the PDF base viewport (scale=1) — never use guessed source dims
+  const srcW = base.width;
+  const srcH = base.height;
 
   // Arrays: ALWAYS interpret as [x1, y1, x2, y2]
   if (Array.isArray(input) && input.length >= 4) {
@@ -257,7 +252,10 @@ function robustUnitEdges(input: any): { x1: number; y1: number; x2: number; y2: 
       let ux2 = alreadyUnit ? x2 : x2 / srcW;
       let uy2 = alreadyUnit ? y2 : y2 / srcH;
 
-      ux1 = clamp01(ux1); uy1 = clamp01(uy1); ux2 = clamp01(ux2); uy2 = clamp01(uy2);
+      ux1 = Math.max(0, Math.min(1, ux1));
+      uy1 = Math.max(0, Math.min(1, uy1));
+      ux2 = Math.max(0, Math.min(1, ux2));
+      uy2 = Math.max(0, Math.min(1, uy2));
       if (ux2 <= ux1 || uy2 <= uy1) return zero;
       return { x1: ux1, y1: uy1, x2: ux2, y2: uy2 };
     }
@@ -280,9 +278,12 @@ function robustUnitEdges(input: any): { x1: number; y1: number; x2: number; y2: 
   if (x2u < x1u) [x1u, x2u] = [x2u, x1u];
   if (y2u < y1u) [y1u, y2u] = [y2u, y1u];
 
-  x1u = clamp01(x1u); y1u = clamp01(y1u); x2u = clamp01(x2u); y2u = clamp01(y2u);
+  x1u = Math.max(0, Math.min(1, x1u));
+  y1u = Math.max(0, Math.min(1, y1u));
+  x2u = Math.max(0, Math.min(1, x2u));
+  y2u = Math.max(0, Math.min(1, y2u));
   if (x2u <= x1u || y2u <= y1u) return zero;
-  return { x1: x1u, y1: y1u, x2: x2u, y2: x2u };
+  return { x1: x1u, y1: y1u, x2: x2u, y2: y2u };
 }
 
 // Add: normalized edges (x1,y1,x2,y2) helpers and projection using base viewport
@@ -385,7 +386,7 @@ const recomputeOriginGuess = () => {
   originBottomLeftRef.current = false;
 };
 
-// Returns a normalized (0..1) top-left origin box for a given input box
+// Returns a normalized (0..1) top-left origin box for a given input box using PDF base only
 const toUnitBoxTopLeft = (
   box: WideBox
 ): { x: number; y: number; width: number; height: number } => {
@@ -414,9 +415,9 @@ const toUnitBoxTopLeft = (
     box.width <= 1 &&
     box.height <= 1;
 
-  const src = sourceDimsRef.current;
-  const srcW = src?.width && src.width > 0 ? src.width : base.width;
-  const srcH = src?.height && src.height > 0 ? src.height : base.height;
+  // Force base viewport as the source space
+  const srcW = base.width;
+  const srcH = base.height;
 
   const normX = isNormalized ? box.x : box.x / srcW;
   const normW = isNormalized ? box.width : box.width / srcW;
@@ -425,10 +426,10 @@ const toUnitBoxTopLeft = (
   let normH: number;
   if (isNormalized) {
     normH = box.height;
-    normY = box.y; // no inversion
+    normY = box.y;
   } else {
     normH = box.height / srcH;
-    normY = box.y / srcH; // no inversion
+    normY = box.y / srcH;
   }
 
   const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
@@ -440,7 +441,7 @@ const toUnitBoxTopLeft = (
   };
 };
 
-// Project to pixels from normalized top-left origin (no inversion)
+// Project to pixels from normalized top-left origin using PDF base only
 const toPxBox = (box: WideBox): WideBox => {
   if (
     box == null ||
@@ -465,9 +466,9 @@ const toPxBox = (box: WideBox): WideBox => {
     box.width <= 1 &&
     box.height <= 1;
 
-  const src = sourceDimsRef.current;
-  const srcW = src?.width && src.width > 0 ? src.width : base.width;
-  const srcH = src?.height && src.height > 0 ? src.height : base.height;
+  // Force base viewport as the source space
+  const srcW = base.width;
+  const srcH = base.height;
 
   const normX = isNormalized ? box.x : box.x / srcW;
   const normW = isNormalized ? box.width : box.width / srcW;
@@ -476,10 +477,10 @@ const toPxBox = (box: WideBox): WideBox => {
   let normH: number;
   if (isNormalized) {
     normH = box.height;
-    normY = box.y; // no inversion
+    normY = box.y;
   } else {
     normH = box.height / srcH;
-    normY = box.y / srcH; // no inversion
+    normY = box.y / srcH;
   }
 
   const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
@@ -818,7 +819,7 @@ const toPxBox = (box: WideBox): WideBox => {
       const unitEdges = parsedBoxes.map((pb) => robustUnitEdges(pb));
 
       // Pixel rectangles (base) and at current zoom used for screen placement
-      const pxRectsAtBase = unitEdges.map((e) => edgesToPxRect(e, getBaseDims()));
+      const pxRectsAtBase = unitEdges.map((e) => edgesToPxRect(e));
       const pxRectsAtZoom = pxRectsAtBase.map((r) => ({
         x: r.x * zoom,
         y: r.y * zoom,
@@ -868,7 +869,7 @@ const toPxBox = (box: WideBox): WideBox => {
       const mergedEdgesUnit = merged
         ? robustUnitEdges([merged.x, merged.y, merged.x + merged.width, merged.y + merged.height])
         : null;
-      const mergedPxRectAtBase = mergedEdgesUnit ? edgesToPxRect(mergedEdgesUnit, getBaseDims()) : null;
+      const mergedPxRectAtBase = mergedEdgesUnit ? edgesToPxRect(mergedEdgesUnit) : null;
       const mergedPxRectAtZoom = mergedPxRectAtBase
         ? {
             x: mergedPxRectAtBase.x * zoom,
@@ -1292,7 +1293,7 @@ const toPxBox = (box: WideBox): WideBox => {
       }
 
       // Project using the same edges->px rect as overlays
-      const hbRect = edgesToPxRect(hbEdges, getBaseDims());
+      const hbRect = edgesToPxRect(hbEdges);
       const boxCenterX = hbRect.x + hbRect.width / 2;
       const boxCenterY = hbRect.y + hbRect.height / 2;
       container.scrollTo({
@@ -1466,7 +1467,7 @@ const toPxBox = (box: WideBox): WideBox => {
                 if (!Number.isFinite(edges.x1) || !Number.isFinite(edges.y1) || !Number.isFinite(edges.x2) || !Number.isFinite(edges.y2) || edges.x2 <= edges.x1 || edges.y2 <= edges.y1) {
                   return null;
                 }
-                const rect = edgesToPxRect(edges, getBaseDims());
+                const rect = edgesToPxRect(edges);
 
                 return (
                   <>
@@ -1525,7 +1526,7 @@ const toPxBox = (box: WideBox): WideBox => {
             if (!Number.isFinite(hbEdges.x1) || !Number.isFinite(hbEdges.y1) || !Number.isFinite(hbEdges.x2) || !Number.isFinite(hbEdges.y2) || hbEdges.x2 <= hbEdges.x1 || hbEdges.y2 <= hbEdges.y1) {
               return null;
             }
-            const hbRect = edgesToPxRect(hbEdges, getBaseDims());
+            const hbRect = edgesToPxRect(hbEdges);
 
             const withAlpha = (hex: string, alphaHex: string) => {
               if (typeof hex === 'string' && /^#([0-9a-f]{6})$/i.test(hex)) {
