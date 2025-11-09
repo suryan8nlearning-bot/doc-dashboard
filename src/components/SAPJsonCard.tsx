@@ -258,6 +258,54 @@ export function SAPJsonCard({
     }
   }, [parsed, orderTree]);
 
+  // Add: helpers to compute a single "union" box for an item row (array of objects)
+  function unionBoxes(
+    boxes: Array<BoundingBox & { page?: number }>
+  ): (BoundingBox & { page?: number }) | null {
+    if (!boxes.length) return null;
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity;
+    let page = boxes[0]?.page;
+    for (const b of boxes) {
+      const x1 = (b as any).x ?? (b as any).left ?? 0;
+      const y1 = (b as any).y ?? (b as any).top ?? 0;
+      const x2 = x1 + ((b as any).width ?? (b as any).w ?? 0);
+      const y2 = y1 + ((b as any).height ?? (b as any).h ?? 0);
+      minX = Math.min(minX, x1);
+      minY = Math.min(minY, y1);
+      maxX = Math.max(maxX, x2);
+      maxY = Math.max(maxY, y2);
+      if (page == null && (b as any).page != null) page = (b as any).page;
+    }
+    const out: any = {
+      x: minX,
+      y: minY,
+      width: Math.max(0, maxX - minX),
+      height: Math.max(0, maxY - minY),
+    };
+    if (page != null) out.page = page;
+    return out as BoundingBox & { page?: number };
+  }
+
+  // Given a base array path and row index, gather all cell boxes and return one union box
+  function getRowUnionBoxForArrayObject(
+    basePath: string,
+    rowIndex: number,
+    columns: Array<string>,
+    mapping: SapToSourceMapping | null
+  ): (BoundingBox & { page?: number }) | null {
+    if (!mapping) return null;
+    const boxes: Array<BoundingBox & { page?: number }> = [];
+    for (const col of columns) {
+      const p = `${basePath}.[${rowIndex}].${col}`;
+      const b = mapping[p] as any;
+      if (b) boxes.push(b);
+    }
+    return unionBoxes(boxes);
+  }
+
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(pretty);
@@ -356,7 +404,6 @@ export function SAPJsonCard({
       return (
         <div
           className="py-2.5 px-3 rounded-md"
-          // Add: steady visual highlight when active
           style={{
             ...indentStyle,
             ...(hoveredPath === path
@@ -448,10 +495,7 @@ export function SAPJsonCard({
             )}
           </AccordionTrigger>
           <AccordionContent className="mt-0.5 pl-0">
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              transition={{ duration: 0.18, ease: "easeOut" }}
+            <div
               className={
                 allImmediateLeaves
                   ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 pt-1"
@@ -463,72 +507,76 @@ export function SAPJsonCard({
                   <Table className="table-fixed">
                     <TableHeader>
                       <TableRow>
-                        {tableColumns.map((col) => (
+                        {tableColumns.map((col, colIdx) => (
                           <TableHead
                             key={col}
                             className="text-xs font-medium text-muted-foreground whitespace-normal break-words"
                           >
-                            {col}
+                            {colIdx === 0 ? (
+                              <span className="inline-flex items-center gap-2">
+                                <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/40" />
+                                {col}
+                              </span>
+                            ) : (
+                              col
+                            )}
                           </TableHead>
                         ))}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {(value as Array<Record<string, any>>).map((row, idx) => {
+                        const rowPath = `${path}.[${idx}]`;
+                        const rowBox =
+                          getRowUnionBoxForArrayObject(path, idx, tableColumns, hoverMapping);
+                        const rowHasMapping = Boolean(rowBox);
+
+                        // Row-level hover to provide ONE visual and ONE PDF overlay
+                        const rowStyle =
+                          hoveredPath === rowPath
+                            ? {
+                                backgroundColor: "rgba(59,130,246,0.08)",
+                                boxShadow: "inset 0 0 0 1px rgba(59,130,246,0.45)",
+                              }
+                            : undefined;
+
                         const mainRow = (
-                          <TableRow key={`${path}-row-${idx}`}>
-                            {tableColumns.map((col) => {
+                          <TableRow
+                            key={`${path}-row-${idx}`}
+                            style={rowStyle as any}
+                            onMouseEnter={() => {
+                              if (rowBox) {
+                                onHideMailHint?.();
+                                handleRowEnter(rowPath, rowBox as any);
+                              } else {
+                                setHoveredPath(rowPath);
+                                onShowMailHint?.();
+                              }
+                            }}
+                            onMouseLeave={() => {
+                              handleRowLeave();
+                              onHideMailHint?.();
+                            }}
+                          >
+                            {tableColumns.map((col, colIdx) => {
                               const cell = row?.[col];
                               const t = typeof cell;
                               const isObjCell =
                                 cell !== null && t === "object" && !Array.isArray(cell);
                               const cellKey = `${path}-row-${idx}-col-${col}`;
 
-                              const cellPath = `${path}.[${idx}].${col}`;
-
                               return (
-                                <TableCell
-                                  key={`${path}-row-${idx}-col-${col}`}
-                                  className="align-top truncate"
-                                  // Add: steady visual highlight when active
-                                  style={
-                                    hoveredPath === cellPath
-                                      ? {
-                                          backgroundColor: "rgba(59,130,246,0.08)",
-                                          boxShadow: "inset 0 0 0 1px rgba(59,130,246,0.45)",
-                                        }
-                                      : undefined
-                                  }
-                                  // Update: path-aware hover enter; keep UI highlight even without mapping
-                                  onMouseEnter={() => {
-                                    const box = hoverMapping ? hoverMapping[cellPath] || null : null;
-                                    if (box) {
-                                      onHideMailHint?.();
-                                      handleRowEnter(cellPath, box as any);
-                                    } else {
-                                      if (hoveredSetRafRef.current) cancelAnimationFrame(hoveredSetRafRef.current);
-                                      hoveredSetRafRef.current = requestAnimationFrame(() => setHoveredPath(cellPath));
-                                      onShowMailHint?.();
-                                    }
-                                  }}
-                                  onMouseLeave={() => {
-                                    handleRowLeave();
-                                    onHideMailHint?.();
-                                  }}
-                                >
+                                <TableCell key={cellKey} className="align-top">
                                   <div className="flex items-start gap-1">
-                                    <span
-                                      className={`mt-1 h-2 w-2 rounded-full inline-block ${
-                                        hoverMapping && hoverMapping[cellPath]
-                                          ? "bg-emerald-500"
-                                          : "bg-rose-500"
-                                      }`}
-                                      title={
-                                        hoverMapping && hoverMapping[cellPath]
-                                          ? "Source found"
-                                          : "No source mapping"
-                                      }
-                                    />
+                                    {/* Show a single visual clue per ROW: render dot only in first column */}
+                                    {colIdx === 0 && (
+                                      <span
+                                        className={`mt-1 h-2.5 w-2.5 rounded-full inline-block ${
+                                          rowHasMapping ? "bg-emerald-500" : "bg-rose-500"
+                                        }`}
+                                        title={rowHasMapping ? "Source found" : "No source mapping"}
+                                      />
+                                    )}
                                     {t === "boolean" ? (
                                       <input type="checkbox" defaultChecked={Boolean(cell)} className="h-4 w-4" />
                                     ) : isObjCell ? (
@@ -622,7 +670,7 @@ export function SAPJsonCard({
                   <TreeNode key={`${path}.${k}`} label={k} value={v} path={`${path}.${k}`} depth={depth + 1} />
                 ))
               )}
-            </motion.div>
+            </div>
           </AccordionContent>
         </AccordionItem>
       </Accordion>
