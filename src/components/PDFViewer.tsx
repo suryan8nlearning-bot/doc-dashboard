@@ -197,7 +197,8 @@ const [ocrWords, setOcrWords] = useState<Array<{ x: number; y: number; w: number
 const [showDebug, setShowDebug] = useState(false);
 
 // NEW: coordinate origin toggle (false = top-left, true = bottom-left)
-const [originBL, setOriginBL] = useState(false);
+// Origin is fixed to top-left. No toggle required.
+const ORIGIN = "top-left" as const;
 
 // Normalize any input into unit-space edges [x1,y1,x2,y2] using the PDF base viewport only
 function robustUnitEdges(input: any): { x1: number; y1: number; x2: number; y2: number } {
@@ -502,12 +503,9 @@ const toPxBox = (box: WideBox): WideBox => {
   } as WideBox;
 };
 
-// NEW: wrapper that flips Y when input is bottom-left origin
+// NEW: arrays/edges are already top-left; no flipping.
 function unitEdgesFromInput(input: any): { x1: number; y1: number; x2: number; y2: number } {
-  const e = robustUnitEdges(input);
-  if (!originBL) return e; // top-left passthrough
-  // bottom-left -> top-left flip on normalized unit edges
-  return { x1: e.x1, y1: 1 - e.y2, x2: e.x2, y2: 1 - e.y1 };
+  return robustUnitEdges(input);
 }
 
   const fetchPdfProxy = useAction(api.documents.fetchPdfProxy);
@@ -918,7 +916,7 @@ function unitEdgesFromInput(input: any): { x1: number; y1: number; x2: number; y
           mergedPxRectAtBase,
           mergedPxRectAtZoom,
         },
-        coordOrigin: originBL ? "bottom-left" : "top-left",
+        coordOrigin: "top-left",
       };
 
       console.debug("PDFViewer:item1-debug", debug);
@@ -927,7 +925,7 @@ function unitEdgesFromInput(input: any): { x1: number; y1: number; x2: number; y
       console.warn("PDFViewer:item1-debug failed", e);
       return null;
     }
-  }, [documentData, currentPage, zoom, canvasSize.width, canvasSize.height, totalPages, originBL]);
+  }, [documentData, currentPage, zoom, canvasSize.width, canvasSize.height, totalPages]);
 
   // Fetch PDF via backend proxy; convert to ArrayBuffer for pdf.js
   useEffect(() => {
@@ -1187,7 +1185,7 @@ function unitEdgesFromInput(input: any): { x1: number; y1: number; x2: number; y
         behavior: 'smooth',
       });
     }, 180);
-  }, [focusBox, pdfArrayBuffer, canvasSize.width, canvasSize.height, originBL]);
+  }, [focusBox, pdfArrayBuffer, canvasSize.width, canvasSize.height]);
 
   // Remove overriding sourceDimsRef with guessed dimensions from boxes;
   // retain the effect but make it a no-op to avoid accidental overrides.
@@ -1315,7 +1313,7 @@ function unitEdgesFromInput(input: any): { x1: number; y1: number; x2: number; y
     };
 
     void maybeSwitchPageAndCenter();
-  }, [highlightBox, zoom, currentPage, canvasSize.width, canvasSize.height, originBL]);
+  }, [highlightBox, zoom, currentPage, canvasSize.width, canvasSize.height]);
 
   if (error) {
     return (
@@ -1425,17 +1423,14 @@ function unitEdgesFromInput(input: any): { x1: number; y1: number; x2: number; y
           DBG
         </Button>
 
-        {/* NEW: origin toggle */}
-        <Button
-          variant="outline"
-          size="sm"
-          className="rounded-full h-7 px-2 text-[10px] font-mono ml-1"
-          onClick={() => setOriginBL((v) => !v)}
-          aria-label="Toggle coordinate origin"
-          title="Toggle coordinate origin (Top-Left vs Bottom-Left)"
+        {/* Origin fixed label */}
+        <span
+          className="rounded-full h-7 px-2 text-[10px] font-mono ml-1 border bg-background/70"
+          aria-label="Coordinate origin"
+          title="Coordinate origin (Top-Left)"
         >
-          {originBL ? "Origin: BL" : "Origin: TL"}
-        </Button>
+          Origin: TL
+        </span>
       </div>
 
       {/* Scroll to top button inside PDF container */}
