@@ -557,8 +557,8 @@ export function SAPJsonCard({
         </div>
       </CardHeader>
 
-      {!collapsed && showJsonTools && (
-        <CardContent id="sap-json-content" className="pt-0 hidden">
+      {!collapsed && (
+        <CardContent id="sap-json-content" className="pt-0">
           <ScrollArea className="h-64 w-full rounded-md border">
             {ordered && typeof ordered === "object" ? (
               <div className="p-2">
@@ -577,9 +577,7 @@ export function SAPJsonCard({
                 )}
               </div>
             ) : (
-              <pre className="m-0 p-4 text-xs leading-relaxed whitespace-pre text-muted-foreground">
-                {pretty}
-              </pre>
+              <div className="p-4 text-sm text-muted-foreground">No SAP data</div>
             )}
           </ScrollArea>
         </CardContent>
