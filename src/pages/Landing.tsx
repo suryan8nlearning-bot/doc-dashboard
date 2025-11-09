@@ -890,57 +890,27 @@ export default function Landing() {
                     />
                   ))}
                 </div>
-              ) : sapData && Object.keys(sapData).length > 0 ? (
+              ) : sapData?.output && typeof sapData.output === 'object' ? (
                 <div className="space-y-4">
                   {/* Debug: Show what sapData contains */}
                   <div className="text-xs text-muted-foreground mb-2">
-                    Data structure: {sapData.output ? 'Has output wrapper' : 'No output wrapper'} | 
-                    Keys: {Object.keys(sapData).join(', ')}
+                    Data structure: Has output wrapper | Keys: {Object.keys(sapData.output).join(', ')}
                   </div>
                   
-                  {/* Check if data has output wrapper */}
-                  {sapData.output && typeof sapData.output === 'object' && Object.keys(sapData.output).length > 0 ? (
-                    <>
-                      {/* Header Fields Table */}
-                      <div className="space-y-2">
-                        <h3 className="text-sm font-semibold">Header Fields</h3>
-                        {renderFieldTable(sapData.output, ['output'])}
-                      </div>
+                  {/* Header Fields Table */}
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-semibold">Header Fields</h3>
+                    {renderFieldTable(sapData.output, ['output'])}
+                  </div>
 
-                      {/* Partners Accordion */}
-                      {sapData.output.to_Partner && renderArrayAccordion(sapData.output.to_Partner, 'Partners', ['output', 'to_Partner'])}
+                  {/* Partners Accordion */}
+                  {sapData.output.to_Partner && renderArrayAccordion(sapData.output.to_Partner, 'Partners', ['output', 'to_Partner'])}
 
-                      {/* Pricing Elements Accordion */}
-                      {sapData.output.to_PricingElement && renderArrayAccordion(sapData.output.to_PricingElement, 'Pricing Elements', ['output', 'to_PricingElement'])}
+                  {/* Pricing Elements Accordion */}
+                  {sapData.output.to_PricingElement && renderArrayAccordion(sapData.output.to_PricingElement, 'Pricing Elements', ['output', 'to_PricingElement'])}
 
-                      {/* Items Accordion */}
-                      {sapData.output.to_Item && renderArrayAccordion(sapData.output.to_Item, 'Line Items', ['output', 'to_Item'])}
-                    </>
-                  ) : sapData && typeof sapData === 'object' ? (
-                    <>
-                      {/* Render top-level fields if no output wrapper */}
-                      <div className="space-y-2">
-                        <h3 className="text-sm font-semibold">Fields (Top Level)</h3>
-                        {renderFieldTable(sapData, [])}
-                      </div>
-
-                      {/* Render any top-level arrays */}
-                      {Object.entries(sapData).map(([key, val]) => {
-                        if (Array.isArray(val) && val.length > 0) {
-                          return (
-                            <div key={key} className="mt-4">
-                              {renderArrayAccordion(val, key, [key])}
-                            </div>
-                          );
-                        }
-                        return null;
-                      })}
-                    </>
-                  ) : (
-                    <div className="text-center py-4 text-muted-foreground text-sm">
-                      SAP data is empty or invalid format
-                    </div>
-                  )}
+                  {/* Items Accordion */}
+                  {sapData.output.to_Item && renderArrayAccordion(sapData.output.to_Item, 'Line Items', ['output', 'to_Item'])}
 
                   {/* Raw JSON accordion for visibility */}
                   <Accordion type="single" collapsible className="w-full">
