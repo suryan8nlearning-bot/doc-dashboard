@@ -556,6 +556,67 @@ function unitEdgesFromInput(input: any): { x1: number; y1: number; x2: number; y
   return robustUnitEdges(input);
 }
 
+const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
+const [hoverPreview, setHoverPreview] = useState<{
+  visible: boolean;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}>({ visible: false, left: 0, top: 0, width: 220, height: 160 });
+
+// Hover zoom helpers (crop from the on-screen canvas and scale up by fitting bounds)
+function showHoverPreview(rectPx: { x: number; y: number; width: number; height: number }) {
+  const canvas = canvasRef.current as HTMLCanvasElement | null;
+  const preview = previewCanvasRef.current as HTMLCanvasElement | null;
+  if (!canvas || !preview) return;
+
+  // Crop region: expand by 25% around the box, then clamp to canvas bounds
+  const factor = 1.25;
+  const srcX = rectPx.x * zoom;
+  const srcY = rectPx.y * zoom;
+  const srcW = rectPx.width * zoom;
+  const srcH = rectPx.height * zoom;
+
+  let w = srcW * factor;
+  let h = srcH * factor;
+  let x = srcX + (srcW - w) / 2;
+  let y = srcY + (srcH - h) / 2;
+
+  x = Math.max(0, x);
+  y = Math.max(0, y);
+  if (x + w > canvas.width) w = canvas.width - x;
+  if (y + h > canvas.height) h = canvas.height - y;
+
+  // Target preview size capped for performance while preserving aspect ratio
+  const maxW = 280, maxH = 220;
+  const scale = Math.min(maxW / Math.max(1, w), maxH / Math.max(1, h));
+  const dstW = Math.max(120, Math.floor(w * scale));
+  const dstH = Math.max(90, Math.floor(h * scale));
+
+  preview.width = dstW;
+  preview.height = dstH;
+
+  const ctx = preview.getContext("2d");
+  if (!ctx) return;
+  ctx.clearRect(0, 0, dstW, dstH);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(canvas, x, y, w, h, 0, 0, dstW, dstH);
+
+  setHoverPreview({
+    visible: true,
+    left: (rectPx.x * zoom) + (rectPx.width * zoom) + 12,
+    top: Math.max(8, (rectPx.y * zoom) - 8),
+    width: dstW,
+    height: dstH,
+  });
+}
+
+function hideHoverPreview() {
+  setHoverPreview(prev => ({ ...prev, visible: false }));
+}
+
   const fetchPdfProxy = useAction(api.documents.fetchPdfProxy);
 
   // Tighten and extend zoom bounds + guard
@@ -1556,7 +1617,21 @@ function unitEdgesFromInput(input: any): { x1: number; y1: number; x2: number; y
                         zIndex: 10,
                       }}
                     />
-                    {text && (
+                    {/* Hover capture for magnifier */}
+                    <div
+                      className="absolute z-[15] bg-transparent"
+                      style={{
+                        left: `${rect.x * zoom}px`,
+                        top: `${rect.y * zoom}px`,
+                        width: `${rect.width * zoom}px`,
+                        height: `${rect.height * zoom}px`,
+                      }}
+                      onMouseEnter={() => showHoverPreview(rect)}
+                      onMouseMove={() => showHoverPreview(rect)}
+                      onMouseLeave={hideHoverPreview}
+                    />
+                    {/* Show labels only in debug mode */}
+                    {debugEnabled && text && (
                       <Tooltip key={`label-wrap-${idx}`}>
                         <TooltipTrigger asChild>
                           <div
@@ -1577,7 +1652,6 @@ function unitEdgesFromInput(input: any): { x1: number; y1: number; x2: number; y
                                 (() => {
                                   const fmt = (n: number) => n.toFixed(4);
                                   const pageStr = (box as any)?.page ? `, p:${(box as any).page}` : "";
-                                  // Always display the JSON-normalized unit edges
                                   return `x1:${fmt(edges.x1)}, y1:${fmt(edges.y1)}, x2:${fmt(edges.x2)}, y2:${fmt(edges.y2)}${pageStr}`;
                                 })()
                               }
@@ -1647,37 +1721,52 @@ function unitEdgesFromInput(input: any): { x1: number; y1: number; x2: number; y
                     willChange: "transform, opacity",
                   }}
                 />
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div
-                      className="absolute z-[60] px-2 py-1 rounded-md text-[10px] font-medium bg-background/85 border shadow-sm pointer-events-auto cursor-help"
-                      style={{
-                        left: `${hbRect.x * zoom}px`,
-                        top: `${hbRect.y * zoom}px`,
-                        transform: "translateY(-4px)",
-                        whiteSpace: "nowrap",
-                        borderColor: ring,
-                      }}
-                    >
-                      {label}
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent sideOffset={6}>
-                    <div className="text-xs space-y-1">
-                      <div className="font-medium">{label}</div>
-                      <div className="text-muted-foreground">
-                        {
-                          (() => {
-                            const fmt = (n: number) => n.toFixed(4);
-                            const pageStr = (highlightBox as any)?.page ? `, p:${(highlightBox as any).page}` : "";
-                            // Always display the JSON-normalized unit edges
-                            return `x1:${fmt(hbEdges.x1)}, y1:${fmt(hbEdges.y1)}, x2:${fmt(hbEdges.x2)}, y2:${fmt(hbEdges.y2)}${pageStr}`;
-                          })()
-                        }
+                {/* Hover capture for magnifier on highlighted box */}
+                <div
+                  className="absolute z-[60] bg-transparent"
+                  style={{
+                    left: `${hbRect.x * zoom}px`,
+                    top: `${hbRect.y * zoom}px`,
+                    width: `${hbRect.width * zoom}px`,
+                    height: `${hbRect.height * zoom}px`,
+                  }}
+                  onMouseEnter={() => showHoverPreview(hbRect)}
+                  onMouseMove={() => showHoverPreview(hbRect)}
+                  onMouseLeave={hideHoverPreview}
+                />
+                {/* Show highlight label only in debug mode */}
+                {debugEnabled && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div
+                        className="absolute z-[60] px-2 py-1 rounded-md text-[10px] font-medium bg-background/85 border shadow-sm pointer-events-auto cursor-help"
+                        style={{
+                          left: `${hbRect.x * zoom}px`,
+                          top: `${hbRect.y * zoom}px`,
+                          transform: "translateY(-4px)",
+                          whiteSpace: "nowrap",
+                          borderColor: ring,
+                        }}
+                      >
+                        {label}
                       </div>
-                    </div>
-                  </TooltipContent>
-                </Tooltip>
+                    </TooltipTrigger>
+                    <TooltipContent sideOffset={6}>
+                      <div className="text-xs space-y-1">
+                        <div className="font-medium">{label}</div>
+                        <div className="text-muted-foreground">
+                          {
+                            (() => {
+                              const fmt = (n: number) => n.toFixed(4);
+                              const pageStr = (highlightBox as any)?.page ? `, p:${(highlightBox as any).page}` : "";
+                              return `x1:${fmt(hbEdges.x1)}, y1:${fmt(hbEdges.y1)}, x2:${fmt(hbEdges.x2)}, y2:${fmt(hbEdges.y2)}${pageStr}`;
+                            })()
+                          }
+                        </div>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                )}
               </>
             );
           })()}
@@ -1807,6 +1896,19 @@ function unitEdgesFromInput(input: any): { x1: number; y1: number; x2: number; y
           )}
         </div>
       </div>
+
+      {/* Hover magnifier popup canvas */}
+      {hoverPreview.visible && (
+        <div
+          className="absolute z-[70] rounded-md border bg-background shadow-lg"
+          style={{ left: `${hoverPreview.left}px`, top: `${hoverPreview.top}px` }}
+        >
+          <canvas
+            ref={previewCanvasRef}
+            style={{ display: "block", width: `${hoverPreview.width}px`, height: `${hoverPreview.height}px` }}
+          />
+        </div>
+      )}
 
       {/* Add: Item #1 debug panel */}
       {debugEnabled && showDebug && item1Debug && (
