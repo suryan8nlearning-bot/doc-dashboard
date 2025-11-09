@@ -45,10 +45,12 @@ function extractJsonFromText(input: string): any | null {
 
 export function SAPJsonCard({
   data,
+  // Rename the default title
   title = "SAP Data",
   className,
+  // Load collapsed by default
   defaultCollapsed = true,
-  // Add: new props
+  // Ensure these props are available for hover + mapping
   onHoverHighlight,
   sourceDocumentData,
 }: SAPJsonCardProps) {
@@ -543,22 +545,20 @@ export function SAPJsonCard({
           </Button>
           <CardTitle className="text-base">{title}</CardTitle>
         </div>
-        {showJsonTools && (
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleCopy} aria-label="Copy JSON">
-              <Copy className="h-4 w-4 mr-2" />
-              Copy
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleDownload} aria-label="Download JSON">
-              <Download className="h-4 w-4 mr-2" />
-              Download
-            </Button>
-          </div>
-        )}
+        <div className="hidden">
+          <Button variant="outline" size="sm" onClick={handleCopy} aria-label="Copy JSON">
+            <Copy className="h-4 w-4 mr-2" />
+            Copy
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleDownload} aria-label="Download JSON">
+            <Download className="h-4 w-4 mr-2" />
+            Download
+          </Button>
+        </div>
       </CardHeader>
 
       {!collapsed && showJsonTools && (
-        <CardContent id="sap-json-content" className="pt-0">
+        <CardContent id="sap-json-content" className="pt-0 hidden">
           <ScrollArea className="h-64 w-full rounded-md border">
             {ordered && typeof ordered === "object" ? (
               <div className="p-2">
