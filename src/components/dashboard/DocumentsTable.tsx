@@ -311,9 +311,6 @@ export function DocumentsTable({
             className="bg-background/50 h-9 flex-1 min-w-0"
             aria-label="Search documents"
           />
-          {/* Refresh button next to search */}
-          {/* Refresh moved next to Sort */}
-
           {/* Columns menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -386,6 +383,19 @@ export function DocumentsTable({
             <RefreshCw className="h-4 w-4" />
           </Button>
 
+          {/* Inline Create before Select all; shows only when there is a selection */}
+          {selectedIds.size > 0 && (
+            <div className="flex items-center gap-2 pl-2">
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => toast("Feature in progress")}
+              >
+                Create
+              </Button>
+            </div>
+          )}
+
           {/* Select all (label clickable) */}
           <div
             className="hidden md:flex items-center gap-2 pl-2 cursor-pointer select-none"
@@ -405,24 +415,12 @@ export function DocumentsTable({
               onCheckedChange={onToggleSelectAll}
               onClick={(e) => e.stopPropagation()}
               aria-label="Select all documents"
+              className="border-white/40 bg-background/40 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
             />
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-foreground">
               Select all
             </span>
           </div>
-
-          {/* Inline bulk actions when there is a selection */}
-          {selectedIds.size > 0 && (
-            <div className="flex items-center gap-2 pl-2">
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => toast("Create clicked")}
-              >
-                Create
-              </Button>
-            </div>
-          )}
         </div>
       </div>
 
@@ -476,6 +474,7 @@ export function DocumentsTable({
                         checked={selectedIds.has(doc.id)}
                         onCheckedChange={() => onToggleSelect(doc.id)}
                         aria-label={`Select ${doc.id}`}
+                        className="border-white/40 bg-background/40 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
                       />
                     </div>
 
@@ -643,6 +642,7 @@ export function DocumentsTable({
                     onCheckedChange={() => onToggleSelect(doc.id)}
                     aria-label={`Select ${doc.id}`}
                     onClick={(e) => e.stopPropagation()}
+                    className="border-white/40 bg-background/40 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
