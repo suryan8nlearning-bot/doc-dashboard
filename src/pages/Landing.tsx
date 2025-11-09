@@ -95,7 +95,7 @@ export default function Landing() {
           } catch {}
         }
 
-        // Simplified SAP data loading: check only SAP_JSON_from_APP and SAP JSON
+        // Dynamic SAP data loading: check only SAP_JSON_from_APP and SAP JSON
         let sapSource: any = undefined;
         let sourceFieldName = '';
         
@@ -110,49 +110,35 @@ export default function Landing() {
           sourceFieldName = 'SAP JSON';
         }
 
-        // Convert to string, handling both string and object types
+        // Convert to string, handling both string and object types - NO SCHEMA ENFORCEMENT
         let sap = '';
         try {
           if (!sapSource) {
-            sap = '{\n  "output": {\n    "to_Item": []\n  }\n}';
+            sap = '{}';
           } else if (typeof sapSource === 'string') {
-            // Parse to check if it needs output wrapper
-            const parsed = JSON.parse(sapSource);
-            if (!parsed.output) {
-              // Wrap in output if missing
-              sap = JSON.stringify({ output: parsed }, null, 2);
-            } else {
+            // Use as-is if valid JSON, otherwise wrap in quotes
+            try {
+              JSON.parse(sapSource);
               sap = sapSource;
-            }
-          } else if (typeof sapSource === 'object') {
-            // Check if it needs output wrapper
-            if (!sapSource.output) {
-              sap = JSON.stringify({ output: sapSource }, null, 2);
-            } else {
+            } catch {
               sap = JSON.stringify(sapSource, null, 2);
             }
+          } else if (typeof sapSource === 'object') {
+            // Stringify whatever structure exists
+            sap = JSON.stringify(sapSource, null, 2);
           } else {
-            sap = '{\n  "output": {\n    "to_Item": []\n  }\n}';
+            sap = '{}';
           }
         } catch (err) {
           console.error('Failed to parse SAP data:', err);
-          sap = '{\n  "output": {\n    "to_Item": []\n  }\n}';
+          sap = '{}';
         }
 
         setRawJson(current);
         
-        // Parse and reorder SAP JSON
-        let orderedSap = sap;
-        try {
-          const parsed = JSON.parse(sap);
-          const reordered = reorderSapPayload(parsed);
-          orderedSap = JSON.stringify(reordered, null, 2);
-        } catch (err) {
-          console.error('Failed to parse/reorder SAP JSON:', err);
-        }
-        
-        setSapJson(orderedSap);
-        setEditorValue(showSap ? orderedSap : current);
+        // No reordering - use SAP data as-is for dynamic rendering
+        setSapJson(sap);
+        setEditorValue(showSap ? sap : current);
       } catch (e: any) {
         console.error('❌ Failed to load row', e);
         toast.error(`Failed to load row: ${e?.message || e}`);
@@ -193,184 +179,9 @@ export default function Landing() {
     };
   }, []);
 
-  // Add: helpers to arrange fields by schema order
-  const reorderSapPayload = (payload: any) => {
-    try {
-      if (!payload || typeof payload !== "object") return payload;
-      const output = payload.output;
-      if (!output || typeof output !== "object") return payload;
+  // Removed reorderSapPayload - no longer enforcing schema structure
 
-      const headerSchemaProps = salesOrderCreateSchema?.properties?.output?.properties || {};
-      const headerOrder: string[] = Object.keys(headerSchemaProps);
-
-      const orderObjectByKeys = (obj: any, keysInOrder: string[]) => {
-        if (!obj || typeof obj !== "object") return obj;
-        const next: any = {};
-        // Add known keys in order
-        for (const k of keysInOrder) {
-          if (Object.prototype.hasOwnProperty.call(obj, k)) {
-            next[k] = obj[k];
-          }
-        }
-        // Append any extra keys not in schema, alphabetically
-        const remaining = Object.keys(obj).filter((k) => !keysInOrder.includes(k)).sort();
-        for (const k of remaining) {
-          next[k] = obj[k];
-        }
-        return next;
-      };
-
-      // Reorder header
-      const orderedOutput: any = orderObjectByKeys(output, headerOrder);
-
-      // Reorder header partners
-      const partnerItemSchemaProps = headerSchemaProps?.to_Partner?.items?.properties || {};
-      const partnerOrder: string[] = Object.keys(partnerItemSchemaProps);
-      if (Array.isArray(orderedOutput.to_Partner)) {
-        orderedOutput.to_Partner = orderedOutput.to_Partner.map((p: any) =>
-          orderObjectByKeys(p, partnerOrder)
-        );
-      }
-
-      // Reorder header pricing
-      const pricingItemSchemaProps = headerSchemaProps?.to_PricingElement?.items?.properties || {};
-      const pricingOrder: string[] = Object.keys(pricingItemSchemaProps);
-      if (Array.isArray(orderedOutput.to_PricingElement)) {
-        orderedOutput.to_PricingElement = orderedOutput.to_PricingElement.map((pe: any) =>
-          orderObjectByKeys(pe, pricingOrder)
-        );
-      }
-
-      // Reorder items and nested arrays
-      const itemSchemaProps = headerSchemaProps?.to_Item?.items?.properties || {};
-      const itemOrder: string[] = Object.keys(itemSchemaProps);
-      const itemPartnerItemSchemaProps = itemSchemaProps?.to_ItemPartner?.items?.properties || {};
-      const itemPartnerOrder: string[] = Object.keys(itemPartnerItemSchemaProps);
-      const itemPricingItemSchemaProps =
-        itemSchemaProps?.to_ItemPricingElement?.items?.properties || {};
-      const itemPricingOrder: string[] = Object.keys(itemPricingItemSchemaProps);
-
-      if (Array.isArray(orderedOutput.to_Item)) {
-        orderedOutput.to_Item = orderedOutput.to_Item.map((it: any) => {
-          const orderedItem = orderObjectByKeys(it, itemOrder);
-          if (Array.isArray(orderedItem.to_ItemPartner)) {
-            orderedItem.to_ItemPartner = orderedItem.to_ItemPartner.map((ip: any) =>
-              orderObjectByKeys(ip, itemPartnerOrder)
-            );
-          }
-          if (Array.isArray(orderedItem.to_ItemPricingElement)) {
-            orderedItem.to_ItemPricingElement = orderedItem.to_ItemPricingElement.map((ipr: any) =>
-              orderObjectByKeys(ipr, itemPricingOrder)
-            );
-          }
-          return orderedItem;
-        });
-      }
-
-      return { ...payload, output: orderedOutput };
-    } catch {
-      return payload;
-    }
-  };
-
-  // Add: coerce values by schema types (numbers/integers/booleans)
-  const coerceSapBySchema = (payload: any) => {
-    try {
-      if (!payload || typeof payload !== "object") return payload;
-      const output = payload.output;
-      if (!output || typeof output !== "object") return payload;
-
-      const headerSchemaProps = salesOrderCreateSchema?.properties?.output?.properties || {};
-      const partnerItemSchemaProps = headerSchemaProps?.to_Partner?.items?.properties || {};
-      const pricingItemSchemaProps = headerSchemaProps?.to_PricingElement?.items?.properties || {};
-      const itemSchemaProps = headerSchemaProps?.to_Item?.items?.properties || {};
-      const itemPartnerItemSchemaProps = itemSchemaProps?.to_ItemPartner?.items?.properties || {};
-      const itemPricingItemSchemaProps = itemSchemaProps?.to_ItemPricingElement?.items?.properties || {};
-
-      const includesType = (typeDef: any, t: string) => {
-        if (!typeDef) return false;
-        if (typeof typeDef === "string") return typeDef === t;
-        if (Array.isArray(typeDef)) return typeDef.includes(t);
-        return false;
-      };
-
-      const isNumericString = (val: any) =>
-        typeof val === "string" && /^-?\d+(\.\d+)?$/.test(val.trim());
-
-      const coerceValueToSchemaType = (val: any, typeDef: any) => {
-        // integers and numbers
-        if (includesType(typeDef, "integer") || includesType(typeDef, "number")) {
-          if (typeof val === "number") return val;
-          if (isNumericString(val)) return Number(val);
-          return val;
-        }
-        // booleans
-        if (includesType(typeDef, "boolean")) {
-          if (typeof val === "boolean") return val;
-          if (typeof val === "string") {
-            const s = val.trim().toLowerCase();
-            if (s === "true" || s === "1") return true;
-            if (s === "false" || s === "0") return false;
-          }
-          return val;
-        }
-        return val;
-      };
-
-      const coerceObjectByProps = (obj: any, props: Record<string, any>) => {
-        if (!obj || typeof obj !== "object") return obj;
-        const out: any = { ...obj };
-        for (const [k, v] of Object.entries(out)) {
-          const propSchema = (props as any)[k];
-          if (propSchema && "type" in propSchema) {
-            out[k] = coerceValueToSchemaType(v, (propSchema as any).type);
-          }
-        }
-        return out;
-      };
-
-      const next: any = { ...payload, output: { ...output } };
-
-      // Header fields
-      next.output = coerceObjectByProps(next.output, headerSchemaProps);
-
-      // Header partners
-      if (Array.isArray(next.output.to_Partner)) {
-        next.output.to_Partner = next.output.to_Partner.map((p: any) =>
-          coerceObjectByProps(p, partnerItemSchemaProps)
-        );
-      }
-
-      // Header pricing
-      if (Array.isArray(next.output.to_PricingElement)) {
-        next.output.to_PricingElement = next.output.to_PricingElement.map((pe: any) =>
-          coerceObjectByProps(pe, pricingItemSchemaProps)
-        );
-      }
-
-      // Items + nested
-      if (Array.isArray(next.output.to_Item)) {
-        next.output.to_Item = next.output.to_Item.map((it: any) => {
-          const coercedItem = coerceObjectByProps(it, itemSchemaProps);
-          if (Array.isArray(coercedItem.to_ItemPartner)) {
-            coercedItem.to_ItemPartner = coercedItem.to_ItemPartner.map((ip: any) =>
-              coerceObjectByProps(ip, itemPartnerItemSchemaProps)
-            );
-          }
-          if (Array.isArray(coercedItem.to_ItemPricingElement)) {
-            coercedItem.to_ItemPricingElement = coercedItem.to_ItemPricingElement.map((ipr: any) =>
-              coerceObjectByProps(ipr, itemPricingItemSchemaProps)
-            );
-          }
-          return coercedItem;
-        });
-      }
-
-      return next;
-    } catch {
-      return payload;
-    }
-  };
+  // Removed coerceSapBySchema - no longer enforcing schema types
 
   // Validate helper
   const runValidation = (jsonStr: string): boolean => {
@@ -556,98 +367,7 @@ export default function Landing() {
     return () => clearTimeout(timer);
   }, [isLoading]);
 
-  // Quick-add helpers
-  const updateSapJson = (updater: (obj: any) => void) => {
-    try {
-      const obj = JSON.parse(sapJson || "{}");
-      if (typeof obj.output !== "object" || obj.output === null) obj.output = {};
-      updater(obj);
-      // Arrange by schema order after updates
-      const ordered = reorderSapPayload(obj);
-      const pretty = JSON.stringify(ordered, null, 2);
-      setSapJson(pretty);
-      if (showSap) setEditorValue(pretty);
-    } catch {
-      toast.error("Current SAP JSON is invalid; cannot modify.");
-    }
-  };
-
-  const handleAddHeaderPartner = () => {
-    updateSapJson((obj) => {
-      if (!Array.isArray(obj.output.to_Partner)) obj.output.to_Partner = [];
-      obj.output.to_Partner.push({
-        PartnerFunction: "",
-        Customer: "",
-        Supplier: "",
-        Personnel: "",
-        ContactPerson: "",
-      });
-    });
-    toast.success("Added header partner");
-  };
-
-  const handleAddHeaderPricing = () => {
-    updateSapJson((obj) => {
-      if (!Array.isArray(obj.output.to_PricingElement)) obj.output.to_PricingElement = [];
-      obj.output.to_PricingElement.push({
-        PricingProcedureStep: "",
-        PricingProcedureCounter: "",
-        ConditionType: "",
-        ConditionAmount: 0,
-        ConditionCurrency: "",
-      });
-    });
-    toast.success("Added header pricing");
-  };
-
-  const handleAddItem = () => {
-    updateSapJson((obj) => {
-      if (!Array.isArray(obj.output.to_Item)) obj.output.to_Item = [];
-      obj.output.to_Item.push({
-        SalesOrderItem: String(obj.output.to_Item.length + 10).padStart(4, "0"),
-        Material: "",
-        RequestedQuantity: 1,
-        RequestedQuantityUnit: "EA",
-        to_ItemPartner: [],
-        to_ItemPricingElement: [],
-      });
-    });
-    toast.success("Added item");
-  };
-
-  const handleAddItemPartner = () => {
-    updateSapJson((obj) => {
-      if (!Array.isArray(obj.output.to_Item) || obj.output.to_Item.length === 0) {
-        obj.output.to_Item = [
-          { SalesOrderItem: "0010", Material: "", RequestedQuantity: 1, RequestedQuantityUnit: "EA", to_ItemPartner: [], to_ItemPricingElement: [] },
-        ];
-      }
-      const last = obj.output.to_Item[obj.output.to_Item.length - 1];
-      if (!Array.isArray(last.to_ItemPartner)) last.to_ItemPartner = [];
-      last.to_ItemPartner.push({ PartnerFunction: "", Customer: "" });
-    });
-    toast.success("Added item partner to last item");
-  };
-
-  const handleAddItemPricing = () => {
-    updateSapJson((obj) => {
-      if (!Array.isArray(obj.output.to_Item) || obj.output.to_Item.length === 0) {
-        obj.output.to_Item = [
-          { SalesOrderItem: "0010", Material: "", RequestedQuantity: 1, RequestedQuantityUnit: "EA", to_ItemPartner: [], to_ItemPricingElement: [] },
-        ];
-      }
-      const last = obj.output.to_Item[obj.output.to_Item.length - 1];
-      if (!Array.isArray(last.to_ItemPricingElement)) last.to_ItemPricingElement = [];
-      last.to_ItemPricingElement.push({
-        PricingProcedureStep: "",
-        PricingProcedureCounter: "",
-        ConditionType: "",
-        ConditionAmount: 0,
-        ConditionCurrency: "",
-      });
-    });
-    toast.success("Added item pricing to last item");
-  };
+  // Removed schema-specific quick-add helpers - no longer enforcing structure
 
   const handleValidate = () => {
     if (!showSap) {
@@ -742,15 +462,11 @@ export default function Landing() {
   const handleFormat = () => {
     try {
       const parsed = JSON.parse(editorValue || '{}');
+      const pretty = JSON.stringify(parsed, null, 2);
+      setEditorValue(pretty);
       if (showSap) {
-        const coerced = coerceSapBySchema(parsed);
-        const ordered = reorderSapPayload(coerced);
-        const pretty = JSON.stringify(ordered, null, 2);
-        setEditorValue(pretty);
         setSapJson(pretty);
       } else {
-        const pretty = JSON.stringify(parsed, null, 2);
-        setEditorValue(pretty);
         setRawJson(pretty);
       }
       toast.success('JSON formatted');
@@ -759,7 +475,7 @@ export default function Landing() {
     }
   };
 
-  // Update Save to validate SAP when editing SAP
+  // Update Save to handle dynamic SAP data without schema enforcement
   const handleSave = async () => {
     if (!docId) {
       toast.error('Enter a document id');
@@ -773,22 +489,7 @@ export default function Landing() {
       return;
     }
 
-    // Validate SAP when saving SAP JSON
-    if (showSap) {
-      // Coerce by schema and reorder before validating and saving
-      const coerced = coerceSapBySchema(payload);
-      const ordered = reorderSapPayload(coerced);
-      const pretty = JSON.stringify(ordered, null, 2);
-      setEditorValue(pretty);
-      setSapJson(pretty);
-      payload = ordered;
-
-      const ok = runValidation(pretty);
-      if (!ok) {
-        toast.error('Validation failed; fix errors before saving');
-        return;
-      }
-    }
+    // No validation or schema enforcement - save as-is
 
     if (!hasSupabaseEnv) {
       toast.error('Supabase is not configured');
@@ -838,7 +539,7 @@ export default function Landing() {
     }
   };
 
-  // Replace: handleCreate to call Convex action instead of direct fetch
+  // Replace: handleCreate to send dynamic SAP data without schema enforcement
   const handleCreate = async () => {
     if (!docId) {
       toast.error('Enter a document id');
@@ -854,17 +555,7 @@ export default function Landing() {
       return;
     }
 
-    // Coerce and reorder before validation and sending
-    payload = reorderSapPayload(coerceSapBySchema(payload));
-    const pretty = JSON.stringify(payload, null, 2);
-    setSapJson(pretty);
-    if (showSap) setEditorValue(pretty);
-
-    const ok = runValidation(JSON.stringify(payload));
-    if (!ok) {
-      toast.error('Validation failed; fix errors before sending');
-      return;
-    }
+    // No validation or schema enforcement - send as-is
 
     // Prefer user-entered URL if present, else fallback to env
     const candidateUrl = (webhookUrl || '').trim() || (import.meta.env.VITE_WEBHOOK_URL as string | undefined);
@@ -1273,25 +964,7 @@ export default function Landing() {
                 </div>
               )}
 
-              {showSap && (
-                <div className="flex flex-wrap gap-2.5 pt-2">
-                  {isRowLoading ? (
-                    <>
-                      {[...Array(5)].map((_, i) => (
-                        <Skeleton key={i} className="h-8 w-36 rounded-md" />
-                      ))}
-                    </>
-                  ) : (
-                    <>
-                      <Button variant="outline" size="sm" onClick={handleAddHeaderPartner}>Add Header Partner</Button>
-                      <Button variant="outline" size="sm" onClick={handleAddHeaderPricing}>Add Header Pricing</Button>
-                      <Button variant="outline" size="sm" onClick={handleAddItem}>Add Item</Button>
-                      <Button variant="outline" size="sm" onClick={handleAddItemPartner}>Add Item Partner (last)</Button>
-                      <Button variant="outline" size="sm" onClick={handleAddItemPricing}>Add Item Pricing (last)</Button>
-                    </>
-                  )}
-                </div>
-              )}
+              {/* Removed schema-specific add buttons for dynamic rendering */}
 
               <div className="space-y-2">
                 <Label htmlFor="editor">{showSap ? 'SAP Payload (editable)' : 'Current JSON (read-only if from DB)'}</Label>
@@ -1305,17 +978,7 @@ export default function Landing() {
                     else setRawJson(e.target.value);
                   }}
                   onBlur={() => {
-                    if (!showSap) return;
-                    try {
-                      const parsed = JSON.parse(editorValue || "{}");
-                      const coerced = coerceSapBySchema(parsed);
-                      const ordered = reorderSapPayload(coerced);
-                      const pretty = JSON.stringify(ordered, null, 2);
-                      setEditorValue(pretty);
-                      setSapJson(pretty);
-                    } catch {
-                      // ignore
-                    }
+                    // No auto-formatting on blur for dynamic rendering
                   }}
                   placeholder={showSap ? '{ "output": { ... } }' : '{ ... }'}
                 />
