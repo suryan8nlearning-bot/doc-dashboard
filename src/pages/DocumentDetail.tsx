@@ -1,5 +1,7 @@
 // using lazy-loaded DocumentFields
 // using lazy-loaded PDFViewer
+import { DocumentHeader } from '@/components/document-detail/DocumentHeader';
+import { DebugLogsDialog } from '@/components/document-detail/DebugLogsDialog';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
@@ -1895,167 +1897,26 @@ export default function DocumentDetail() {
 
   return (
     <div className="h-[100dvh] w-full overflow-hidden">
-      {/* Header */}
-      <header className="border-b bg-background sticky top-0 z-10">
-        <div className="flex items-center justify-between px-8 py-4">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate('/dashboard')}
-              className="px-4 rounded-md"
-              aria-label="Back to Dashboard"
-              title="Back to Dashboard"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Dashboard
-            </Button>
-
-            <div className="flex items-center gap-3">
-              <FileText className="h-5 w-5 text-muted-foreground" />
-              <div>
-                <h1 className="text-lg font-semibold">{doc.title}</h1>
-                {doc.status && (
-                  <span className="text-xs text-muted-foreground">{doc.status}</span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Buttons and User Menu on the right */}
-          <div className="flex items-center gap-3 ml-auto">
-            {/* Step controls */}
-            {/* Removed "Next Step" button from here per request.
-               This control now lives on the Documents page as "Document Only". */}
-            {/* End Step controls */}
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsExpanded((v) => !v)}
-              className="px-4 rounded-md"
-            >
-              {isExpanded ? 'Split View' : 'Full Page'}
-            </Button>
-
-            <Button
-              variant="default"
-              size="sm"
-              onClick={handleSave}
-              disabled={!sapEditorValue?.trim() || isSaving || !doc?.id}
-              className="px-4 rounded-md"
-            >
-              {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Save
-            </Button>
-            <Button
-              variant="default"
-              size="sm"
-              onClick={handleCreate}
-              disabled={!sapEditorValue?.trim() || isCreating || !doc?.id}
-              className="px-4 rounded-md"
-            >
-              {isCreating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Create
-            </Button>
-
-            {/* Document Navigation */}
-            <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={goPrev} 
-                disabled={navLoading !== null}
-                className="px-4"
-              >
-                {navLoading === 'prev' ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Loading...
-                  </>
-                ) : (
-                  'Previous'
-                )}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={goNext}
-                disabled={navLoading !== null}
-                className="px-4"
-              >
-                {navLoading === 'next' ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Loading...
-                  </>
-                ) : (
-                  'Next'
-                )}
-              </Button>
-            </div>
-
-            {/* User Menu - moved to far right */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="rounded-full h-9 w-9 bg-primary/10 hover:bg-primary/20"
-                  aria-label="User menu"
-                >
-                  <User className="h-4 w-4 text-primary" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-64">
-                <DropdownMenuLabel className="font-normal">
-                  <div className="flex flex-col space-y-1">
-                    <p className="text-xs text-muted-foreground">Signed in as</p>
-                    <p className="text-sm font-medium leading-none">{user?.email || 'User'}</p>
-                  </div>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => navigate('/profile')} className="cursor-pointer">
-                  Profile
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate('/dashboard')} className="cursor-pointer">
-                  Dashboard
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={(e) => e.preventDefault()}
-                  className="cursor-default flex items-center justify-between"
-                >
-                  <span>Show SAP Data</span>
-                  <Switch
-                    checked={showSAP}
-                    onCheckedChange={(v) => setShowSAP(Boolean(v))}
-                    aria-label="Toggle SAP Data"
-                  />
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={async () => {
-                    await signOut();
-                    navigate('/');
-                  }}
-                  className="cursor-pointer text-red-600"
-                >
-                  Sign Out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setDebugOpen(true)}
-              className="px-3"
-              title="Open debug logs"
-            >
-              Logs
-            </Button>
-          </div>
-        </div>
-      </header>
+      <DocumentHeader
+        title={doc.title}
+        status={doc.status}
+        userEmail={user?.email}
+        showSAP={showSAP}
+        onToggleSAP={(v) => setShowSAP(Boolean(v))}
+        onSignOut={signOut}
+        isSaving={isSaving}
+        isCreating={isCreating}
+        canSave={Boolean(sapEditorValue?.trim() && doc?.id)}
+        canCreate={Boolean(sapEditorValue?.trim() && doc?.id)}
+        onSave={handleSave}
+        onCreate={handleCreate}
+        onOpenDebug={() => setDebugOpen(true)}
+        isExpanded={isExpanded}
+        onToggleExpanded={() => setIsExpanded((v) => !v)}
+        navLoading={navLoading}
+        onPrev={goPrev}
+        onNext={goNext}
+      />
 
       
 
@@ -2282,81 +2143,12 @@ export default function DocumentDetail() {
         )
       )}
 
-      {/* Debug Logs Dialog */}
-      <Dialog open={debugOpen} onOpenChange={setDebugOpen}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Create Debug Logs</DialogTitle>
-            <DialogDescription>
-              Detailed events and payloads from the last Create action.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="text-xs text-muted-foreground">
-                {debugEvents.length} {debugEvents.length === 1 ? 'event' : 'events'}
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={async () => {
-                    try {
-                      await navigator.clipboard.writeText(JSON.stringify(debugEvents, null, 2));
-                      toast.success('Logs copied to clipboard');
-                    } catch {
-                      toast.error('Failed to copy logs');
-                    }
-                  }}
-                >
-                  Copy all
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setDebugEvents([])}
-                >
-                  Clear
-                </Button>
-              </div>
-            </div>
-
-            <ScrollArea className="h-[50vh] rounded border">
-              <div className="p-3 space-y-3">
-                {debugEvents.length ? (
-                  debugEvents.map((e, i) => (
-                    <div key={i} className="rounded border bg-card/40 p-3">
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm font-medium">{e.label}</div>
-                        <div className="text-xs text-muted-foreground">{e.time}</div>
-                      </div>
-                      <pre className="mt-2 text-xs whitespace-pre-wrap break-all">
-                        {(() => {
-                          try {
-                            return JSON.stringify(e.payload, null, 2);
-                          } catch {
-                            return String(e.payload);
-                          }
-                        })()}
-                      </pre>
-                    </div>
-                  ))
-                ) : (
-                  <div className="p-6 text-sm text-muted-foreground">
-                    No logs yet. Click Create to generate logs.
-                  </div>
-                )}
-              </div>
-            </ScrollArea>
-          </div>
-
-          <DialogFooter>
-            <Button onClick={() => setDebugOpen(false)}>Close</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      {/* End Debug Logs Dialog */}
+      <DebugLogsDialog
+        open={debugOpen}
+        onOpenChange={setDebugOpen}
+        events={debugEvents}
+        onClear={() => setDebugEvents([])}
+      />
     </div>
   );
 }

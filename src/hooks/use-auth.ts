@@ -13,7 +13,7 @@ export function useAuth() {
 
   // For Convex Auth, we don't have direct user data in the hook
   // You'll need to fetch it separately if needed
-  const user = isAuthenticated ? { email: undefined, theme: null } : undefined;
+  const user = isAuthenticated ? { email: undefined as string | undefined, theme: null } : undefined;
 
   return {
     isLoading,
