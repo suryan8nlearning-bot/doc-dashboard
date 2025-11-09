@@ -389,14 +389,18 @@ export function SAPJsonCard({
     const isComplex = isObjectLike(value);
     const indentStyle = { paddingLeft: `${depth * 16}px` };
 
-    // For arrays, detect "array of objects" to render as a table (old items UI)
+    // Dynamically detect array of objects and gather ALL unique columns across all rows
     const isArrayOfObjects =
       Array.isArray(value) &&
       (value as any[]).length > 0 &&
       (value as any[]).every((row) => row && typeof row === "object" && !Array.isArray(row));
 
     const tableColumns: Array<string> = isArrayOfObjects
-      ? Object.keys((value as Array<Record<string, any>>)[0] ?? {})
+      ? Array.from(
+          new Set(
+            (value as Array<Record<string, any>>).flatMap((row) => Object.keys(row))
+          )
+        )
       : [];
 
     if (!isComplex) {
@@ -447,6 +451,14 @@ export function SAPJsonCard({
                 type={typeof value === "number" ? "number" : "text"}
                 defaultValue={value === null || value === undefined ? "" : String(value)}
                 className="w-full rounded-md border bg-background px-2 py-1 text-sm"
+                onFocus={(e) => {
+                  // Force caret visibility with explicit z-index
+                  e.currentTarget.style.position = "relative";
+                  e.currentTarget.style.zIndex = "100";
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.zIndex = "";
+                }}
               />
             )}
           </div>
@@ -606,6 +618,14 @@ export function SAPJsonCard({
                                         type={t === "number" ? "number" : "text"}
                                         defaultValue={cell == null ? "" : String(cell)}
                                         className="w-full rounded-md border bg-background px-2 py-1 text-sm"
+                                        onFocus={(e) => {
+                                          // Ensure caret is visible and stable
+                                          e.currentTarget.style.position = "relative";
+                                          e.currentTarget.style.zIndex = "100";
+                                        }}
+                                        onBlur={(e) => {
+                                          e.currentTarget.style.zIndex = "";
+                                        }}
                                       />
                                     )}
                                   </div>
