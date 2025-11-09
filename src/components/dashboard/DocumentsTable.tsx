@@ -16,6 +16,7 @@ import {
 import { ReactNode, useMemo, useState, useDeferredValue, useRef, useEffect } from "react";
 /* removed Switch import */
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { toast } from "sonner";
 
 type DocsRow = {
   id: string;
@@ -311,16 +312,7 @@ export function DocumentsTable({
             aria-label="Search documents"
           />
           {/* Refresh button next to search */}
-          <Button
-            variant="outline"
-            size="icon"
-            className="bg-white/5 hover:bg-white/10 border-white/10"
-            onClick={onRefresh}
-            aria-label="Refresh documents"
-            title="Refresh"
-          >
-            <RefreshCw className="h-4 w-4" />
-          </Button>
+          {/* Refresh moved next to Sort */}
 
           {/* Columns menu */}
           <DropdownMenu>
@@ -382,15 +374,87 @@ export function DocumentsTable({
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Select all */}
-          <div className="hidden md:flex items-center gap-2 pl-2">
+          {/* Refresh button moved next to Sort */}
+          <Button
+            variant="outline"
+            size="icon"
+            className="bg-white/5 hover:bg-white/10 border-white/10"
+            onClick={onRefresh}
+            aria-label="Refresh documents"
+            title="Refresh"
+          >
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+
+          {/* Select all (label clickable) */}
+          <div
+            className="hidden md:flex items-center gap-2 pl-2 cursor-pointer select-none"
+            onClick={onToggleSelectAll}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onToggleSelectAll();
+              }
+            }}
+            title="Select all"
+          >
             <Checkbox
               checked={selectedIds.size === docs.length && docs.length > 0}
               onCheckedChange={onToggleSelectAll}
+              onClick={(e) => e.stopPropagation()}
               aria-label="Select all documents"
             />
-            <span className="text-xs text-muted-foreground">Select all</span>
+            <span className="text-xs text-muted-foreground">
+              Select all
+            </span>
           </div>
+
+          {/* Inline bulk actions when there is a selection */}
+          {selectedIds.size > 0 && (
+            <div className="flex items-center gap-2 pl-2">
+              <Button
+                variant="destructive"
+                size="sm"
+                className="bg-red-500/80 hover:bg-red-500"
+                onClick={() => toast("Delete clicked")}
+              >
+                Delete
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="bg-white/5 hover:bg-white/10 border-white/10"
+                onClick={() => toast("Create profile clicked")}
+              >
+                Create Profile
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                className="bg-red-500/80 hover:bg-red-500"
+                onClick={() => toast("Delete selected clicked")}
+              >
+                Delete Selected
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="bg-white/5 hover:bg-white/10 border-white/10"
+                onClick={onToggleSelectAll}
+              >
+                Clear Selection
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => toast("Create clicked")}
+              >
+                Create
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
