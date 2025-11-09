@@ -54,8 +54,6 @@ export function SAPJsonCard({
 }: SAPJsonCardProps) {
   const [collapsed, setCollapsed] = useState<boolean>(defaultCollapsed);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set<string>());
-  const [initExpandedApplied, setInitExpandedApplied] = useState<boolean>(false);
-  const [rootExpanded, setRootExpanded] = useState<Set<string>>(() => new Set<string>());
 
   // Add: build mapping from SAP leaf paths -> source bounding boxes
   const hoverMapping: SapToSourceMapping | null = useMemo(() => {
@@ -210,58 +208,6 @@ export function SAPJsonCard({
       return parsed;
     }
   }, [parsed, orderTree]);
-
-  // Compute all expandable object/array paths so we can expand/collapse all and default-open
-  const computeAllExpandablePaths = (value: any, path: string = "$"): Array<string> => {
-    const paths: Array<string> = [];
-    const isObj = value !== null && typeof value === "object";
-    if (!isObj) return paths;
-    paths.push(path);
-    if (Array.isArray(value)) {
-      (value as Array<any>).forEach((v, i) => {
-        paths.push(...computeAllExpandablePaths(v, `${path}.[${i}]`));
-      });
-    } else {
-      Object.entries(value as Record<string, any>).forEach(([k, v]) => {
-        paths.push(...computeAllExpandablePaths(v, `${path}.${k}`));
-      });
-    }
-    return paths;
-  };
-
-  const allExpandablePaths = useMemo<Array<string>>(() => {
-    if (!ordered || typeof ordered !== "object") return [];
-    try {
-      return computeAllExpandablePaths(ordered, "$");
-    } catch {
-      return [];
-    }
-  }, [ordered]);
-
-  // Default to expanded on initial render when data is available
-  useEffect(() => {
-    if (!initExpandedApplied && allExpandablePaths.length > 0) {
-      setExpanded(new Set(allExpandablePaths));
-      setInitExpandedApplied(true);
-    }
-  }, [allExpandablePaths, initExpandedApplied]);
-
-  // Add: derive root keys for expand/collapse all at the section level
-  const rootKeys = useMemo<Array<string>>(() => {
-    if (!ordered || typeof ordered !== "object" || Array.isArray(ordered)) return [];
-    try {
-      return Object.keys(ordered as Record<string, any>);
-    } catch {
-      return [];
-    }
-  }, [ordered]);
-
-  // Add: auto-expand top-level sections once (so hierarchy is visible)
-  useEffect(() => {
-    if (!initExpandedApplied && rootKeys.length > 0) {
-      setRootExpanded(new Set(rootKeys));
-    }
-  }, [rootKeys, initExpandedApplied]);
 
   const handleCopy = async () => {
     try {
@@ -577,56 +523,6 @@ export function SAPJsonCard({
     );
   };
 
-  // Add: Root SectionHeader matching DocumentFields style
-  const RootSectionHeader = ({
-    title,
-    id,
-    isOpen,
-    onToggle,
-  }: {
-    title: string;
-    id: string;
-    isOpen: boolean;
-    onToggle: (id: string) => void;
-  }) => {
-    return (
-      <button
-        type="button"
-        onClick={() => onToggle(id)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            onToggle(id);
-          }
-        }}
-        aria-expanded={isOpen}
-        aria-controls={`section-${id}`}
-        className="flex items-center justify-between w-full py-2.5 px-3 hover:bg-muted/50 transition-colors rounded-lg group"
-      >
-        <div className="flex items-center gap-2">
-          <h3 className="font-semibold text-sm text-foreground group-hover:text-primary transition-colors">
-            {title}
-          </h3>
-        </div>
-        {isOpen ? (
-          <ChevronDown className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-        ) : (
-          <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-        )}
-      </button>
-    );
-  };
-
-  // Toggle a root section
-  const toggleRoot = (id: string) => {
-    setRootExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
   return (
     <Card className={className}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
@@ -660,58 +556,19 @@ export function SAPJsonCard({
         <CardContent id="sap-json-content" className="pt-0">
           <ScrollArea className="h-64 w-full rounded-md border">
             {ordered && typeof ordered === "object" ? (
-              <div className="p-2 space-y-2">
+              <div className="p-2">
                 {Array.isArray(ordered) ? (
                   <TreeNode label="[]" value={ordered} path="$" depth={0} />
                 ) : (
-                  Object.entries(ordered as Record<string, any>).map(([k, v]) => {
-                    const open = rootExpanded.has(k);
-                    const objectEntries =
-                      isObjectLike(v) && !Array.isArray(v) ? Object.entries(v as Record<string, any>) : [];
-                    const rootAllLeaves =
-                      objectEntries.length > 0 && objectEntries.every(([_, sv]) => !isObjectLike(sv));
-
-                    return (
-                      <div key={k} className="space-y-1.5 bg-card rounded-lg border p-2">
-                        <RootSectionHeader title={k} id={k} isOpen={open} onToggle={toggleRoot} />
-                        {open && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: "auto" }}
-                            transition={{ duration: 0.18, ease: "easeOut" }}
-                            className="pt-1"
-                          >
-                            {isObjectLike(v) ? (
-                              Array.isArray(v) ? (
-                                <TreeNode label="[]" value={v} path={`$.${k}`} depth={0} />
-                              ) : (
-                                <div className={rootAllLeaves ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2" : "space-y-1"}>
-                                  {Object.entries(v as Record<string, any>).map(([sk, sv]) => (
-                                    <TreeNode key={`$.${k}.${sk}`} label={sk} value={sv} path={`$.${k}.${sk}`} depth={0} />
-                                  ))}
-                                </div>
-                              )
-                            ) : (
-                              <div className="py-2.5 px-3 rounded-md">
-                                <div className="grid grid-cols-[180px_minmax(0,1fr)] gap-3 items-center">
-                                  <label className="text-xs font-medium text-muted-foreground">{k}</label>
-                                  {typeof v === "boolean" ? (
-                                    <input type="checkbox" defaultChecked={Boolean(v)} className="h-4 w-4" />
-                                  ) : (
-                                    <input
-                                      type={typeof v === "number" ? "number" : "text"}
-                                      defaultValue={v === null || v === undefined ? "" : String(v)}
-                                      className="w-full rounded-md border bg-background px-2 py-1 text-sm"
-                                    />
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                          </motion.div>
-                        )}
-                      </div>
-                    );
-                  })
+                  Object.entries(ordered as Record<string, any>).map(([k, v]) => (
+                    <TreeNode
+                      key={`$.${k}`}
+                      label={k}
+                      value={v}
+                      path={`$.${k}`}
+                      depth={0}
+                    />
+                  ))
                 )}
               </div>
             ) : (
