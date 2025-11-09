@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { motion } from "framer-motion";
-import { ChevronDown, ChevronUp, ArrowUpDown, ChevronRight, SlidersHorizontal } from "lucide-react";
+import { ChevronDown, ChevronUp, ArrowUpDown, ChevronRight, SlidersHorizontal, RefreshCw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -14,7 +14,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { ReactNode, useMemo, useState, useDeferredValue, useRef, useEffect } from "react";
-import { Switch } from "@/components/ui/switch";
+/* removed Switch import */
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 type DocsRow = {
@@ -39,6 +39,8 @@ type DocumentsTableProps = {
   onEdit?: (id: string) => void;
   // Add: optional SAP viewer callback
   onViewSAP?: (id: string) => void;
+  // Add: refresh handler for moving refresh next to Search
+  onRefresh?: () => void;
 };
 
 function truncateText(text: string, maxLength = 50) {
@@ -91,6 +93,8 @@ export function DocumentsTable({
   onEdit,
   // Add: onViewSAP in props
   onViewSAP,
+  // Add: onRefresh
+  onRefresh,
 }: DocumentsTableProps): ReactNode {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"id" | "from" | "subject" | "status" | "doc" | "created" | "cc">("id");
@@ -275,12 +279,6 @@ export function DocumentsTable({
     if (now - last < 400) return;
     lastClickRef.current[id] = now;
 
-    try {
-      localStorage.setItem("openDocumentOnly", String(docOnly));
-    } catch {
-      // ignore
-    }
-
     // Drive a single, global loader for a smoother experience
     (window as any).__routePendingStart?.();
     // Fallback stop to avoid stuck loading in rare cases
@@ -312,15 +310,17 @@ export function DocumentsTable({
             className="bg-background/50 h-9"
             aria-label="Search documents"
           />
-          {/* Document Only toggle */}
-          <div className="flex items-center gap-2 pl-1">
-            <Switch
-              checked={docOnly}
-              onCheckedChange={(v) => setDocOnly(!!v)}
-              aria-label="Open documents without SAP"
-            />
-            <span className="text-xs text-muted-foreground">Document Only</span>
-          </div>
+          {/* Refresh button next to search */}
+          <Button
+            variant="outline"
+            size="icon"
+            className="bg-white/5 hover:bg-white/10 border-white/10"
+            onClick={onRefresh}
+            aria-label="Refresh documents"
+            title="Refresh"
+          >
+            <RefreshCw className="h-4 w-4" />
+          </Button>
 
           {/* Columns menu */}
           <DropdownMenu>

@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase, hasSupabaseEnv, publicUrlForPath } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, Loader2, RefreshCw } from 'lucide-react';
+import { FileText, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
@@ -559,14 +559,6 @@ export default function Documents() {
         <div className="w-full">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-xl md:text-2xl font-bold tracking-tight">Documents</h2>
-            <Button
-              onClick={handleRefresh}
-              variant="outline"
-              className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur"
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
-            </Button>
           </div>
 
           <AnimatePresence>
@@ -615,6 +607,7 @@ export default function Documents() {
               onViewMailContent={(content) => handleViewMailContent(content)}
               onViewDetails={(id) => openDocumentWithOrder(id)}
               onEdit={handleEditDocument}
+              onRefresh={handleRefresh}
             />
           )}
         </div>
