@@ -203,9 +203,12 @@ export default function Landing() {
 
         let sapSource: any = undefined;
         
+        // Priority 1: SAP_JSON_from_APP
         if (data?.['SAP_JSON_from_APP']) {
           sapSource = data['SAP_JSON_from_APP'];
-        } else if (data?.['SAP JSON']) {
+        } 
+        // Priority 2: SAP JSON (no underscores)
+        else if (data?.['SAP JSON']) {
           sapSource = data['SAP JSON'];
         }
 
