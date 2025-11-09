@@ -568,11 +568,10 @@ const [hoverPreview, setHoverPreview] = useState<{
 // Hover zoom helpers (crop from the on-screen canvas and scale up by fitting bounds)
 function showHoverPreview(rectPx: { x: number; y: number; width: number; height: number }) {
   const canvas = canvasRef.current as HTMLCanvasElement | null;
-  const preview = previewCanvasRef.current as HTMLCanvasElement | null;
-  if (!canvas || !preview) return;
+  if (!canvas) return;
 
-  // Crop region: expand by 50% around the box (25% on each side), then clamp to canvas bounds
-  const factor = 1.5; // 50% larger total area
+  // Expand crop area by 50% total (1.5x)
+  const factor = 1.5;
   const srcX = rectPx.x * zoom;
   const srcY = rectPx.y * zoom;
   const srcW = rectPx.width * zoom;
@@ -588,32 +587,13 @@ function showHoverPreview(rectPx: { x: number; y: number; width: number; height:
   if (x + w > canvas.width) w = canvas.width - x;
   if (y + h > canvas.height) h = canvas.height - y;
 
-  // Target preview size - larger for better visibility
+  // Target preview size
   const maxW = 360, maxH = 280;
   const scale = Math.min(maxW / Math.max(1, w), maxH / Math.max(1, h));
   const dstW = Math.max(180, Math.floor(w * scale));
   const dstH = Math.max(140, Math.floor(h * scale));
 
-  preview.width = dstW;
-  preview.height = dstH;
-
-  const ctx = preview.getContext("2d");
-  if (!ctx) return;
-  ctx.clearRect(0, 0, dstW, dstH);
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(canvas, x, y, w, h, 0, 0, dstW, dstH);
-
-  // Draw a subtle border around the original bounding box area within the preview
-  const boxXInPreview = ((srcX - x) / w) * dstW;
-  const boxYInPreview = ((srcY - y) / h) * dstH;
-  const boxWInPreview = (srcW / w) * dstW;
-  const boxHInPreview = (srcH / h) * dstH;
-  
-  ctx.strokeStyle = 'rgba(59, 130, 246, 0.8)';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(boxXInPreview, boxYInPreview, boxWInPreview, boxHInPreview);
-
+  // Always set the preview position/state first so the canvas mounts
   setHoverPreview({
     visible: true,
     left: (rectPx.x * zoom) + (rectPx.width * zoom) + 16,
@@ -621,6 +601,40 @@ function showHoverPreview(rectPx: { x: number; y: number; width: number; height:
     width: dstW,
     height: dstH,
   });
+
+  // Draw after the preview canvas is mounted
+  const draw = () => {
+    const preview = previewCanvasRef.current as HTMLCanvasElement | null;
+    if (!preview) return;
+
+    preview.width = dstW;
+    preview.height = dstH;
+
+    const ctx = preview.getContext("2d");
+    if (!ctx) return;
+
+    ctx.clearRect(0, 0, dstW, dstH);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(canvas, x, y, w, h, 0, 0, dstW, dstH);
+
+    // Draw border for original bounding box area within the preview
+    const boxXInPreview = ((srcX - x) / w) * dstW;
+    const boxYInPreview = ((srcY - y) / h) * dstH;
+    const boxWInPreview = (srcW / w) * dstW;
+    const boxHInPreview = (srcH / h) * dstH;
+
+    ctx.strokeStyle = 'rgba(59, 130, 246, 0.8)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(boxXInPreview, boxYInPreview, boxWInPreview, boxHInPreview);
+  };
+
+  // If the canvas isn't mounted yet, schedule draw for the next frame
+  if (previewCanvasRef.current) {
+    draw();
+  } else {
+    requestAnimationFrame(draw);
+  }
 }
 
 function hideHoverPreview() {
