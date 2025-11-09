@@ -151,6 +151,26 @@ export function extractSourceEntries(documentData: DocumentData): Array<SourceEn
   return out;
 }
 
+// consistent section color palette (match DocumentFields)
+const SECTION_COLORS: Record<string, string> = {
+  metadata: "#10b981", // emerald
+  vendor: "#8b5cf6",   // violet
+  customer: "#f59e0b", // amber
+  items: "#0ea5e9",    // sky
+  other: "#f43f5e",    // rose
+};
+
+// derive color from source entry path
+function colorForSourcePath(path: string): string | undefined {
+  if (!path) return undefined;
+  if (path.startsWith("document.metadata.")) return SECTION_COLORS.metadata;
+  if (path.startsWith("document.parties.vendor_information.")) return SECTION_COLORS.vendor;
+  if (path.startsWith("document.customerparties.customer_information.")) return SECTION_COLORS.customer;
+  if (path.startsWith("document.items[")) return SECTION_COLORS.items;
+  if (path.startsWith("document.other_information[")) return SECTION_COLORS.other;
+  return undefined;
+}
+
 function sapTraverse(
   value: any,
   path: string,
@@ -174,7 +194,10 @@ function sapTraverse(
   }
 }
 
-export type SapToSourceMapping = Record<string, ((BoundingBox & { page?: number }) | null)>;
+export type SapToSourceMapping = Record<
+  string,
+  ((BoundingBox & { page?: number; color?: string }) | null)
+>;
 
 /**
  * Build a mapping from SAP JSON leaf paths -> bounding box from document_data by exact text match.
@@ -197,7 +220,12 @@ export function createSapToSourceMapping(sapData: any, documentData: DocumentDat
     const matches = byText[sapText] ?? [];
     // Simple heuristic: prefer first match
     const best = matches[0] ?? null;
-    mapping[sapPath] = best ? best.box : null;
+    if (best) {
+      const color = colorForSourcePath(best.path);
+      mapping[sapPath] = { ...best.box, ...(color ? { color } : {}) };
+    } else {
+      mapping[sapPath] = null;
+    }
   });
 
   return mapping;
