@@ -76,27 +76,20 @@ function normalizeBoxAny(input: any): (BoundingBox & { page?: number }) | null {
   // Array formats: [x1, y1, x2, y2, (page?)] OR [x, y, w, h, (page?)]
   if (Array.isArray(input)) {
     if (input.length < 4) return null;
-    const x1 = toNum(input[0]);
-    const y1 = toNum(input[1]);
-    const a2 = toNum(input[2]);
-    const b2 = toNum(input[3]);
+    const x = toNum(input[0]);
+    const y = toNum(input[1]);
+    const w = toNum(input[2]);
+    const h = toNum(input[3]);
     const page = toNum(input[4]);
 
-    if ([x1, y1, a2, b2].every(Number.isFinite)) {
-      // Prefer interpreting as x2,y2 when they are greater than x1,y1
-      const x2y2Likely = a2 > x1 && b2 > y1;
-      const width = x2y2Likely ? a2 - x1 : a2;
-      const height = x2y2Likely ? b2 - y1 : b2;
-
-      if (width > 0 && height > 0) {
-        return {
-          x: x1,
-          y: y1,
-          width,
-          height,
-          page: Number.isFinite(page) ? page : undefined,
-        };
-      }
+    if ([x, y, w, h].every(Number.isFinite) && w > 0 && h > 0) {
+      return {
+        x,
+        y,
+        width: w,
+        height: h,
+        page: Number.isFinite(page) ? page : undefined,
+      };
     }
     return null;
   }
@@ -170,44 +163,41 @@ const [ocrWords, setOcrWords] = useState<Array<{ x: number; y: number; w: number
 function robustUnitEdges(input: any): { x1: number; y1: number; x2: number; y2: number } {
   const base = getBaseDims();
   const zero = { x1: 0, y1: 0, x2: 0, y2: 0 };
-  if (!base.width || !base.height) return zero;
+  if (!input || !base.width || !base.height) return zero;
 
-  // Parse to a normalized box object first (handles arrays/objects + w/h vs x2/y2)
   const nb = normalizeBoxAny(input);
   if (!nb) return zero;
 
-  // Convert to edges in original units (could be unit or absolute)
-  let x1 = nb.x;
-  let y1 = nb.y;
-  let x2 = nb.x + nb.width;
-  let y2 = nb.y + nb.height;
+  let { x, y, width, height } = nb;
 
-  // Determine source dimensions
+  // Determine source dimensions preference (document-derived > base viewport)
   const src = sourceDimsRef.current;
   const srcW = src?.width && src.width > 0 ? src.width : base.width;
   const srcH = src?.height && src.height > 0 ? src.height : base.height;
 
-  // If not already unit, normalize
-  const alreadyUnit = [x1, y1, x2, y2].every((n) => n >= 0 && n <= 1);
-  if (!alreadyUnit) {
-    x1 = x1 / srcW;
-    y1 = y1 / srcH;
-    x2 = x2 / srcW;
-    y2 = y2 / srcH;
-  }
+  // If values are not in unit space, normalize by src dims
+  const isUnit =
+    x >= 0 && y >= 0 && width > 0 && height > 0 &&
+    x <= 1 && y <= 1 && width <= 1 && height <= 1;
 
-  // Fix inverted edges and clamp
-  if (x2 < x1) [x1, x2] = [x2, x1];
-  if (y2 < y1) [y1, y2] = [y2, y1];
+  let x1u = isUnit ? x : x / srcW;
+  let y1u = isUnit ? y : y / srcH;
+  let x2u = isUnit ? x + width : (x + width) / srcW;
+  let y2u = isUnit ? y + height : (y + height) / srcH;
 
+  // Enforce ordering
+  if (x2u < x1u) [x1u, x2u] = [x2u, x1u];
+  if (y2u < y1u) [y1u, y2u] = [y2u, y1u];
+
+  // Clamp
   const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
-  x1 = clamp01(x1);
-  y1 = clamp01(y1);
-  x2 = clamp01(x2);
-  y2 = clamp01(y2);
+  x1u = clamp01(x1u);
+  y1u = clamp01(y1u);
+  x2u = clamp01(x2u);
+  y2u = clamp01(y2u);
 
-  if (x2 <= x1 || y2 <= y1) return zero;
-  return { x1, y1, x2, y2 };
+  if (x2u <= x1u || y2u <= y1u) return zero;
+  return { x1: x1u, y1: y1u, x2: x2u, y2: y2u };
 }
 
 // Add: normalized edges (x1,y1,x2,y2) helpers and projection using base viewport
@@ -555,42 +545,26 @@ const toPxBox = (box: WideBox): WideBox => {
     pushField('Customer Person', page?.customerparties?.customer_information?.contact_person);
     pushField('Customer Email', page?.customerparties?.customer_information?.email_address);
 
-    // Items (merge each item's bounding_box)
+    // Items (merge all boxes of each item into a single row box)
     if (Array.isArray(page?.items)) {
       page.items.forEach((item: any, idx: number) => {
-        // Push each provided box as-is (parsed via normalizeBoxAny), with a readable value
-        if (item?.bounding_box?.length) {
-          item.bounding_box.forEach((b: any) => {
-            const nb = normalizeBoxAny(b);
-            const desc: string = typeof item?.description === 'string' ? item.description : '';
-            const value = desc ? `Item ${idx + 1}: ${desc}` : `Item ${idx + 1}`;
-            if (nb) boxes.push({ ...nb, label: `Item ${idx + 1}`, value });
-          });
-        }
-
-        // NEW: Compute a single merged "row" box for this item by unioning all its boxes
-        if (item?.bounding_box?.length) {
+        if (Array.isArray(item?.bounding_box) && item.bounding_box.length) {
           let minX = Number.POSITIVE_INFINITY;
           let minY = Number.POSITIVE_INFINITY;
           let maxX = Number.NEGATIVE_INFINITY;
           let maxY = Number.NEGATIVE_INFINITY;
 
-          for (const b of item.bounding_box) {
-            const edges = robustUnitEdges(b);
-            if (
-              Number.isFinite(edges.x1) &&
-              Number.isFinite(edges.y1) &&
-              Number.isFinite(edges.x2) &&
-              Number.isFinite(edges.y2) &&
-              edges.x2 > edges.x1 &&
-              edges.y2 > edges.y1
-            ) {
-              if (edges.x1 < minX) minX = edges.x1;
-              if (edges.y1 < minY) minY = edges.y1;
-              if (edges.x2 > maxX) maxX = edges.x2;
-              if (edges.y2 > maxY) maxY = edges.y2;
+          item.bounding_box.forEach((b: any) => {
+            const nb = normalizeBoxAny(b);
+            if (nb) {
+              const r = nb.x + nb.width;
+              const bt = nb.y + nb.height;
+              if (Number.isFinite(nb.x) && nb.x < minX) minX = nb.x;
+              if (Number.isFinite(nb.y) && nb.y < minY) minY = nb.y;
+              if (Number.isFinite(r) && r > maxX) maxX = r;
+              if (Number.isFinite(bt) && bt > maxY) maxY = bt;
             }
-          }
+          });
 
           if (
             Number.isFinite(minX) &&
@@ -600,15 +574,17 @@ const toPxBox = (box: WideBox): WideBox => {
             maxX > minX &&
             maxY > minY
           ) {
-            const rowBox = {
+            const desc: string = typeof item?.description === 'string' ? item.description : '';
+            const value = desc ? `Item ${idx + 1}: ${desc}` : `Item ${idx + 1}`;
+            // Push the combined row box
+            boxes.push({
               x: minX,
               y: minY,
               width: maxX - minX,
               height: maxY - minY,
-              label: `Item Row ${idx + 1}`,
-              value: typeof item?.description === 'string' ? item.description : undefined,
-            } as any;
-            boxes.push(rowBox);
+              label: `Item ${idx + 1} (row)`,
+              value,
+            } as any);
           }
         }
       });
