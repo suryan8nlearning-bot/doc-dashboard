@@ -81,7 +81,7 @@ export default function Landing() {
           .single();
         if (error) throw error;
 
-        // Simplified SAP data loading: prioritize SAP_JSON_from_APP, then fall back to SAP JSON
+        // Load raw JSON for the "Raw" view
         let current = '';
         const candidates = [data?.pdf_ai_output, data?.document_data];
         for (const c of candidates) {
@@ -92,15 +92,35 @@ export default function Landing() {
           } catch {}
         }
 
-        // Priority 1: SAP_JSON_from_APP (exact field name from your Supabase table)
-        let sapSource: any = data?.SAP_JSON_from_APP;
+        // Unified SAP data loading: prioritize SAP_JSON_from_APP, then fall back to SAP JSON
+        // Both fields have the same structure and should be rendered identically
+        let sapSource: any = undefined;
         
-        // Priority 2: SAP JSON (fallback)
-        if (!sapSource || (typeof sapSource === 'string' && sapSource.trim() === '')) {
-          sapSource = data?.['SAP JSON'];
+        // Priority 1: SAP_JSON_from_APP (exact field name)
+        if (data?.SAP_JSON_from_APP !== undefined && data?.SAP_JSON_from_APP !== null && String(data?.SAP_JSON_from_APP).trim() !== '') {
+          sapSource = data.SAP_JSON_from_APP;
+        }
+        // Priority 2: SAP JSON (with space)
+        else if (data?.['SAP JSON'] !== undefined && data?.['SAP JSON'] !== null && String(data?.['SAP JSON']).trim() !== '') {
+          sapSource = data['SAP JSON'];
+        }
+        // Priority 3: Other common variants
+        else {
+          const fallbackCandidates = [
+            data?.SAP_JSON,
+            data?.sap_json,
+            data?.SAP_AI_OUTPUT,
+            data?.sap_ai_output,
+          ];
+          for (const c of fallbackCandidates) {
+            if (c !== undefined && c !== null && String(c).trim() !== '') {
+              sapSource = c;
+              break;
+            }
+          }
         }
 
-        // Convert to string if needed
+        // Convert to string and apply default if empty
         const sap =
           sapSource
             ? (typeof sapSource === 'string'
