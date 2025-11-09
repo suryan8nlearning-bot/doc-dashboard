@@ -520,6 +520,9 @@ export function DocumentsTable({
                         </div>
                       </div>
 
+                      {/* Small separator line between the header (toggle area) and other regions */}
+                      <div className="mt-2 border-t border-white/10" />
+
                       {/* Collapsible meta content */}
                       {isExpanded && (
                         <motion.div

@@ -236,6 +236,151 @@ const getMailContent = (row: any): string => {
   return "";
 };
 
+// Add: robust email extraction helpers for CC parsing
+const emailRegex = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+
+const extractEmailsFromString = (s: string): string[] => {
+  if (!s) return [];
+  const matches = s.match(emailRegex) || [];
+  // Normalize and uniq
+  const uniq = Array.from(new Set(matches.map((m) => m.trim())));
+  return uniq;
+};
+
+const deepCollectEmails = (val: any, acc: Set<string>): void => {
+  if (!val) return;
+  if (typeof val === "string") {
+    for (const e of extractEmailsFromString(val)) acc.add(e);
+    return;
+  }
+  if (Array.isArray(val)) {
+    for (const item of val) deepCollectEmails(item, acc);
+    return;
+  }
+  if (typeof val === "object") {
+    // Common direct fields
+    const direct = (val as any).value ?? (val as any).address ?? (val as any).email ?? "";
+    if (typeof direct === "string") {
+      for (const e of extractEmailsFromString(direct)) acc.add(e);
+    } else if (direct) {
+      deepCollectEmails(direct, acc);
+    }
+    // Walk all keys conservatively
+    for (const k of Object.keys(val)) {
+      deepCollectEmails((val as any)[k], acc);
+    }
+  }
+};
+
+const parseCCEmails = (field: any): string[] => {
+  const acc: Set<string> = new Set();
+
+  const fromArrayLike = (arr: any[]): string[] => {
+    for (const item of arr) {
+      if (typeof item === "string") {
+        for (const e of extractEmailsFromString(item)) acc.add(e);
+      } else if (item && typeof item === "object") {
+        // Common shapes: { value }, { address }, { email }, or nested
+        const v = (item as any).value ?? (item as any).address ?? (item as any).email ?? item;
+        deepCollectEmails(v, acc);
+      }
+    }
+    return Array.from(acc);
+  };
+
+  // Arrays
+  if (Array.isArray(field)) {
+    return fromArrayLike(field);
+  }
+
+  // Strings (could be JSON, CSV, or semicolon separated)
+  if (typeof field === "string") {
+    const trimmed = field.trim();
+    // JSON-looking string?
+    if (
+      (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+      (trimmed.startsWith("[") && trimmed.endsWith("]"))
+    ) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return parseCCEmails(parsed);
+      } catch {
+        // fall through
+      }
+    }
+    // Extract emails from any free-form string, supporting commas/semicolons etc.
+    const emails = extractEmailsFromString(trimmed);
+    if (emails.length) return emails;
+    // As a last resort, split by comma/semicolon and trim
+    const splitGuess = trimmed
+      .split(/[,;]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    for (const part of splitGuess) {
+      for (const e of extractEmailsFromString(part)) acc.add(e);
+    }
+    return Array.from(acc);
+  }
+
+  // Objects
+  if (field && typeof field === "object") {
+    // Known array candidates
+    const arrCandidates =
+      (field as any).cc ??
+      (field as any).CC ??
+      (field as any).cc_emails ??
+      (field as any).recipients ??
+      (field as any).Recipients ??
+      (field as any).addresses ??
+      (field as any).emails ??
+      (field as any).list ??
+      (field as any).to ??
+      (field as any).To ??
+      (field as any).value; // sometimes value is an array
+
+    if (Array.isArray(arrCandidates)) {
+      return fromArrayLike(arrCandidates);
+    }
+
+    // Single value candidates
+    const single =
+      (field as any).value ??
+      (field as any).address ??
+      (field as any).email ??
+      (field as any).recipient ??
+      (field as any).Recipient ??
+      (field as any).user ??
+      (field as any).User;
+
+    if (single != null) {
+      deepCollectEmails(single, acc);
+      if (acc.size) return Array.from(acc);
+    }
+
+    // Deep scan as final fallback
+    deepCollectEmails(field, acc);
+    if (acc.size) return Array.from(acc);
+  }
+
+  return [];
+};
+
+const parseEmailField = (field: any): string => {
+  if (!field) return '';
+  if (typeof field === 'string') return field;
+  if (Array.isArray(field) && field.length > 0) {
+    const first = field[0];
+    if (typeof first === 'string') return first;
+    if (first?.value) return first.value;
+    if (first?.address) return first.address;
+    if (first?.email) return first.email;
+  }
+  if (field.value) return field.value;
+  if (field.address) return field.address;
+  if (field.email) return field.email;
+  return '';
+};
+
 export default function Documents() {
   const { isLoading: authLoading, isAuthenticated, user, signOut } = useAuth();
   const navigate = useNavigate();
@@ -317,79 +462,6 @@ export default function Documents() {
       }
     }
     return undefined;
-  };
-
-  const parseEmailField = (field: any): string => {
-    if (!field) return '';
-    if (typeof field === 'string') return field;
-    if (Array.isArray(field) && field.length > 0) {
-      const first = field[0];
-      if (typeof first === 'string') return first;
-      if (first?.value) return first.value;
-      if (first?.address) return first.address;
-      if (first?.email) return first.email;
-    }
-    if (field.value) return field.value;
-    if (field.address) return field.address;
-    if (field.email) return field.email;
-    return '';
-  };
-
-  const parseCCEmails = (field: any): string[] => {
-    const extractEmail = (item: any): string => {
-      if (!item) return "";
-      if (typeof item === "string") return item;
-      if (typeof item === "object") {
-        return item.value || item.address || item.email || "";
-      }
-      return "";
-    };
-    if (Array.isArray(field)) {
-      return field.map(extractEmail).filter(Boolean);
-    }
-    if (typeof field === "string") {
-      const trimmed = field.trim();
-      if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
-        try {
-          const parsed = JSON.parse(trimmed);
-          if (Array.isArray(parsed)) return parsed.map(extractEmail).filter(Boolean);
-          if (parsed && typeof parsed === "object") {
-            const arrCandidates =
-              parsed.cc ||
-              parsed.CC ||
-              parsed.cc_emails ||
-              parsed.recipients ||
-              parsed.Recipients ||
-              parsed.addresses ||
-              parsed.to ||
-              parsed.To ||
-              parsed.list;
-            if (Array.isArray(arrCandidates)) return arrCandidates.map(extractEmail).filter(Boolean);
-            const single = parsed.value || parsed.address || parsed.email;
-            if (single) return [String(single)].filter(Boolean);
-          }
-        } catch {
-          // fall through
-        }
-      }
-      return trimmed.split(",").map((s) => s.trim()).filter(Boolean);
-    }
-    if (field && typeof field === "object") {
-      const arrCandidates =
-        field.cc ||
-        field.CC ||
-        field.cc_emails ||
-        field.recipients ||
-        field.Recipients ||
-        field.addresses ||
-        field.to ||
-        field.To ||
-        field.list;
-      if (Array.isArray(arrCandidates)) return arrCandidates.map(extractEmail).filter(Boolean);
-      const single = field.value || field.address || field.email;
-      if (single) return [String(single)].filter(Boolean);
-    }
-    return [];
   };
 
   const fetchDocuments = async () => {
