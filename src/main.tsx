@@ -15,7 +15,7 @@ const convexUrl = (import.meta.env.VITE_CONVEX_URL as string | undefined) || (wi
 const convex = new ConvexReactClient(convexUrl);
 
 const AuthPage = lazy(() => import("@/pages/Auth.tsx"));
-const Dashboard = lazy(() => import("./pages/Dashboard.tsx"));
+ // Dashboard page removed; using Documents as landing
 const DocumentDetail = lazy(() => import("./pages/DocumentDetail.tsx"));
 const Profile = lazy(() => import("@/pages/Profile.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
@@ -207,8 +207,8 @@ createRoot(document.getElementById("root")!).render(
                 <Suspense fallback={<RouteFallback />}>
                   <Routes>
                     <Route path="/" element={<Protected redirectAfterAuth="/"><Documents /></Protected>} />
-                    <Route path="/auth" element={<AuthPage redirectAfterAuth="/dashboard" />} />
-                    <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
+                    <Route path="/auth" element={<AuthPage redirectAfterAuth="/" />} />
+                    <Route path="/dashboard" element={<Navigate to="/" replace />} />
                     <Route path="/document/:documentId" element={<Protected><DocumentDetail /></Protected>} />
                     <Route path="/documents" element={<Navigate to="/" replace />} />
                     <Route path="/profile" element={<Protected><Profile /></Protected>} />

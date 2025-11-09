@@ -534,7 +534,7 @@ export default function Landing() {
       const prefetch = async () => {
         try {
           await Promise.all([
-            import("@/pages/Dashboard"),
+            import("@/pages/Documents"),
             import("@/pages/Auth"),
             import("@/pages/DocumentDetail"),
           ]);
@@ -725,7 +725,7 @@ export default function Landing() {
 
   const handleGetStarted = () => {
     if (isAuthenticated) {
-      navigate('/dashboard');
+      navigate('/');
     } else {
       navigate('/auth');
     }
@@ -906,7 +906,7 @@ export default function Landing() {
     try {
       const p = window.location.pathname;
       if (p === "/" || p.toLowerCase() === "/home" || p.toLowerCase() === "/landing") {
-        window.location.replace("/dashboard");
+        window.location.replace("/");
       }
     } catch {
       // ignore
@@ -955,8 +955,8 @@ export default function Landing() {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => navigate('/profile')} className="cursor-pointer">
-                    Profile
+                  <DropdownMenuItem onClick={() => navigate('/')} className="cursor-pointer">
+                    Home
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate('/dashboard')} className="cursor-pointer">
                     Dashboard
@@ -982,7 +982,7 @@ export default function Landing() {
               onMouseEnter={() => {
                 if (!isLoading) {
                   if (isAuthenticated) {
-                    import('@/pages/Dashboard');
+                    import('@/pages/Documents');
                   } else {
                     import('@/pages/Auth');
                   }
@@ -1057,7 +1057,7 @@ export default function Landing() {
               onMouseEnter={() => {
                 if (!isLoading) {
                   if (isAuthenticated) {
-                    import('@/pages/Dashboard');
+                    import('@/pages/Documents');
                   } else {
                     import('@/pages/Auth');
                   }
