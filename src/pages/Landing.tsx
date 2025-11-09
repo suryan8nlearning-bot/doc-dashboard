@@ -48,6 +48,8 @@ export default function Landing() {
   const [isRowLoading, setIsRowLoading] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [isCreating, setIsCreating] = useState<boolean>(false);
+  // Add: track which source field was used
+  const [sourceFieldName, setSourceFieldName] = useState<string>('');
 
   const sendWebhook = useAction(api.webhooks.sendWebhook);
 
@@ -189,65 +191,61 @@ export default function Landing() {
     return { output: reordered };
   };
 
-  useEffect(() => {
-    const load = async () => {
-      if (!docId || !hasSupabaseEnv) return;
-      setIsRowLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from('N8N Logs')
-          .select('*')
-          .eq('id', docId)
-          .single();
-        if (error) throw error;
+  // Extracted loader so it can be triggered by a button too
+  const loadRow = async () => {
+    if (!docId || !hasSupabaseEnv) return;
+    setIsRowLoading(true);
+    try {
+      const idFilter = isNaN(Number(docId)) ? docId.trim() : Number(docId);
+      const { data, error } = await supabase
+        .from('N8N Logs')
+        .select('*')
+        .eq('id', idFilter)
+        .single();
+      if (error) throw error;
 
-        console.log('🔍 Fetched row from Supabase:', data);
-        console.log('🔍 Available columns:', Object.keys(data || {}));
+      console.log('🔍 Fetched row from Supabase:', data);
+      console.log('🔍 Available columns:', Object.keys(data || {}));
 
-        let sapSource: any = undefined;
-        let sourceField: string = '';
-        
-        // Priority 1: SAP_JSON_from_APP
-        if (data?.['SAP_JSON_from_APP']) {
-          sapSource = data['SAP_JSON_from_APP'];
-          sourceField = 'SAP_JSON_from_APP';
-        } 
-        // Priority 2: SAP JSON (no underscores)
-        else if (data?.['SAP JSON']) {
-          sapSource = data['SAP JSON'];
-          sourceField = 'SAP JSON';
-        }
+      let sapSource: any = undefined;
+      let sourceField: string = '';
 
-        console.log(`📦 SAP data source field: "${sourceField}"`, sapSource ? '(found)' : '(not found)');
-        console.log('📦 SAP data type:', typeof sapSource);
-        console.log('📦 SAP data preview:', sapSource ? JSON.stringify(sapSource).substring(0, 200) : 'null');
-
-        try {
-          if (!sapSource) {
-            console.warn('⚠️ No SAP data found in expected fields');
-            setSapData({ output: {} });
-            toast.info('No SAP data found in this document');
-          } else {
-            let parsed = typeof sapSource === 'string' ? JSON.parse(sapSource) : sapSource;
-            console.log('✅ Parsed SAP data:', parsed);
-            const reordered = reorderBySchema(parsed);
-            console.log('✅ Reordered SAP data:', reordered);
-            setSapData(reordered);
-            toast.success('SAP data loaded successfully');
-          }
-        } catch (err) {
-          console.error('❌ Failed to parse/reorder SAP data:', err);
-          setSapData({ output: {} });
-          toast.error('Failed to parse SAP data');
-        }
-      } catch (e: any) {
-        console.error('❌ Failed to load row', e);
-        toast.error(`Failed to load row: ${e?.message || e}`);
-      } finally {
-        setIsRowLoading(false);
+      if (data?.['SAP_JSON_from_APP']) {
+        sapSource = data['SAP_JSON_from_APP'];
+        sourceField = 'SAP_JSON_from_APP';
+      } else if (data?.['SAP JSON']) {
+        sapSource = data['SAP JSON'];
+        sourceField = 'SAP JSON';
       }
-    };
-    load();
+
+      setSourceFieldName(sourceField);
+
+      try {
+        if (!sapSource) {
+          console.warn('⚠️ No SAP data found in expected fields');
+          setSapData({ output: {} });
+          toast.info('No SAP data found in this document');
+        } else {
+          const parsed = typeof sapSource === 'string' ? JSON.parse(sapSource) : sapSource;
+          const reordered = reorderBySchema(parsed);
+          setSapData(reordered);
+          toast.success('SAP data loaded successfully');
+        }
+      } catch (err) {
+        console.error('❌ Failed to parse/reorder SAP data:', err);
+        setSapData({ output: {} });
+        toast.error('Failed to parse SAP data');
+      }
+    } catch (e: any) {
+      console.error('❌ Failed to load row', e);
+      toast.error(`Failed to load row: ${e?.message || e}`);
+    } finally {
+      setIsRowLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadRow();
   }, [docId, hasSupabaseEnv]);
 
   useEffect(() => {
@@ -790,6 +788,12 @@ export default function Landing() {
                   <span>Supabase not configured</span>
                 )}
               </div>
+              {/* Show which field was used */}
+              {sourceFieldName ? (
+                <div className="text-xs text-muted-foreground">
+                  Source: <span className="font-medium">{sourceFieldName}</span>
+                </div>
+              ) : null}
             </CardHeader>
             <CardContent className="space-y-5">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -798,15 +802,28 @@ export default function Landing() {
                   {isRowLoading ? (
                     <Skeleton className="h-9 w-full rounded-md" />
                   ) : (
-                    <div className="relative">
-                      <Hash className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="docId"
-                        placeholder="Enter document id (or use ?id= in URL)"
-                        value={docId}
-                        onChange={(e) => setDocId(e.target.value)}
-                        className="pl-9"
-                      />
+                    <div className="space-y-2">
+                      <div className="relative">
+                        <Hash className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="docId"
+                          placeholder="Enter document id (or use ?id= in URL)"
+                          value={docId}
+                          onChange={(e) => setDocId(e.target.value)}
+                          className="pl-9"
+                        />
+                      </div>
+                      <div>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={loadRow}
+                          disabled={!docId || isRowLoading}
+                        >
+                          {isRowLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                          Load
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -857,6 +874,18 @@ export default function Landing() {
 
                   {/* Items Accordion */}
                   {sapData.output.to_Item && renderArrayAccordion(sapData.output.to_Item, 'Line Items', ['output', 'to_Item'])}
+
+                  {/* Raw JSON accordion for visibility */}
+                  <Accordion type="single" collapsible className="w-full">
+                    <AccordionItem value="raw">
+                      <AccordionTrigger className="text-sm font-semibold">Raw SAP JSON</AccordionTrigger>
+                      <AccordionContent>
+                        <pre className="text-xs bg-muted p-3 rounded overflow-x-auto max-h-80">
+                          {JSON.stringify(sapData, null, 2)}
+                        </pre>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
