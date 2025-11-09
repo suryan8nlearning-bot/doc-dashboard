@@ -461,23 +461,41 @@ export function DocumentsTable({
                   } supports-[backdrop-filter]:bg-white/10 backdrop-blur px-4 py-2 shadow-sm cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 hover:ring-2 hover:ring-primary/40`}
                 >
                   <div className="relative flex items-start gap-3 pl-12">
+                    {/* Left selection gutter - click anywhere in this vertical strip to toggle the checkbox */}
                     <div
-                      onClick={(e) => e.stopPropagation()}
-                      className="absolute left-4 top-1/2 -translate-y-1/2"
+                      className="absolute left-0 inset-y-0 w-12 cursor-pointer"
+                      role="button"
+                      aria-pressed={selectedIds.has(doc.id)}
+                      tabIndex={0}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleSelect(doc.id);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onToggleSelect(doc.id);
+                        }
+                      }}
+                      title={selectedIds.has(doc.id) ? "Unselect" : "Select"}
                     >
-                      <Checkbox
-                        checked={selectedIds.has(doc.id)}
-                        onCheckedChange={() => onToggleSelect(doc.id)}
-                        aria-label={`Select ${doc.id}`}
-                        // Always visible, centered vertically, high-contrast unchecked
-                        className="border-black bg-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
-                      />
+                      <div className="h-full flex items-center justify-center">
+                        <Checkbox
+                          checked={selectedIds.has(doc.id)}
+                          onCheckedChange={() => onToggleSelect(doc.id)}
+                          aria-label={`Select ${doc.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          // Larger size + high-contrast unchecked
+                          className="h-5 w-5 border-black bg-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+                        />
+                      </div>
                     </div>
 
                     <div className="flex-1 min-w-0">
                       {/* Top line and expand toggle */}
                       <div
-                        className="flex items-center justify-between gap-3"
+                        className="flex items-center justify-between gap-3 hover:bg-white/5 rounded-md px-1 transition-colors"
                         onClick={(e) => {
                           e.stopPropagation();
                           toggleExpand(doc.id);
@@ -635,15 +653,38 @@ export function DocumentsTable({
                   }
                 }}
               >
-                <div className="flex items-start gap-3">
-                  <Checkbox
-                    checked={selectedIds.has(doc.id)}
-                    onCheckedChange={() => onToggleSelect(doc.id)}
-                    aria-label={`Select ${doc.id}`}
-                    onClick={(e) => e.stopPropagation()}
-                    // High-contrast unchecked on mobile too
-                    className="border-black bg-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
-                  />
+                <div className="relative flex items-start gap-3 pl-10">
+                  {/* Left selection gutter for mobile */}
+                  <div
+                    className="absolute left-0 inset-y-0 w-10 cursor-pointer"
+                    role="button"
+                    aria-pressed={selectedIds.has(doc.id)}
+                    tabIndex={0}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleSelect(doc.id);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onToggleSelect(doc.id);
+                      }
+                    }}
+                    title={selectedIds.has(doc.id) ? "Unselect" : "Select"}
+                  >
+                    <div className="h-full flex items-center justify-center">
+                      <Checkbox
+                        checked={selectedIds.has(doc.id)}
+                        onCheckedChange={() => onToggleSelect(doc.id)}
+                        aria-label={`Select ${doc.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        // Larger size + high-contrast unchecked
+                        className="h-5 w-5 border-black bg-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+                      />
+                    </div>
+                  </div>
+
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                       <div className="font-medium whitespace-pre-wrap break-words" title={docName}>
