@@ -532,12 +532,13 @@ export default function DocumentDetail() {
 
     // Direct candidates (common names)
     const directCandidates: Array<any> = [
-      // Prefer "SAP JSON from app" style fields first
+      // Prefer "SAP_JSON_FROM_APP" first, then fall back to "SAP JSON"
       row?.SAP_JSON_FROM_APP,
       row?.sap_json_from_app,
       row?.['SAP JSON from app'],
       row?.sap_json_app,
       row?.sap_app_json,
+      row?.['SAP JSON'],  // Fall back to "SAP JSON" if SAP_JSON_FROM_APP is blank
 
       // Then fall back to other common SAP payload fields
       row?.SAP_AI_OUTPUT,
