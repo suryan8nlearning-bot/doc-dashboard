@@ -275,11 +275,7 @@ export function DocumentsTable({
     if (now - last < 400) return;
     lastClickRef.current[id] = now;
 
-    // Drive a single, global loader for a smoother experience
-    (window as any).__routePendingStart?.();
-    // Fallback stop to avoid stuck loading in rare cases
-    window.setTimeout(() => { (window as any).__routePendingStop?.(); }, 7000);
-
+    // Let Suspense fallback and data loaders drive the global progress bar
     onViewDetails(id);
   };
 

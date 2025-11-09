@@ -431,6 +431,18 @@ export default function Documents() {
   }, []);
 
   useEffect(() => {
+    // Tie the global progress bar to document fetching so it only hides when rows are actually loaded.
+    if (isLoadingDocs) {
+      (window as any).__routePendingStart?.();
+    } else {
+      (window as any).__routePendingStop?.();
+    }
+    return () => {
+      (window as any).__routePendingStop?.();
+    };
+  }, [isLoadingDocs]);
+
+  useEffect(() => {
     if (isAuthenticated) {
       if (hasSupabaseEnv) {
         fetchDocuments();
