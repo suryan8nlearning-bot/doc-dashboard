@@ -2055,7 +2055,7 @@ export default function DocumentDetail() {
               {showSAP ? (
                 <ScrollArea className="h-full pr-1 overflow-y-auto no-scrollbar">
                   <SAPJsonCard
-                    data={(doc as any)?.sap_json ?? (doc as any)?.sap ?? (doc as any)?.sap_data ?? (doc as any)?.sap_output ?? {}}
+                    data={(doc as any)?.['SAP JSON'] ?? (doc as any)?.SAP_JSON_FROM_APP ?? (doc as any)?.sap_json_from_app ?? (doc as any)?.sap_json ?? (doc as any)?.sap ?? (doc as any)?.sap_data ?? (doc as any)?.sap_output ?? {}}
                   />
                 </ScrollArea>
               ) : (
@@ -2189,7 +2189,7 @@ export default function DocumentDetail() {
                             {showSAP ? (
                               <div className="pr-1">
                                 <SAPJsonCard
-                                  data={(doc as any)?.sap_json ?? (doc as any)?.sap ?? (doc as any)?.sap_data ?? (doc as any)?.sap_output ?? {}}
+                                  data={(doc as any)?.['SAP JSON'] ?? (doc as any)?.SAP_JSON_FROM_APP ?? (doc as any)?.sap_json_from_app ?? (doc as any)?.sap_json ?? (doc as any)?.sap ?? (doc as any)?.sap_data ?? (doc as any)?.sap_output ?? {}}
                                   className=""
                                   // Ensure the embedded card content is expanded and header hidden to avoid duplicate titles
                                   defaultCollapsed={false}
