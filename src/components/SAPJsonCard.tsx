@@ -433,6 +433,14 @@ export function SAPJsonCard({
                           type={typeof val === "number" ? "number" : "text"}
                           defaultValue={val === null || val === undefined ? "" : String(val)}
                           className="flex-1 min-w-0 rounded border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            const target = e.currentTarget;
+                            requestAnimationFrame(() => {
+                              target.focus();
+                              target.select();
+                            });
+                          }}
                         />
                       )}
                     </div>
@@ -560,6 +568,14 @@ export function SAPJsonCard({
                 type={typeof value === "number" ? "number" : "text"}
                 defaultValue={value === null || value === undefined ? "" : String(value)}
                 className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  const target = e.currentTarget;
+                  requestAnimationFrame(() => {
+                    target.focus();
+                    target.select();
+                  });
+                }}
               />
             )}
           </div>
