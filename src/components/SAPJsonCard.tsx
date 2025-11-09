@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useCallback, useState, useMemo } from "react";
 import * as React from "react";
-import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -96,7 +95,7 @@ export function SAPJsonCard({
     }
     if (hoveredSetRafRef.current) cancelAnimationFrame(hoveredSetRafRef.current);
     hoveredSetRafRef.current = requestAnimationFrame(() => {
-      setHoveredPath((prev) => (prev === pathId ? prev : pathId));
+      setHoveredPath((prev: string | null) => (prev === pathId ? prev : pathId));
     });
     // Ensure a color is always present so PDF highlight uses consistent styling
     const colored =
@@ -187,7 +186,7 @@ export function SAPJsonCard({
 
     if (Array.isArray(value)) {
       const elemTree = Array.isArray(orderTree) ? orderTree[0] : orderTree;
-      return value.map((v) => reorderByOrderTree(v, elemTree));
+      return value.map((v: any) => reorderByOrderTree(v, elemTree));
     }
 
     if (value !== null && typeof value === "object") {
@@ -333,7 +332,7 @@ export function SAPJsonCard({
   };
 
   const togglePath = (path: string) => {
-    setExpanded((prev) => {
+    setExpanded((prev: Set<string>) => {
       const next = new Set(prev);
       if (next.has(path)) next.delete(path);
       else next.add(path);
@@ -470,7 +469,7 @@ export function SAPJsonCard({
         collapsible
         value={open ? path : ""}
         onValueChange={(val) =>
-          setExpanded((prev) => {
+          setExpanded((prev: Set<string>) => {
             const next = new Set(prev);
             if (val) next.add(path);
             else next.delete(path);
@@ -583,7 +582,7 @@ export function SAPJsonCard({
                                       <button
                                         type="button"
                                         onClick={() =>
-                                          setExpanded((prev) => {
+                                          setExpanded((prev: Set<string>) => {
                                             const next = new Set(prev);
                                             if (next.has(cellKey)) next.delete(cellKey);
                                             else next.add(cellKey);
@@ -680,62 +679,151 @@ export function SAPJsonCard({
   // Add a flag to fully hide JSON utilities (copy/download) and raw JSON content
   const showJsonTools = false;
 
-  return (
-    <Card className={className}>
-      {!hideHeader && (
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-expanded={!collapsed}
-              aria-controls="sap-json-content"
-              onClick={() => setCollapsed((v) => !v)}
-              className="h-8 w-8"
-              title={collapsed ? "Expand" : "Collapse"}
-            >
-              {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </Button>
-            <CardTitle className="text-base">{title}</CardTitle>
-          </div>
-          <div className="hidden">
-            <Button variant="outline" size="sm" onClick={handleCopy} aria-label="Copy JSON">
-              <Copy className="h-4 w-4 mr-2" />
-              Copy
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleDownload} aria-label="Download JSON">
-              <Download className="h-4 w-4 mr-2" />
-              Download
-            </Button>
-          </div>
-        </CardHeader>
-      )}
+  // Add: root container ref to scope enhancements to the SAP pane only
+  const sapRootRef = useRef<HTMLDivElement | null>(null);
 
-      {!collapsed && (
-        <CardContent id="sap-json-content" className="pt-0">
-          <ScrollArea className="h-auto w-full rounded-md border">
-            {parsed && typeof parsed === "object" && Object.keys(parsed as Record<string, any>).length > 0 ? (
-              <div className="p-2">
-                {Array.isArray(parsed) ? (
-                  <TreeNode label="[]" value={parsed} path="$" depth={0} />
-                ) : (
-                  Object.entries(parsed as Record<string, any>).map(([k, v]) => (
-                    <TreeNode
-                      key={`$.${k}`}
-                      label={k}
-                      value={v}
-                      path={`$.${k}`}
-                      depth={0}
-                    />
-                  ))
-                )}
-              </div>
-            ) : (
-              <div className="p-4 text-sm text-muted-foreground">No SAP data</div>
-            )}
-          </ScrollArea>
-        </CardContent>
-      )}
-    </Card>
+  // Add: Keyboard navigation inside SAP pane to keep Tab within cells (avoid jumping to header)
+  const handleKeyDownCapture = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "Tab") return;
+    const root = sapRootRef.current;
+    if (!root) return;
+
+    const focusables = Array.from(
+      root.querySelectorAll<HTMLElement>(
+        // focusable controls inside SAP pane
+        "input, textarea, select, button, [tabindex]:not([tabindex='-1'])"
+      )
+    ).filter((el) => !el.hasAttribute("disabled") && el.tabIndex !== -1 && el.offsetParent !== null);
+
+    if (focusables.length === 0) return;
+
+    const active = document.activeElement as HTMLElement | null;
+    const idx = active ? focusables.indexOf(active) : -1;
+
+    // Cycle within pane
+    e.preventDefault();
+    const nextIdx = e.shiftKey
+      ? (idx <= 0 ? focusables.length - 1 : idx - 1)
+      : (idx >= focusables.length - 1 ? 0 : idx + 1);
+
+    const target = focusables[nextIdx];
+    if (target) {
+      target.focus();
+      // Keep caret stable
+      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+        const len = target.value?.length ?? 0;
+        // place caret at end without selecting text
+        try {
+          target.setSelectionRange(len, len);
+        } catch {
+          // ignore for types that don't support selection
+        }
+      }
+    }
+  }, []);
+
+  // Add: Enhance <details>/<summary> toggles for keyboard access and default-collapsed behavior
+  useEffect(() => {
+    const root = sapRootRef.current;
+    if (!root) return;
+
+    const detailsList: Array<HTMLDetailsElement> = Array.from(root.querySelectorAll("details"));
+
+    // Collapse all by default
+    for (const d of detailsList) {
+      d.open = false;
+    }
+
+    const summaries: Array<HTMLElement> = Array.from(root.querySelectorAll("details > summary"));
+    const onSummaryKey = (ev: KeyboardEvent) => {
+      if (ev.key === " " || ev.key === "Enter") {
+        ev.preventDefault();
+        const summary = ev.currentTarget as HTMLElement;
+        const dt = summary.parentElement as HTMLDetailsElement | null;
+        if (dt) dt.open = !dt.open;
+      }
+    };
+
+    // Make summaries keyboard-accessible and single-trigger styled
+    summaries.forEach((s) => {
+      s.setAttribute("tabindex", "0");
+      s.setAttribute("role", "button");
+      s.addEventListener("keydown", onSummaryKey);
+    });
+
+    return () => {
+      summaries.forEach((s) => s.removeEventListener("keydown", onSummaryKey));
+    };
+  }, []);
+
+  return (
+    <div
+      ref={sapRootRef}
+      data-sap-interactive
+      // prevent accidental bubbling that can cause odd scroll/left-corner issues
+      onPointerDownCapture={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+      // keep Tab navigation within cells; prevents jumping to header
+      onKeyDownCapture={handleKeyDownCapture}
+      // Ensure wrapping and proper layering in addition to global CSS
+      className="relative isolation-auto overflow-x-auto"
+    >
+      <Card className={className}>
+        {!hideHeader && (
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-expanded={!collapsed}
+                aria-controls="sap-json-content"
+                onClick={() => setCollapsed((v: boolean) => !v)}
+                className="h-8 w-8"
+                title={collapsed ? "Expand" : "Collapse"}
+              >
+                {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </Button>
+              <CardTitle className="text-base">{title}</CardTitle>
+            </div>
+            <div className="hidden">
+              <Button variant="outline" size="sm" onClick={handleCopy} aria-label="Copy JSON">
+                <Copy className="h-4 w-4 mr-2" />
+                Copy
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleDownload} aria-label="Download JSON">
+                <Download className="h-4 w-4 mr-2" />
+                Download
+              </Button>
+            </div>
+          </CardHeader>
+        )}
+
+        {!collapsed && (
+          <CardContent id="sap-json-content" className="pt-0">
+            <ScrollArea className="h-auto w-full rounded-md border">
+              {parsed && typeof parsed === "object" && Object.keys(parsed as Record<string, any>).length > 0 ? (
+                <div className="p-2">
+                  {Array.isArray(parsed) ? (
+                    <TreeNode label="[]" value={parsed} path="$" depth={0} />
+                  ) : (
+                    Object.entries(parsed as Record<string, any>).map(([k, v]) => (
+                      <TreeNode
+                        key={`$.${k}`}
+                        label={k}
+                        value={v}
+                        path={`$.${k}`}
+                        depth={0}
+                      />
+                    ))
+                  )}
+                </div>
+              ) : (
+                <div className="p-4 text-sm text-muted-foreground">No SAP data</div>
+              )}
+            </ScrollArea>
+          </CardContent>
+        )}
+      </Card>
+    </div>
   );
 }
