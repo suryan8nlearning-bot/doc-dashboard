@@ -13,19 +13,16 @@ const SECTION_COLORS: Record<string, string> = {
   other: '#f43f5e',    // rose
 };
 
-/**
- * Normalize bounding boxes.
- * IMPORTANT: Arrays are strictly interpreted as [x1, y1, x2, y2, (page?)].
- * Objects prefer explicit edges x1/y1/x2/y2; fall back to x/y/width/height.
- */
+// Replace normalization to strictly treat arrays as [x1, y1, x2, y2] and compute width/height from edges
 function normalizeBoxAny(input: any): (BoundingBox & { page?: number }) | null {
   if (!input) return null;
 
   const toNum = (v: any) => (v === null || v === undefined || v === '' ? NaN : Number(v));
 
-  // Strict: arrays are edges [x1, y1, x2, y2, (page?)]
+  // Arrays are strictly interpreted as [x1, y1, x2, y2, (page?)]
   if (Array.isArray(input)) {
     if (input.length < 4) return null;
+
     let x1 = toNum(input[0]);
     let y1 = toNum(input[1]);
     let x2 = toNum(input[2]);
@@ -34,6 +31,7 @@ function normalizeBoxAny(input: any): (BoundingBox & { page?: number }) | null {
 
     if (![x1, y1, x2, y2].every(Number.isFinite)) return null;
 
+    // Enforce correct edge ordering
     if (x2 < x1) [x1, x2] = [x2, x1];
     if (y2 < y1) [y1, y2] = [y2, y1];
 
@@ -44,37 +42,50 @@ function normalizeBoxAny(input: any): (BoundingBox & { page?: number }) | null {
     return { x: x1, y: y1, width, height, page: Number.isFinite(page) ? page : undefined };
   }
 
-  // Objects: prefer explicit edges first
-  let x1 = toNum(input.x1 ?? input.left ?? input.minX);
-  let y1 = toNum(input.y1 ?? input.top ?? input.minY);
-  let x2 = toNum(input.x2 ?? input.right ?? input.maxX);
-  let y2 = toNum(input.y2 ?? input.bottom ?? input.maxY);
+  // Object formats: prefer explicit edges if present; otherwise use x,y,width,height
+  const rawX1 = toNum(input.x1 ?? input.left ?? input.minX);
+  const rawY1 = toNum(input.y1 ?? input.top ?? input.minY);
+  let rawX2 = toNum(input.x2 ?? input.right ?? input.maxX);
+  let rawY2 = toNum(input.y2 ?? input.bottom ?? input.maxY);
 
-  const rawPage = input.page ?? input.page_number ?? input.pageIndex ?? input.p;
-  const page = toNum(rawPage);
+  const rawX = toNum(input.x ?? input.left ?? input.x0 ?? input.startX);
+  const rawY = toNum(input.y ?? input.top ?? input.y0 ?? input.startY);
+  const rawW = toNum(input.width ?? input.w);
+  const rawH = toNum(input.height ?? input.h);
 
-  if ([x1, y1, x2, y2].every(Number.isFinite)) {
+  // If we have explicit edges, use them
+  if ([rawX1, rawY1, rawX2, rawY2].every(Number.isFinite)) {
+    let x1 = rawX1;
+    let y1 = rawY1;
+    let x2 = rawX2;
+    let y2 = rawY2;
     if (x2 < x1) [x1, x2] = [x2, x1];
     if (y2 < y1) [y1, y2] = [y2, y1];
     const width = x2 - x1;
     const height = y2 - y1;
-    if (width > 0 && height > 0) {
-      return { x: x1, y: y1, width, height, page: Number.isFinite(page) ? page : undefined };
-    }
+    if (width <= 0 || height <= 0) return null;
+    const p = toNum(input.page ?? input.page_number ?? input.pageIndex ?? input.p);
+    return { x: x1, y: y1, width, height, page: Number.isFinite(p) ? p : undefined };
   }
 
-  // Fallback: x/y/width/height or derive from right/bottom
-  const x = toNum(input.x ?? input.x0 ?? input.startX ?? input.left);
-  const y = toNum(input.y ?? input.y0 ?? input.startY ?? input.top);
-  let width = toNum(input.width ?? input.w);
-  let height = toNum(input.height ?? input.h);
+  // Else try x,y,width,height or derive from x2/y2
+  let x = rawX;
+  let y = rawY;
+  let width = rawW;
+  let height = rawH;
 
-  if (!Number.isFinite(width) && Number.isFinite(x) && Number.isFinite(x2)) width = x2 - x;
-  if (!Number.isFinite(height) && Number.isFinite(y) && Number.isFinite(y2)) height = y2 - y;
-
-  if ([x, y, width, height].every(Number.isFinite) && width > 0 && height > 0) {
-    return { x, y, width, height, page: Number.isFinite(page) ? page : undefined };
+  if (!Number.isFinite(width)) {
+    if (Number.isFinite(rawX) && Number.isFinite(rawX2)) width = rawX2 - rawX;
   }
+  if (!Number.isFinite(height)) {
+    if (Number.isFinite(rawY) && Number.isFinite(rawY2)) height = rawY2 - rawY;
+  }
+
+  const p = toNum(input.page ?? input.page_number ?? input.pageIndex ?? input.p);
+  if ([x, y, width, height].every(Number.isFinite) && (width as number) > 0 && (height as number) > 0) {
+    return { x: x as number, y: y as number, width: width as number, height: height as number, page: Number.isFinite(p) ? p : undefined };
+  }
+
   return null;
 }
 
@@ -377,14 +388,13 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
             <SectionHeader title="Other Information" id="other" color={SECTION_COLORS.other} />
             {expandedSections.has('other') && (
               <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 pt-1"
-                style={{ overflow: 'visible' }}
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="flex flex-col gap-2 pt-1 overflow-visible pb-2"
               >
                 {page.other_information.map((info, index) => (
-                  <div key={index} className="space-y-1.5">
+                  <div key={index} className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     {info.additional_notes && (
                       <FieldItem
                         label="Additional Notes"
