@@ -49,12 +49,8 @@ export function SAPJsonCard({
   onShowMailHint,
   onHideMailHint,
 }: SAPJsonCardProps) {
-  const [hoveredPath, setHoveredPath] = useState<string | null>(null);
-=======
   const [collapsed, setCollapsed] = useState<boolean>(true);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set<string>());
-  const [hoveredPath, setHoveredPath] = useState<string | null>(null);
-=======
   const [hoveredPath, setHoveredPath] = useState<string | null>(null);
   const [editedValues, setEditedValues] = useState<Record<string, any>>({});
 
@@ -360,8 +356,8 @@ export function SAPJsonCard({
     const primitiveColumns = Array.from(allPrimitiveKeys);
 
     return (
-      <div className="w-full overflow-x-auto">
-        <table className="w-full border-collapse">
+      <div className="w-full overflow-x-auto overflow-y-visible">
+        <table className="border-collapse" style={{ width: 'max-content', minWidth: '100%' }}>
           <thead>
             <tr className="border-b bg-muted/30">
               <th className="px-3 py-2 text-left text-xs font-semibold">#</th>
@@ -433,7 +429,6 @@ export function SAPJsonCard({
                               <input
                                 type={typeof val === "number" ? "number" : "text"}
                                 value={val === null || val === undefined ? "" : String(val)}
-=======
                                 onChange={(e) => {
                                   const newVal = typeof val === "number" ? parseFloat(e.target.value) || 0 : e.target.value;
                                   setEditedValues(prev => ({...prev, [fieldPath]: newVal}));
@@ -449,7 +444,6 @@ export function SAPJsonCard({
                                 }}
                                 className="w-full min-w-[80px] rounded border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
                                 onClick={(e) => e.stopPropagation()}
-=======
                               />
                             )}
                           </div>
@@ -804,8 +798,6 @@ export function SAPJsonCard({
 
   const sapRootRef = useRef<HTMLDivElement | null>(null);
 
-    const root = sapRootRef.current;
-=======
   const handleKeyDownCapture = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     // Block WASD keys
     if (['w', 'a', 's', 'd', 'W', 'A', 'S', 'D'].includes(e.key)) {
@@ -820,8 +812,6 @@ export function SAPJsonCard({
     // Handle Tab navigation
     if (e.key !== "Tab") return;
     
-    const root = sapRootRef.current;
-=======
     const root = sapRootRef.current;
     if (!root) return;
 
