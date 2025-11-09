@@ -68,6 +68,137 @@ export default function Landing() {
     } catch {}
   }, [location.search]);
 
+  // Helper: Reorder SAP data according to schema field order
+  const reorderBySchema = (data: any): any => {
+    if (!data || typeof data !== 'object') return data;
+
+    // Define the exact field order from schema
+    const fieldOrder = [
+      'SalesOrderType',
+      'SalesOrganization',
+      'DistributionChannel',
+      'OrganizationDivision',
+      'SoldToParty',
+      'PurchaseOrderByCustomer',
+      'CustomerPurchaseOrderDate',
+      'RequestedDeliveryDate',
+      'TransactionCurrency',
+      'IncotermsClassification',
+      'IncotermsTransferLocation',
+      'CustomerPaymentTerms',
+      'CustomerPriceGroup',
+      'CustomerGroup',
+      'SalesDistrict',
+      'SDDocumentReason',
+      'PricingDate',
+      'ShippingCondition',
+      'CustomerAccountAssignmentGroup',
+      'CustomerPurchaseOrderType',
+      'ReferenceSDDocument',
+      'ReferenceSDDocumentCategory',
+      'SalesOrderDate',
+      'to_Partner',
+      'to_PricingElement',
+      'to_Item',
+    ];
+
+    const itemFieldOrder = [
+      'SalesOrderItem',
+      'Material',
+      'MaterialByCustomer',
+      'RequestedQuantity',
+      'RequestedQuantityUnit',
+      'Batch',
+      'Plant',
+      'StorageLocation',
+      'ShippingPoint',
+      'IncotermsClassification',
+      'CustomerPaymentTerms',
+      'MaterialGroup',
+      'ProfitCenter',
+      'MaterialPricingGroup',
+      'ProductHierarchy',
+      'to_ItemPartner',
+      'to_ItemPricingElement',
+    ];
+
+    const partnerFieldOrder = ['PartnerFunction', 'Customer', 'Supplier', 'Personnel', 'ContactPerson'];
+    const pricingFieldOrder = ['PricingProcedureStep', 'PricingProcedureCounter', 'ConditionType', 'ConditionAmount', 'ConditionCurrency'];
+
+    const reorderObject = (obj: any, order: string[]): any => {
+      const result: any = {};
+      // Add fields in schema order
+      for (const key of order) {
+        if (obj.hasOwnProperty(key)) {
+          result[key] = obj[key];
+        }
+      }
+      // Add any remaining fields not in schema
+      for (const key of Object.keys(obj)) {
+        if (!result.hasOwnProperty(key)) {
+          result[key] = obj[key];
+        }
+      }
+      return result;
+    };
+
+    // Check if data has output wrapper
+    let payload = data;
+    let hasOutputWrapper = false;
+    if (data.output && typeof data.output === 'object') {
+      payload = data.output;
+      hasOutputWrapper = true;
+    }
+
+    // Reorder top-level fields
+    const reordered = reorderObject(payload, fieldOrder);
+
+    // Reorder to_Item array
+    if (Array.isArray(reordered.to_Item)) {
+      reordered.to_Item = reordered.to_Item.map((item: any) => {
+        const reorderedItem = reorderObject(item, itemFieldOrder);
+        
+        // Reorder to_ItemPartner
+        if (Array.isArray(reorderedItem.to_ItemPartner)) {
+          reorderedItem.to_ItemPartner = reorderedItem.to_ItemPartner.map((p: any) => 
+            reorderObject(p, partnerFieldOrder)
+          );
+        }
+        
+        // Reorder to_ItemPricingElement
+        if (Array.isArray(reorderedItem.to_ItemPricingElement)) {
+          reorderedItem.to_ItemPricingElement = reorderedItem.to_ItemPricingElement.map((p: any) => 
+            reorderObject(p, pricingFieldOrder)
+          );
+        }
+        
+        return reorderedItem;
+      });
+    }
+
+    // Reorder to_Partner array
+    if (Array.isArray(reordered.to_Partner)) {
+      reordered.to_Partner = reordered.to_Partner.map((p: any) => 
+        reorderObject(p, partnerFieldOrder)
+      );
+    }
+
+    // Reorder to_PricingElement array
+    if (Array.isArray(reordered.to_PricingElement)) {
+      reordered.to_PricingElement = reordered.to_PricingElement.map((p: any) => 
+        reorderObject(p, pricingFieldOrder)
+      );
+    }
+
+    // Wrap in output if it was originally wrapped
+    if (hasOutputWrapper) {
+      return { output: reordered };
+    }
+    
+    // Always wrap in output for consistency with schema
+    return { output: reordered };
+  };
+
   // Add: fetch row from Supabase when id present
   useEffect(() => {
     const load = async () => {
@@ -81,9 +212,6 @@ export default function Landing() {
           .single();
         if (error) throw error;
 
-        console.log('🔍 DEBUG: Full row data loaded:', data);
-        console.log('🔍 DEBUG: Available field names:', Object.keys(data || {}));
-
         // Load raw JSON for the "Raw" view
         let current = '';
         const candidates = [data?.pdf_ai_output, data?.document_data];
@@ -95,48 +223,34 @@ export default function Landing() {
           } catch {}
         }
 
-        // Dynamic SAP data loading: check only SAP_JSON_from_APP and SAP JSON
+        // Load SAP data: check SAP_JSON_from_APP first, then SAP JSON
         let sapSource: any = undefined;
-        let sourceFieldName = '';
         
-        // Check SAP_JSON_from_APP first
         if (data?.['SAP_JSON_from_APP']) {
           sapSource = data['SAP_JSON_from_APP'];
-          sourceFieldName = 'SAP_JSON_from_APP';
-        } 
-        // Fall back to SAP JSON
-        else if (data?.['SAP JSON']) {
+        } else if (data?.['SAP JSON']) {
           sapSource = data['SAP JSON'];
-          sourceFieldName = 'SAP JSON';
         }
 
-        // Convert to string, handling both string and object types - NO SCHEMA ENFORCEMENT
+        // Parse and reorder SAP data
         let sap = '';
         try {
           if (!sapSource) {
-            sap = '{}';
-          } else if (typeof sapSource === 'string') {
-            // Use as-is if valid JSON, otherwise wrap in quotes
-            try {
-              JSON.parse(sapSource);
-              sap = sapSource;
-            } catch {
-              sap = JSON.stringify(sapSource, null, 2);
-            }
-          } else if (typeof sapSource === 'object') {
-            // Stringify whatever structure exists
-            sap = JSON.stringify(sapSource, null, 2);
+            sap = JSON.stringify({ output: {} }, null, 2);
           } else {
-            sap = '{}';
+            // Parse if string
+            let parsed = typeof sapSource === 'string' ? JSON.parse(sapSource) : sapSource;
+            
+            // Reorder according to schema
+            const reordered = reorderBySchema(parsed);
+            sap = JSON.stringify(reordered, null, 2);
           }
         } catch (err) {
-          console.error('Failed to parse SAP data:', err);
-          sap = '{}';
+          console.error('Failed to parse/reorder SAP data:', err);
+          sap = JSON.stringify({ output: {} }, null, 2);
         }
 
         setRawJson(current);
-        
-        // No reordering - use SAP data as-is for dynamic rendering
         setSapJson(sap);
         setEditorValue(showSap ? sap : current);
       } catch (e: any) {
