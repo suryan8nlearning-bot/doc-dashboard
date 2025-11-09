@@ -1,6 +1,6 @@
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { ZoomIn, ZoomOut, RotateCcw, Loader2, ArrowUp, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useEffect, useRef, useState, useMemo } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 // Add worker via Vite to ensure version matches installed package
  // Vite returns a URL string for the worker file
@@ -1644,9 +1644,8 @@ function hideHoverPreview() {
                 const rect = edgesToPxRect(edges, getBaseDims());
 
                 return (
-                  <>
+                  <React.Fragment key={`box-${idx}`}>
                     <div
-                      key={`box-${idx}`}
                       className="absolute pointer-events-none rounded-sm"
                       style={{
                         left: `${rect.x * zoom}px`,
@@ -1660,6 +1659,7 @@ function hideHoverPreview() {
                     />
                     {/* Hover capture for magnifier */}
                     <div
+                      key={`hover-${idx}`}
                       className="absolute z-[15] bg-transparent"
                       style={{
                         left: `${rect.x * zoom}px`,
@@ -1673,9 +1673,10 @@ function hideHoverPreview() {
                     />
                     {/* Show labels only in debug mode */}
                     {debugEnabled && text && (
-                      <Tooltip key={`label-wrap-${idx}`}>
+                      <Tooltip>
                         <TooltipTrigger asChild>
                           <div
+                            key={`label-${idx}`}
                             className="absolute z-[12] px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-background/85 border shadow-sm max-w-[50%] truncate pointer-events-auto cursor-help"
                             style={{
                               left: `${rect.x * zoom}px`,
@@ -1701,7 +1702,7 @@ function hideHoverPreview() {
                         </TooltipContent>
                       </Tooltip>
                     )}
-                  </>
+                  </React.Fragment>
                 );
               })}
             </>
