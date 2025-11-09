@@ -73,45 +73,79 @@ function normalizeBoxAny(input: any): (BoundingBox & { page?: number }) | null {
 
   const toNum = (v: any) => (v === null || v === undefined || v === "" ? NaN : Number(v));
 
-  // Array formats: [x1, y1, x2, y2, (page?)] OR [x, y, w, h, (page?)]
+  // Arrays: interpret as [x1, y1, x2, y2, (page?)]
   if (Array.isArray(input)) {
     if (input.length < 4) return null;
-    const x = toNum(input[0]);
-    const y = toNum(input[1]);
-    const w = toNum(input[2]);
-    const h = toNum(input[3]);
+
+    let x1 = toNum(input[0]);
+    let y1 = toNum(input[1]);
+    let x2 = toNum(input[2]);
+    let y2 = toNum(input[3]);
     const page = toNum(input[4]);
 
-    if ([x, y, w, h].every(Number.isFinite) && w > 0 && h > 0) {
+    if (![x1, y1, x2, y2].every(Number.isFinite)) return null;
+
+    // Enforce correct edge ordering
+    if (x2 < x1) [x1, x2] = [x2, x1];
+    if (y2 < y1) [y1, y2] = [y2, y1];
+
+    const width = x2 - x1;
+    const height = y2 - y1;
+    if (width <= 0 || height <= 0) return null;
+
+    return {
+      x: x1,
+      y: y1,
+      width,
+      height,
+      page: Number.isFinite(page) ? page : undefined,
+    };
+  }
+
+  // Object-like formats: prefer explicit edges x1,y1,x2,y2; fall back to x,y,width,height
+  const rawX1 = toNum(input.x1 ?? input.left ?? input.minX);
+  const rawY1 = toNum(input.y1 ?? input.top ?? input.minY);
+  let rawX2 = toNum(input.x2 ?? input.right ?? input.maxX);
+  let rawY2 = toNum(input.y2 ?? input.bottom ?? input.maxY);
+
+  const rawX = toNum(input.x ?? input.left ?? input.x0 ?? input.startX);
+  const rawY = toNum(input.y ?? input.top ?? input.y0 ?? input.startY);
+  const rawW = toNum(input.width ?? input.w);
+  const rawH = toNum(input.height ?? input.h);
+
+  // If we have explicit edges, use them
+  if ([rawX1, rawY1, rawX2, rawY2].every(Number.isFinite)) {
+    let x1 = rawX1;
+    let y1 = rawY1;
+    let x2 = rawX2;
+    let y2 = rawY2;
+    if (x2 < x1) [x1, x2] = [x2, x1];
+    if (y2 < y1) [y1, y2] = [y2, y1];
+    const width = x2 - x1;
+    const height = y2 - y1;
+    if (width > 0 && height > 0) {
+      const rawPage = input.page ?? input.page_number ?? input.pageIndex ?? input.p;
+      const page = toNum(rawPage);
       return {
-        x,
-        y,
-        width: w,
-        height: h,
+        x: x1,
+        y: y1,
+        width,
+        height,
         page: Number.isFinite(page) ? page : undefined,
       };
     }
-    return null;
   }
 
-  // Object-like formats
-  const rawX = toNum(input.x ?? input.left ?? input.x0 ?? input.x1 ?? input.startX ?? input.minX);
-  const rawY = toNum(input.y ?? input.top ?? input.y0 ?? input.y1 ?? input.startY ?? input.minY);
-  const rawW = toNum(input.width ?? input.w);
-  const rawH = toNum(input.height ?? input.h);
-  const rawX2 = toNum(input.x2 ?? input.right ?? input.maxX);
-  const rawY2 = toNum(input.y2 ?? input.bottom ?? input.maxY);
-
+  // Else try x,y,width,height or derive x2/y2
   let x = rawX;
   let y = rawY;
   let width = rawW;
   let height = rawH;
 
-  // If width/height missing, try deriving from x2/y2
   if (!Number.isFinite(width) || !Number.isFinite(height)) {
-    if ([rawX2, rawY2].every(Number.isFinite) && Number.isFinite(x) && Number.isFinite(y)) {
-      width = rawX2 - x;
-      height = rawY2 - y;
+    if (Number.isFinite(rawX) && Number.isFinite(rawY) && Number.isFinite(rawX2) && Number.isFinite(rawY2)) {
+      width = rawX2 - rawX;
+      height = rawY2 - rawY;
     }
   }
 
