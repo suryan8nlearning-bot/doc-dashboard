@@ -890,10 +890,16 @@ export default function Landing() {
                     />
                   ))}
                 </div>
-              ) : sapData ? (
+              ) : sapData && Object.keys(sapData).length > 0 ? (
                 <div className="space-y-4">
+                  {/* Debug: Show what sapData contains */}
+                  <div className="text-xs text-muted-foreground mb-2">
+                    Data structure: {sapData.output ? 'Has output wrapper' : 'No output wrapper'} | 
+                    Keys: {Object.keys(sapData).join(', ')}
+                  </div>
+                  
                   {/* Check if data has output wrapper */}
-                  {sapData.output ? (
+                  {sapData.output && typeof sapData.output === 'object' && Object.keys(sapData.output).length > 0 ? (
                     <>
                       {/* Header Fields Table */}
                       <div className="space-y-2">
@@ -910,11 +916,11 @@ export default function Landing() {
                       {/* Items Accordion */}
                       {sapData.output.to_Item && renderArrayAccordion(sapData.output.to_Item, 'Line Items', ['output', 'to_Item'])}
                     </>
-                  ) : (
+                  ) : sapData && typeof sapData === 'object' ? (
                     <>
                       {/* Render top-level fields if no output wrapper */}
                       <div className="space-y-2">
-                        <h3 className="text-sm font-semibold">Fields</h3>
+                        <h3 className="text-sm font-semibold">Fields (Top Level)</h3>
                         {renderFieldTable(sapData, [])}
                       </div>
 
@@ -922,7 +928,7 @@ export default function Landing() {
                       {Object.entries(sapData).map(([key, val]) => {
                         if (Array.isArray(val) && val.length > 0) {
                           return (
-                            <div key={key}>
+                            <div key={key} className="mt-4">
                               {renderArrayAccordion(val, key, [key])}
                             </div>
                           );
@@ -930,6 +936,10 @@ export default function Landing() {
                         return null;
                       })}
                     </>
+                  ) : (
+                    <div className="text-center py-4 text-muted-foreground text-sm">
+                      SAP data is empty or invalid format
+                    </div>
                   )}
 
                   {/* Raw JSON accordion for visibility */}
