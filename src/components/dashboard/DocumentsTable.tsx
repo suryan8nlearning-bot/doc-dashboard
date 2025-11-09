@@ -100,8 +100,8 @@ export function DocumentsTable({
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"id" | "from" | "subject" | "status" | "doc" | "created" | "cc">("id");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-  const [page, setPage] = useState(1);
-  const pageSize = 10;
+  // Removed: const [page, setPage] = useState(1);
+  // Removed: const pageSize = 10;
 
   const [showCreatedAt, setShowCreatedAt] = useState(false);
   const [showCC, setShowCC] = useState(true);
@@ -175,7 +175,7 @@ export function DocumentsTable({
       setSortBy(key);
       setSortDir("asc");
     }
-    setPage(1);
+    // Removed: setPage(1)
   };
 
   // Add: labels for sort UI
@@ -265,12 +265,7 @@ export function DocumentsTable({
     return sorted;
   }, [derivedDocs, deferredSearch, sortBy, sortDir]);
 
-  const total = processed.length;
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const currentPage = Math.min(page, totalPages);
-  const start = (currentPage - 1) * pageSize;
-  const end = Math.min(start + pageSize, total);
-  const visible = processed.slice(start, end);
+  const visible = processed;
 
   // Open immediately and navigate; keep debounce guard to prevent double clicks
   const handleOpen = (id: string) => {
@@ -305,7 +300,7 @@ export function DocumentsTable({
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
-              setPage(1);
+              // Removed: setPage(1)
             }}
             placeholder="Search documents..."
             className="bg-background/50 h-9 flex-1 min-w-0"
@@ -392,7 +387,7 @@ export function DocumentsTable({
                 size="sm"
                 onClick={() => toast("Feature in progress")}
               >
-                Create
+                {`Create (${selectedIds.size})`}
               </Button>
             </div>
           )}
@@ -702,36 +697,6 @@ export function DocumentsTable({
               </motion.div>
             );
           })}
-        </div>
-      </div>
-
-      {/* Pagination */}
-      <div className="flex items-center justify-between p-3 border-t border-white/10 bg-white/[0.06] supports-[backdrop-filter]:bg-white/10 backdrop-blur">
-        <div className="text-xs text-muted-foreground">
-          Showing {start + 1}-{end} of {total}
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={currentPage <= 1}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            className="bg-white/5 hover:bg-white/10 border-white/10"
-          >
-            Prev
-          </Button>
-          <span className="text-xs text-muted-foreground">
-            Page {currentPage} / {totalPages}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={currentPage >= totalPages}
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            className="bg-white/5 hover:bg-white/10 border-white/10"
-          >
-            Next
-          </Button>
         </div>
       </div>
     </motion.div>
