@@ -147,35 +147,56 @@ function RouteProgressBar() {
   const pending = pendingCtx?.pending ?? false;
   const [progress, setProgress] = useState(0);
   const [visible, setVisible] = useState(false);
+  const [startedAt, setStartedAt] = useState<number | null>(null);
 
   useEffect(() => {
     let incTimer: number | null = null;
     let hideTimer: number | null = null;
+    let showTimer: number | null = null;
+
+    const showDelayMs = 120; // wait a bit before showing to avoid flicker on very short loads
+    const minVisibleMs = 400; // keep visible for a minimum time once shown
 
     if (pending) {
-      setVisible(true);
-      setProgress(10);
+      // delay showing to prevent flicker for ultra-fast transitions
+      if (!visible) {
+        showTimer = window.setTimeout(() => {
+          setVisible(true);
+          setStartedAt(Date.now());
+          setProgress(8);
+        }, showDelayMs);
+      }
+      // smooth progress increments
       incTimer = window.setInterval(() => {
         setProgress((p) => {
-          const next = p + Math.random() * 10;
+          const increment = p < 30 ? 8 : p < 60 ? 5 : p < 85 ? 3 : 0.5;
+          const next = p + increment;
           return next >= 90 ? 90 : next;
         });
-      }, 200);
+      }, 180);
     } else {
+      // complete and hide with a minimum visible duration
       if (visible) {
         setProgress(100);
+        const elapsed = startedAt ? Date.now() - startedAt : minVisibleMs;
+        const delay = Math.max(200, minVisibleMs - elapsed);
         hideTimer = window.setTimeout(() => {
           setVisible(false);
           setProgress(0);
-        }, 250);
+          setStartedAt(null);
+        }, delay);
+      } else {
+        // if never shown (pending flipped quickly), ensure timers cleared
+        if (showTimer) window.clearTimeout(showTimer);
       }
     }
 
     return () => {
       if (incTimer) window.clearInterval(incTimer);
       if (hideTimer) window.clearTimeout(hideTimer);
+      if (showTimer) window.clearTimeout(showTimer);
     };
-  }, [pending, visible]);
+  }, [pending, visible, startedAt]);
 
   if (!visible) return null;
 

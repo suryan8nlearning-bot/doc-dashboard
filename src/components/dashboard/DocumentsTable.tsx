@@ -374,13 +374,14 @@ export function DocumentsTable({
           {/* Refresh button moved next to Sort */}
           <Button
             variant="outline"
-            size="icon"
-            className="bg-white/5 hover:bg-white/10 border-white/10"
+            size="sm"
+            className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur"
             onClick={onRefresh}
             aria-label="Refresh documents"
             title="Refresh"
           >
-            <RefreshCw className="h-4 w-4" />
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
           </Button>
 
           {/* Inline Create before Select all; shows only when there is a selection */}
@@ -396,9 +397,9 @@ export function DocumentsTable({
             </div>
           )}
 
-          {/* Select all (label clickable) */}
+          {/* Select all (label clickable) with button-like cover */}
           <div
-            className="hidden md:flex items-center gap-2 pl-2 cursor-pointer select-none"
+            className="hidden md:flex items-center gap-2 cursor-pointer select-none bg-white/5 hover:bg-white/10 border border-white/10 rounded-md px-2.5 py-1 backdrop-blur"
             onClick={onToggleSelectAll}
             role="button"
             tabIndex={0}
@@ -415,7 +416,7 @@ export function DocumentsTable({
               onCheckedChange={onToggleSelectAll}
               onClick={(e) => e.stopPropagation()}
               aria-label="Select all documents"
-              className="border-white/40 bg-background/40 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+              className="border-black/60 bg-white/10 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
             />
             <span className="text-xs text-foreground">
               Select all
@@ -464,7 +465,7 @@ export function DocumentsTable({
                     selectedIds.has(doc.id)
                       ? "bg-white/[0.14] ring-1 ring-white/20"
                       : "bg-white/[0.06]"
-                  } supports-[backdrop-filter]:bg-white/10 backdrop-blur px-4 py-2 shadow-sm cursor-pointer`}
+                  } supports-[backdrop-filter]:bg-white/10 backdrop-blur px-4 py-2 shadow-sm cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 hover:ring-2 hover:ring-primary/40`}
                 >
                   
 
@@ -521,7 +522,7 @@ export function DocumentsTable({
                       </div>
 
                       {/* Small separator line between the header (toggle area) and other regions */}
-                      <div className="mt-2 border-t border-white/10" />
+                      <div className="mt-2 border-t-2 border-white/20" />
 
                       {/* Collapsible meta content */}
                       {isExpanded && (
