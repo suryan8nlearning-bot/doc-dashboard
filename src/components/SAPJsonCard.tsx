@@ -375,25 +375,25 @@ export function SAPJsonCard({
                       }
                     : {}),
                 }}
-                onMouseEnter={() => {
-                  if (itemBox) {
-                    onHideMailHint?.();
-                    handleRowEnter(itemPath, itemBox as any);
-                  } else {
-                    setHoveredPath(itemPath);
-                    onShowMailHint?.();
-                  }
-                }}
-                onMouseLeave={() => {
-                  handleRowLeave();
-                  onHideMailHint?.();
-                }}
               >
                 <span
                   className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${
                     itemHasMapping ? "bg-emerald-500" : "bg-rose-500"
                   }`}
                   title={itemHasMapping ? "Source found" : "No source mapping"}
+                  onMouseEnter={() => {
+                    if (itemBox) {
+                      onHideMailHint?.();
+                      handleRowEnter(itemPath, itemBox as any);
+                    } else {
+                      setHoveredPath(itemPath);
+                      onShowMailHint?.();
+                    }
+                  }}
+                  onMouseLeave={() => {
+                    handleRowLeave();
+                    onHideMailHint?.();
+                  }}
                 />
                 <span className="text-sm font-semibold text-foreground min-w-[60px]">#{idx + 1}</span>
                 
@@ -406,40 +406,46 @@ export function SAPJsonCard({
                     <div
                       key={key}
                       className="flex items-center gap-2 min-w-[120px] max-w-[200px]"
-                      onMouseEnter={() => {
-                        if (fieldBox) {
-                          onHideMailHint?.();
-                          handleRowEnter(fieldPath, fieldBox as any);
-                        } else {
-                          setHoveredPath(fieldPath);
-                          onShowMailHint?.();
-                        }
-                      }}
-                      onMouseLeave={() => {
-                        handleRowLeave();
-                        onHideMailHint?.();
-                      }}
                     >
                       <span
                         className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${
                           fieldHasMapping ? "bg-emerald-400" : "bg-rose-400"
                         }`}
+                        onMouseEnter={() => {
+                          if (fieldBox) {
+                            onHideMailHint?.();
+                            handleRowEnter(fieldPath, fieldBox as any);
+                          } else {
+                            setHoveredPath(fieldPath);
+                            onShowMailHint?.();
+                          }
+                        }}
+                        onMouseLeave={() => {
+                          handleRowLeave();
+                          onHideMailHint?.();
+                        }}
                       />
                       <label className="text-xs font-medium text-muted-foreground whitespace-nowrap">{key}:</label>
                       {typeof val === "boolean" ? (
-                        <input type="checkbox" defaultChecked={val} className="h-3.5 w-3.5" />
+                        <input 
+                          type="checkbox" 
+                          defaultChecked={val} 
+                          className="h-3.5 w-3.5"
+                          onClick={(e) => e.stopPropagation()}
+                        />
                       ) : (
                         <input
                           type={typeof val === "number" ? "number" : "text"}
                           defaultValue={val === null || val === undefined ? "" : String(val)}
                           className="flex-1 min-w-0 rounded border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-                          onMouseDown={(e) => {
-                            e.stopPropagation();
-                            const target = e.currentTarget;
-                            requestAnimationFrame(() => {
-                              target.focus();
-                              target.select();
-                            });
+                          onClick={(e) => e.stopPropagation()}
+                          onFocus={(e) => {
+                            e.currentTarget.style.position = 'relative';
+                            e.currentTarget.style.zIndex = '9999';
+                          }}
+                          onBlur={(e) => {
+                            e.currentTarget.style.position = '';
+                            e.currentTarget.style.zIndex = '';
                           }}
                         />
                       )}
