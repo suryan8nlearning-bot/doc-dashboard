@@ -583,13 +583,13 @@ export function SAPJsonCard({
 
       {!collapsed && (
         <CardContent id="sap-json-content" className="pt-0">
-          <ScrollArea className="h-64 w-full rounded-md border">
-            {ordered && typeof ordered === "object" ? (
+          <ScrollArea className="h-auto w-full rounded-md border">
+            {parsed && typeof parsed === "object" ? (
               <div className="p-2">
-                {Array.isArray(ordered) ? (
-                  <TreeNode label="[]" value={ordered} path="$" depth={0} />
+                {Array.isArray(parsed) ? (
+                  <TreeNode label="[]" value={parsed} path="$" depth={0} />
                 ) : (
-                  Object.entries(ordered as Record<string, any>).map(([k, v]) => (
+                  Object.entries(parsed as Record<string, any>).map(([k, v]) => (
                     <TreeNode
                       key={`$.${k}`}
                       label={k}
