@@ -201,28 +201,44 @@ export default function Landing() {
           .single();
         if (error) throw error;
 
+        console.log('🔍 Fetched row from Supabase:', data);
+        console.log('🔍 Available columns:', Object.keys(data || {}));
+
         let sapSource: any = undefined;
+        let sourceField: string = '';
         
         // Priority 1: SAP_JSON_from_APP
         if (data?.['SAP_JSON_from_APP']) {
           sapSource = data['SAP_JSON_from_APP'];
+          sourceField = 'SAP_JSON_from_APP';
         } 
         // Priority 2: SAP JSON (no underscores)
         else if (data?.['SAP JSON']) {
           sapSource = data['SAP JSON'];
+          sourceField = 'SAP JSON';
         }
+
+        console.log(`📦 SAP data source field: "${sourceField}"`, sapSource ? '(found)' : '(not found)');
+        console.log('📦 SAP data type:', typeof sapSource);
+        console.log('📦 SAP data preview:', sapSource ? JSON.stringify(sapSource).substring(0, 200) : 'null');
 
         try {
           if (!sapSource) {
+            console.warn('⚠️ No SAP data found in expected fields');
             setSapData({ output: {} });
+            toast.info('No SAP data found in this document');
           } else {
             let parsed = typeof sapSource === 'string' ? JSON.parse(sapSource) : sapSource;
+            console.log('✅ Parsed SAP data:', parsed);
             const reordered = reorderBySchema(parsed);
+            console.log('✅ Reordered SAP data:', reordered);
             setSapData(reordered);
+            toast.success('SAP data loaded successfully');
           }
         } catch (err) {
-          console.error('Failed to parse/reorder SAP data:', err);
+          console.error('❌ Failed to parse/reorder SAP data:', err);
           setSapData({ output: {} });
+          toast.error('Failed to parse SAP data');
         }
       } catch (e: any) {
         console.error('❌ Failed to load row', e);
