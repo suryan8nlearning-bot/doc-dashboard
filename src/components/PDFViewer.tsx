@@ -348,14 +348,21 @@ function toUnitEdgesTopLeft(input: any): { x1: number; y1: number; x2: number; y
   };
 }
 
-function edgesToPxRect(edges: { x1: number; y1: number; x2: number; y2: number }, base?: { width: number; height: number }) {
-  const baseW = base?.width || 1;
-  const baseH = base?.height || 1;
+function edgesToPxRect(
+  edges: { x1: number; y1: number; x2: number; y2: number },
+  base?: { width: number; height: number }
+) {
+  // Use provided base or fall back to the PDF base viewport (scale=1)
+  const baseDims = base && base.width && base.height ? base : getBaseDims();
+  const baseW = baseDims.width || 1;
+  const baseH = baseDims.height || 1;
+
   const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
   const x1 = clamp01(edges.x1);
   const y1 = clamp01(edges.y1);
   const x2 = clamp01(edges.x2);
   const y2 = clamp01(edges.y2);
+
   const x = x1 * baseW;
   const y = y1 * baseH;
   const width = Math.max(0, x2 - x1) * baseW;
