@@ -5,7 +5,8 @@ import { ArrowLeft, FileText, Loader2, User } from 'lucide-react';
 import { useNavigate } from 'react-router';
 
 interface DocumentHeaderProps {
-  title: string;
+  // Make title optional to accept undefined and avoid TS2322 in callers
+  title?: string;
   status?: string;
   userEmail?: string;
   showSAP: boolean;
@@ -66,7 +67,7 @@ export function DocumentHeader({
           <div className="flex items-center gap-3">
             <FileText className="h-5 w-5 text-muted-foreground" />
             <div>
-              <h1 className="text-lg font-semibold">{title}</h1>
+              <h1 className="text-lg font-semibold">{title ?? 'Document'}</h1>
               {status && <span className="text-xs text-muted-foreground">{status}</span>}
             </div>
           </div>

@@ -145,6 +145,16 @@ function RouteSyncer() {
 function RouteProgressBar() {
   const pendingCtx = useContext(PendingContext);
   const pending = pendingCtx?.pending ?? false;
+
+  // Show bar briefly on initial mount so it's visible during first load
+  const [mountSplash, setMountSplash] = useState(true);
+  useEffect(() => {
+    const t = window.setTimeout(() => setMountSplash(false), 600);
+    return () => window.clearTimeout(t);
+  }, []);
+
+  const isPending = pending || mountSplash;
+
   const [progress, setProgress] = useState(0);
   const [visible, setVisible] = useState(false);
   const [startedAt, setStartedAt] = useState<number | null>(null);
@@ -154,19 +164,19 @@ function RouteProgressBar() {
     let hideTimer: number | null = null;
     let showTimer: number | null = null;
 
-    const showDelayMs = 120; // wait a bit before showing to avoid flicker on very short loads
-    const minVisibleMs = 400; // keep visible for a minimum time once shown
+    // Make bar show immediately on initial load
+    const showDelayMs = mountSplash ? 0 : 120;
+    const minVisibleMs = 400;
 
-    if (pending) {
-      // delay showing to prevent flicker for ultra-fast transitions
+    if (isPending) {
       if (!visible) {
         showTimer = window.setTimeout(() => {
           setVisible(true);
           setStartedAt(Date.now());
-          setProgress(8);
+          // start a bit further so it's noticeable instantly
+          setProgress(15);
         }, showDelayMs);
       }
-      // smooth progress increments
       incTimer = window.setInterval(() => {
         setProgress((p) => {
           const increment = p < 30 ? 8 : p < 60 ? 5 : p < 85 ? 3 : 0.5;
@@ -175,7 +185,6 @@ function RouteProgressBar() {
         });
       }, 180);
     } else {
-      // complete and hide with a minimum visible duration
       if (visible) {
         setProgress(100);
         const elapsed = startedAt ? Date.now() - startedAt : minVisibleMs;
@@ -186,7 +195,6 @@ function RouteProgressBar() {
           setStartedAt(null);
         }, delay);
       } else {
-        // if never shown (pending flipped quickly), ensure timers cleared
         if (showTimer) window.clearTimeout(showTimer);
       }
     }
@@ -196,12 +204,12 @@ function RouteProgressBar() {
       if (hideTimer) window.clearTimeout(hideTimer);
       if (showTimer) window.clearTimeout(showTimer);
     };
-  }, [pending, visible, startedAt]);
+  }, [isPending, visible, startedAt, mountSplash]);
 
   if (!visible) return null;
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-50 h-0.5">
+    <div className="fixed top-0 left-0 right-0 z-50 h-[3px]">
       <div
         className="h-full bg-gradient-to-r from-primary to-purple-600 transition-[width] duration-300"
         style={{ width: `${progress}%` }}

@@ -291,7 +291,8 @@ export function DocumentsTable({
       initial={{ opacity: 0, y: 8, filter: "blur(1px)" }}
       animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
       transition={{ duration: 0.25, ease: "easeOut" }}
-      className="rounded-2xl border border-white/10 bg-white/[0.04] supports-[backdrop-filter]:bg-white/10 backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] overflow-hidden ring-1 ring-white/5"
+      // Make container not trap extra empty space visually
+      className="rounded-2xl border border-white/10 bg-white/[0.04] supports-[backdrop-filter]:bg-white/10 backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] overflow-visible ring-1 ring-white/5"
     >
       {/* Search + controls */}
       <div className="p-3 border-b border-white/10 bg-white/[0.06] supports-[backdrop-filter]:bg-white/10 backdrop-blur-xl">
@@ -411,7 +412,8 @@ export function DocumentsTable({
               onCheckedChange={onToggleSelectAll}
               onClick={(e) => e.stopPropagation()}
               aria-label="Select all documents"
-              className="border-black/60 bg-white/10 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+              // High-contrast unchecked state: black border + white background
+              className="border-black bg-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
             />
             <span className="text-xs text-foreground">
               Select all
@@ -421,9 +423,9 @@ export function DocumentsTable({
       </div>
 
       {/* Scrollable rows area */}
-      <div className="max-h-[60vh] md:max-h-[60vh] overflow-auto relative">
+      <div className="relative overflow-visible">
         {/* Desktop compact card list */}
-        <div className="hidden md:block p-3 space-y-2.5">
+        <div className="hidden md:block pt-2.5 pb-0 px-3 space-y-2">
             {visible.map((doc) => {
               const docName =
                 extractDocName(doc.bucket_name) ||
@@ -462,20 +464,22 @@ export function DocumentsTable({
                       : "bg-white/[0.06]"
                   } supports-[backdrop-filter]:bg-white/10 backdrop-blur px-4 py-2 shadow-sm cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 hover:ring-2 hover:ring-primary/40`}
                 >
-                  
-
-                  <div className="flex items-start gap-3">
-                    <div onClick={(e) => e.stopPropagation()}>
+                  <div className="relative flex items-start gap-3 pl-12">
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      className="absolute left-4 top-1/2 -translate-y-1/2"
+                    >
                       <Checkbox
                         checked={selectedIds.has(doc.id)}
                         onCheckedChange={() => onToggleSelect(doc.id)}
                         aria-label={`Select ${doc.id}`}
-                        className="border-white/40 bg-background/40 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+                        // Always visible, centered vertically, high-contrast unchecked
+                        className="border-black bg-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
                       />
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      {/* Top line: make ID + Subject primary; clicking here toggles expand */}
+                      {/* Top line and expand toggle */}
                       <div
                         className="flex items-center justify-between gap-3"
                         onClick={(e) => {
@@ -516,8 +520,8 @@ export function DocumentsTable({
                         </div>
                       </div>
 
-                      {/* Small separator line between the header (toggle area) and other regions */}
-                      <div className="mt-2 border-t-2 border-white/20" />
+                      {/* More visible separator on light backgrounds */}
+                      <div className="mt-2 border-t border-neutral-300 dark:border-neutral-700" />
 
                       {/* Collapsible meta content */}
                       {isExpanded && (
@@ -605,7 +609,7 @@ export function DocumentsTable({
         </div>
 
         {/* Mobile card list (smaller paddings) */}
-        <div className="md:hidden p-3 space-y-2.5">
+        <div className="md:hidden pt-2.5 pb-0 px-3 space-y-2">
           {visible.map((doc) => {
             const docName =
               extractDocName(doc.bucket_name) ||
@@ -641,7 +645,8 @@ export function DocumentsTable({
                     onCheckedChange={() => onToggleSelect(doc.id)}
                     aria-label={`Select ${doc.id}`}
                     onClick={(e) => e.stopPropagation()}
-                    className="border-white/40 bg-background/40 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+                    // High-contrast unchecked on mobile too
+                    className="border-black bg-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">

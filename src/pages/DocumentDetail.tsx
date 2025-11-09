@@ -1900,7 +1900,7 @@ export default function DocumentDetail() {
       <DocumentHeader
         title={doc.title}
         status={doc.status}
-        userEmail={user?.email}
+        userEmail={user?.email || 'User'}
         showSAP={showSAP}
         onToggleSAP={(v) => setShowSAP(Boolean(v))}
         onSignOut={signOut}
