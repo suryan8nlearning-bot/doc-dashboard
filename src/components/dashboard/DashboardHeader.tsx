@@ -7,8 +7,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { LogOut, Moon, Sun, User, Bell, Search } from "lucide-react";
+import { LogOut, Moon, Sun, User, Bell } from "lucide-react";
 import { motion } from "framer-motion";
 import { Link } from "react-router";
 
@@ -42,17 +41,8 @@ export function DashboardHeader({
         <h1 className="text-lg font-semibold tracking-tight">Document Dashboard</h1>
       </div>
 
-      {/* Center: Search */}
-      <div className="hidden md:flex flex-1 max-w-xl mx-6">
-        <div className="relative w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-          <Input
-            placeholder="Search documents..."
-            aria-label="Search documents"
-            className="pl-9 rounded-full bg-background/60"
-          />
-        </div>
-      </div>
+      {/* Center: Search - removed */}
+      <div className="hidden" />
 
       {/* Right: Actions */}
       <div className="flex items-center gap-2">

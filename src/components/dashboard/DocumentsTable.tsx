@@ -299,7 +299,7 @@ export function DocumentsTable({
     >
       {/* Search + controls */}
       <div className="p-3 border-b border-white/10 bg-white/[0.06] supports-[backdrop-filter]:bg-white/10 backdrop-blur-xl">
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-3 flex-nowrap overflow-x-auto">
           <Input
             value={search}
             onChange={(e) => {
@@ -307,7 +307,7 @@ export function DocumentsTable({
               setPage(1);
             }}
             placeholder="Search documents..."
-            className="bg-background/50 h-9"
+            className="bg-background/50 h-9 flex-1 min-w-0"
             aria-label="Search documents"
           />
           {/* Refresh button next to search */}
@@ -328,7 +328,7 @@ export function DocumentsTable({
               <Button
                 variant="outline"
                 size="sm"
-                className="ml-auto bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur"
+                className="bg-white/5 hover:bg-white/10 border-white/10 backdrop-blur"
                 aria-label="Configure columns"
                 title="Columns"
               >
