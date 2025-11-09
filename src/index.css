@@ -171,34 +171,52 @@
 
 /* Ensure SAP pane content is interactive and wraps correctly without horizontal scroll */
 [data-sap-interactive] {
-  word-break: break-word;
-  overflow-wrap: anywhere;
+  /* Prevent auto scroll jumps when expanding/collapsing sub-objects */
+  overflow-anchor: none;
+  /* Avoid horizontal scroll and layout jumps */
+  overflow-x: hidden;
 }
 
-[data-sap-interactive] * {
+[data-sap-interactive] :is(div, span, p, code, pre) {
+  /* Force wrapping so values never get cut off by adjacent columns */
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+
+/* Ensure inputs keep caret stable and don't get clipped by column containers */
+[data-sap-interactive] :is(input, textarea) {
+  white-space: pre-wrap;
+  word-break: break-word;
   min-width: 0;
 }
 
+/* Many row/grid structures clamp child width; ensure children can shrink and wrap */
+[data-sap-interactive] .grid > * {
+  min-width: 0 !important;
+}
+
+/* Override common clamping utilities inside the SAP pane */
+[data-sap-interactive] :is(.truncate, .text-ellipsis, .whitespace-nowrap) {
+  white-space: normal !important;
+  text-overflow: clip !important;
+  overflow: visible !important;
+}
+
+/* Some UIs apply overflow-hidden on columns; make sure our content can show fully */
+[data-sap-interactive] .overflow-hidden {
+  overflow: visible !important;
+}
+
+/* Ensure accordion/dropdowns are clickable and not suppressed by parent containers */
 [data-sap-interactive] :is(button, summary, [role="button"], [data-radix-accordion-trigger]) {
   pointer-events: auto !important;
 }
 
-[data-sap-interactive] table {
-  table-layout: fixed;
-  width: 100%;
-}
-
-[data-sap-interactive] td,
-[data-sap-interactive] th {
-  white-space: normal !important;
-  overflow: visible !important;
-  text-overflow: clip !important;
-}
-
-[data-sap-interactive] .truncate {
-  overflow: visible !important;
-  text-overflow: clip !important;
-  white-space: normal !important;
+/* Prevent hover-triggered scroll shifts on nested elements */
+[data-sap-interactive] * {
+  overscroll-behavior: contain;
 }
 
 @layer base {
