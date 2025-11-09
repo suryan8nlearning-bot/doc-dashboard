@@ -16,7 +16,7 @@ import { supabase, type BoundingBox, hasSupabaseEnv, publicUrlForPath } from '@/
 import { createSignedUrlForPath } from '@/lib/supabase';
 import { motion } from 'framer-motion';
 import { ArrowLeft, FileText, Loader2, ExternalLink, ArrowUp, Pencil, Check, ChevronDown, ChevronRight } from 'lucide-react';
-import { useEffect, useState, useRef, lazy, Suspense } from 'react';
+import React, { useEffect, useState, useRef, lazy, Suspense } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { useLocation } from 'react-router';
 import { toast } from 'sonner';
@@ -137,6 +137,30 @@ export default function DocumentDetail() {
 
   // Add state to control "From Mail instruction" hint above the PDF
   const [mailHint, setMailHint] = useState(false);
+
+  // Throttle RAF id for SAP hover across renders
+  let __sapHoverRaf: number | null = null;
+
+  // Add: RAF-throttled hover handler for SAP fields (prevents flicker and excessive re-renders)
+  const sapHoverRaf = useRef<number | null>(null);
+  const lastSapHover = useRef<(BoundingBox & { page?: number }) | null>(null);
+  const onSapHover = (box?: (BoundingBox & { page?: number }) | null) => {
+    lastSapHover.current = box ?? null;
+    if (sapHoverRaf.current !== null) return;
+    sapHoverRaf.current = requestAnimationFrame(() => {
+      setHighlightBox(lastSapHover.current);
+      sapHoverRaf.current = null;
+    });
+  };
+
+  useEffect(() => {
+    return () => {
+      if (sapHoverRaf.current !== null) {
+        cancelAnimationFrame(sapHoverRaf.current);
+        sapHoverRaf.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     // Remove any user confirmation dialogs globally on this page by auto-accepting confirm()
@@ -2057,6 +2081,7 @@ export default function DocumentDetail() {
                 <ScrollArea className="h-full pr-1 overflow-y-auto no-scrollbar">
                   <SAPJsonCard
                     data={sapOut ?? {}}
+                    onHoverHighlight={onSapHover}
                   />
                 </ScrollArea>
               ) : (
@@ -2196,7 +2221,7 @@ export default function DocumentDetail() {
                                   defaultCollapsed={false}
                                   hideHeader
                                   sourceDocumentData={doc.document_data}
-                                  onHoverHighlight={(box) => setHighlightBox(box)}
+                                  onHoverHighlight={onSapHover}
                                   // New: show/hide the mail hint popup above the PDF when no mapping exists
                                   onShowMailHint={() => setMailHint(true)}
                                   onHideMailHint={() => setMailHint(false)}
@@ -2219,7 +2244,7 @@ export default function DocumentDetail() {
                               <Suspense fallback={<RightPanelSkeleton />}>
                                 <DocumentFieldsLazy
                                   documentData={doc.document_data}
-                                  onFieldHover={setHighlightBox}
+                                  onFieldHover={onSapHover}
                                 />
                               </Suspense>
                             ) : (
