@@ -52,6 +52,7 @@ export function SAPJsonCard({
   const [collapsed, setCollapsed] = useState<boolean>(defaultCollapsed);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set<string>());
   const [hoveredPath, setHoveredPath] = useState<string | null>(null);
+  const [editedValues, setEditedValues] = useState<Record<string, any>>({});
 
   const hoverMapping: SapToSourceMapping | null = useMemo(() => {
     try {
@@ -391,14 +392,6 @@ export function SAPJsonCard({
                   <tr
                     key={itemPath}
                     className="border-b hover:bg-muted/20 transition-colors"
-                    style={{
-                      ...(hoveredPath === itemPath
-                        ? {
-                            backgroundColor: "rgba(59,130,246,0.08)",
-                            boxShadow: "inset 0 0 0 1px rgba(59,130,246,0.45)",
-                          }
-                        : {}),
-                    }}
                   >
                     <td className="px-3 py-2 align-top">
                       <div className="flex items-center gap-2">
@@ -407,62 +400,39 @@ export function SAPJsonCard({
                             itemHasMapping ? "bg-emerald-500" : "bg-rose-500"
                           }`}
                           title={itemHasMapping ? "Source found" : "No source mapping"}
-                          onMouseEnter={() => {
-                            if (itemBox) {
-                              onHideMailHint?.();
-                              handleRowEnter(itemPath, itemBox as any);
-                            } else {
-                              setHoveredPath(itemPath);
-                              onShowMailHint?.();
-                            }
-                          }}
-                          onMouseLeave={() => {
-                            handleRowLeave();
-                            onHideMailHint?.();
-                          }}
                         />
                         <span className="text-sm font-semibold">{idx + 1}</span>
                       </div>
                     </td>
                     
                     {primitiveColumns.map((col) => {
-                      const val = item[col];
                       const fieldPath = `${itemPath}.${col}`;
+                      const storedVal = editedValues[fieldPath];
+                      const val = storedVal !== undefined ? storedVal : item[col];
                       const fieldBox = hoverMapping ? hoverMapping[fieldPath] || null : null;
                       const fieldHasMapping = Boolean(fieldBox);
 
                       return (
                         <td key={col} className="px-3 py-2 align-top">
                           <div className="flex items-center gap-2">
-                            <span
-                              className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${
-                                fieldHasMapping ? "bg-emerald-400" : "bg-rose-400"
-                              }`}
-                              onMouseEnter={() => {
-                                if (fieldBox) {
-                                  onHideMailHint?.();
-                                  handleRowEnter(fieldPath, fieldBox as any);
-                                } else {
-                                  setHoveredPath(fieldPath);
-                                  onShowMailHint?.();
-                                }
-                              }}
-                              onMouseLeave={() => {
-                                handleRowLeave();
-                                onHideMailHint?.();
-                              }}
-                            />
                             {typeof val === "boolean" ? (
                               <input 
                                 type="checkbox" 
-                                defaultChecked={val} 
+                                checked={val}
+                                onChange={(e) => {
+                                  setEditedValues(prev => ({...prev, [fieldPath]: e.target.checked}));
+                                }}
                                 className="h-3.5 w-3.5"
                                 onClick={(e) => e.stopPropagation()}
                               />
                             ) : (
                               <input
                                 type={typeof val === "number" ? "number" : "text"}
-                                defaultValue={val === null || val === undefined ? "" : String(val)}
+                                value={val === null || val === undefined ? "" : String(val)}
+                                onChange={(e) => {
+                                  const newVal = typeof val === "number" ? parseFloat(e.target.value) || 0 : e.target.value;
+                                  setEditedValues(prev => ({...prev, [fieldPath]: newVal}));
+                                }}
                                 className="w-full min-w-[80px] rounded border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
                                 onClick={(e) => e.stopPropagation()}
                                 onFocus={(e) => {
@@ -497,121 +467,173 @@ export function SAPJsonCard({
                     </td>
                   </tr>
 
-                  {/* Sub-objects row (expanded) */}
+                  {/* Sub-objects row (expanded) - displayed as grid of dropdowns */}
                   {expanded.has(itemPath) && subObjects.length > 0 && (
                     <tr key={`${itemPath}-sub`}>
                       <td colSpan={primitiveColumns.length + 2} className="px-6 py-3 bg-muted/10">
-                        <div className="space-y-3">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                           {subObjects.map(([key, val]) => {
                             const subPath = `${itemPath}.${key}`;
+                            const subObjPath = `${subPath}-details`;
+                            const isSubExpanded = expanded.has(subObjPath);
                             const isArrayOfObjects =
                               Array.isArray(val) &&
                               (val as any[]).length > 0 &&
                               (val as any[]).every((row) => row && typeof row === "object" && !Array.isArray(row));
 
                             return (
-                              <div key={key} className="border rounded-lg bg-card p-3">
-                                <div className="text-xs font-semibold text-foreground mb-2 flex items-center gap-2">
-                                  <span>{key}</span>
-                                  <span className="text-muted-foreground font-normal">
-                                    {Array.isArray(val) ? `(${val.length} items)` : "(object)"}
+                              <div key={key} className="border rounded-lg bg-card overflow-hidden">
+                                <button
+                                  onClick={() => togglePath(subObjPath)}
+                                  className="w-full px-3 py-2 flex items-center justify-between bg-muted/30 hover:bg-muted/50 transition-colors"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <ChevronRight
+                                      className={`h-3.5 w-3.5 transition-transform ${
+                                        isSubExpanded ? "rotate-90" : ""
+                                      }`}
+                                    />
+                                    <span className="text-xs font-semibold">{key}</span>
+                                  </div>
+                                  <span className="text-xs text-muted-foreground">
+                                    {Array.isArray(val) ? `${val.length} items` : "object"}
                                   </span>
-                                </div>
+                                </button>
                                 
-                                {isArrayOfObjects ? (
-                                  <ArrayOfObjectsAccordion
-                                    items={val as Array<Record<string, any>>}
-                                    basePath={subPath}
-                                    depth={depth + 1}
-                                  />
-                                ) : Array.isArray(val) ? (
-                                  <div className="space-y-2">
-                                    {(val as any[]).map((item, idx) => (
-                                      <div key={idx} className="flex items-center gap-2 p-2 rounded border bg-background">
-                                        <span className="text-xs font-medium text-muted-foreground min-w-[40px]">#{idx + 1}</span>
-                                        {typeof item === "object" && item !== null ? (
-                                          <div className="flex-1 grid grid-cols-2 gap-2">
-                                            {Object.entries(item).map(([k, v]) => (
-                                              <div key={k} className="flex items-center gap-1">
-                                                <label className="text-xs text-muted-foreground whitespace-nowrap">{k}:</label>
-                                                {typeof v === "boolean" ? (
-                                                  <input 
-                                                    type="checkbox" 
-                                                    defaultChecked={v} 
-                                                    className="h-3.5 w-3.5"
-                                                    onClick={(e) => e.stopPropagation()}
-                                                  />
-                                                ) : (
-                                                  <input
-                                                    type={typeof v === "number" ? "number" : "text"}
-                                                    defaultValue={v === null || v === undefined ? "" : String(v)}
-                                                    className="flex-1 min-w-0 rounded border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-                                                    onClick={(e) => e.stopPropagation()}
-                                                    onFocus={(e) => {
-                                                      e.currentTarget.style.position = 'relative';
-                                                      e.currentTarget.style.zIndex = '9999';
-                                                    }}
-                                                    onBlur={(e) => {
-                                                      e.currentTarget.style.position = '';
-                                                      e.currentTarget.style.zIndex = '';
-                                                    }}
-                                                  />
-                                                )}
-                                              </div>
-                                            ))}
-                                          </div>
-                                        ) : (
-                                          <input
-                                            type={typeof item === "number" ? "number" : "text"}
-                                            defaultValue={item === null || item === undefined ? "" : String(item)}
-                                            className="flex-1 rounded border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-                                            onClick={(e) => e.stopPropagation()}
-                                            onFocus={(e) => {
-                                              e.currentTarget.style.position = 'relative';
-                                              e.currentTarget.style.zIndex = '9999';
-                                            }}
-                                            onBlur={(e) => {
-                                              e.currentTarget.style.position = '';
-                                              e.currentTarget.style.zIndex = '';
-                                            }}
-                                          />
-                                        )}
+                                {isSubExpanded && (
+                                  <div className="p-3">
+                                    {isArrayOfObjects ? (
+                                      <ArrayOfObjectsAccordion
+                                        items={val as Array<Record<string, any>>}
+                                        basePath={subPath}
+                                        depth={depth + 1}
+                                      />
+                                    ) : Array.isArray(val) ? (
+                                      <div className="space-y-2">
+                                        {(val as any[]).map((item, idx) => {
+                                          const itemValPath = `${subPath}.[${idx}]`;
+                                          const storedItem = editedValues[itemValPath];
+                                          const displayItem = storedItem !== undefined ? storedItem : item;
+                                          
+                                          return (
+                                            <div key={idx} className="flex items-center gap-2 p-2 rounded border bg-background">
+                                              <span className="text-xs font-medium text-muted-foreground min-w-[40px]">#{idx + 1}</span>
+                                              {typeof displayItem === "object" && displayItem !== null ? (
+                                                <div className="flex-1 grid grid-cols-1 gap-2">
+                                                  {Object.entries(displayItem).map(([k, v]) => {
+                                                    const fieldValPath = `${itemValPath}.${k}`;
+                                                    const storedFieldVal = editedValues[fieldValPath];
+                                                    const displayVal = storedFieldVal !== undefined ? storedFieldVal : v;
+                                                    
+                                                    return (
+                                                      <div key={k} className="flex items-center gap-1">
+                                                        <label className="text-xs text-muted-foreground whitespace-nowrap min-w-[80px]">{k}:</label>
+                                                        {typeof displayVal === "boolean" ? (
+                                                          <input 
+                                                            type="checkbox" 
+                                                            checked={displayVal}
+                                                            onChange={(e) => {
+                                                              setEditedValues(prev => ({...prev, [fieldValPath]: e.target.checked}));
+                                                            }}
+                                                            className="h-3.5 w-3.5"
+                                                            onClick={(e) => e.stopPropagation()}
+                                                          />
+                                                        ) : (
+                                                          <input
+                                                            type={typeof displayVal === "number" ? "number" : "text"}
+                                                            value={displayVal === null || displayVal === undefined ? "" : String(displayVal)}
+                                                            onChange={(e) => {
+                                                              const newVal = typeof displayVal === "number" ? parseFloat(e.target.value) || 0 : e.target.value;
+                                                              setEditedValues(prev => ({...prev, [fieldValPath]: newVal}));
+                                                            }}
+                                                            className="flex-1 min-w-0 rounded border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            onFocus={(e) => {
+                                                              e.currentTarget.style.position = 'relative';
+                                                              e.currentTarget.style.zIndex = '9999';
+                                                            }}
+                                                            onBlur={(e) => {
+                                                              e.currentTarget.style.position = '';
+                                                              e.currentTarget.style.zIndex = '';
+                                                            }}
+                                                          />
+                                                        )}
+                                                      </div>
+                                                    );
+                                                  })}
+                                                </div>
+                                              ) : (
+                                                <input
+                                                  type={typeof displayItem === "number" ? "number" : "text"}
+                                                  value={displayItem === null || displayItem === undefined ? "" : String(displayItem)}
+                                                  onChange={(e) => {
+                                                    const newVal = typeof displayItem === "number" ? parseFloat(e.target.value) || 0 : e.target.value;
+                                                    setEditedValues(prev => ({...prev, [itemValPath]: newVal}));
+                                                  }}
+                                                  className="flex-1 rounded border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                                                  onClick={(e) => e.stopPropagation()}
+                                                  onFocus={(e) => {
+                                                    e.currentTarget.style.position = 'relative';
+                                                    e.currentTarget.style.zIndex = '9999';
+                                                  }}
+                                                  onBlur={(e) => {
+                                                    e.currentTarget.style.position = '';
+                                                    e.currentTarget.style.zIndex = '';
+                                                  }}
+                                                />
+                                              )}
+                                            </div>
+                                          );
+                                        })}
                                       </div>
-                                    ))}
-                                  </div>
-                                ) : typeof val === "object" && val !== null ? (
-                                  <div className="space-y-2">
-                                    {Object.entries(val).map(([k, v]) => (
-                                      <div key={k} className="flex items-center gap-2 p-2 rounded border bg-background">
-                                        <label className="text-xs font-medium text-muted-foreground min-w-[120px]">{k}:</label>
-                                        {typeof v === "boolean" ? (
-                                          <input 
-                                            type="checkbox" 
-                                            defaultChecked={v} 
-                                            className="h-3.5 w-3.5"
-                                            onClick={(e) => e.stopPropagation()}
-                                          />
-                                        ) : (
-                                          <input
-                                            type={typeof v === "number" ? "number" : "text"}
-                                            defaultValue={v === null || v === undefined ? "" : String(v)}
-                                            className="flex-1 rounded border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-                                            onClick={(e) => e.stopPropagation()}
-                                            onFocus={(e) => {
-                                              e.currentTarget.style.position = 'relative';
-                                              e.currentTarget.style.zIndex = '9999';
-                                            }}
-                                            onBlur={(e) => {
-                                              e.currentTarget.style.position = '';
-                                              e.currentTarget.style.zIndex = '';
-                                            }}
-                                          />
-                                        )}
+                                    ) : typeof val === "object" && val !== null ? (
+                                      <div className="space-y-2">
+                                        {Object.entries(val).map(([k, v]) => {
+                                          const fieldValPath = `${subPath}.${k}`;
+                                          const storedVal = editedValues[fieldValPath];
+                                          const displayVal = storedVal !== undefined ? storedVal : v;
+                                          
+                                          return (
+                                            <div key={k} className="flex items-center gap-2 p-2 rounded border bg-background">
+                                              <label className="text-xs font-medium text-muted-foreground min-w-[100px]">{k}:</label>
+                                              {typeof displayVal === "boolean" ? (
+                                                <input 
+                                                  type="checkbox" 
+                                                  checked={displayVal}
+                                                  onChange={(e) => {
+                                                    setEditedValues(prev => ({...prev, [fieldValPath]: e.target.checked}));
+                                                  }}
+                                                  className="h-3.5 w-3.5"
+                                                  onClick={(e) => e.stopPropagation()}
+                                                />
+                                              ) : (
+                                                <input
+                                                  type={typeof displayVal === "number" ? "number" : "text"}
+                                                  value={displayVal === null || displayVal === undefined ? "" : String(displayVal)}
+                                                  onChange={(e) => {
+                                                    const newVal = typeof displayVal === "number" ? parseFloat(e.target.value) || 0 : e.target.value;
+                                                    setEditedValues(prev => ({...prev, [fieldValPath]: newVal}));
+                                                  }}
+                                                  className="flex-1 rounded border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                                                  onClick={(e) => e.stopPropagation()}
+                                                  onFocus={(e) => {
+                                                    e.currentTarget.style.position = 'relative';
+                                                    e.currentTarget.style.zIndex = '9999';
+                                                  }}
+                                                  onBlur={(e) => {
+                                                    e.currentTarget.style.position = '';
+                                                    e.currentTarget.style.zIndex = '';
+                                                  }}
+                                                />
+                                              )}
+                                            </div>
+                                          );
+                                        })}
                                       </div>
-                                    ))}
+                                    ) : (
+                                      <TreeNode label="" value={val} path={subPath} depth={depth + 1} />
+                                    )}
                                   </div>
-                                ) : (
-                                  <TreeNode label="" value={val} path={subPath} depth={depth + 1} />
                                 )}
                               </div>
                             );
