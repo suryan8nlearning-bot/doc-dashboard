@@ -492,6 +492,92 @@ export function SAPJsonCard({
                                 basePath={subPath}
                                 depth={depth + 1}
                               />
+                            ) : Array.isArray(val) ? (
+                              <div className="space-y-2">
+                                {(val as any[]).map((item, idx) => (
+                                  <div key={idx} className="flex items-center gap-2 p-2 rounded border bg-background">
+                                    <span className="text-xs font-medium text-muted-foreground min-w-[40px]">#{idx + 1}</span>
+                                    {typeof item === "object" && item !== null ? (
+                                      <div className="flex-1 grid grid-cols-2 gap-2">
+                                        {Object.entries(item).map(([k, v]) => (
+                                          <div key={k} className="flex items-center gap-1">
+                                            <label className="text-xs text-muted-foreground whitespace-nowrap">{k}:</label>
+                                            {typeof v === "boolean" ? (
+                                              <input 
+                                                type="checkbox" 
+                                                defaultChecked={v} 
+                                                className="h-3.5 w-3.5"
+                                                onClick={(e) => e.stopPropagation()}
+                                              />
+                                            ) : (
+                                              <input
+                                                type={typeof v === "number" ? "number" : "text"}
+                                                defaultValue={v === null || v === undefined ? "" : String(v)}
+                                                className="flex-1 min-w-0 rounded border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                                                onClick={(e) => e.stopPropagation()}
+                                                onFocus={(e) => {
+                                                  e.currentTarget.style.position = 'relative';
+                                                  e.currentTarget.style.zIndex = '9999';
+                                                }}
+                                                onBlur={(e) => {
+                                                  e.currentTarget.style.position = '';
+                                                  e.currentTarget.style.zIndex = '';
+                                                }}
+                                              />
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <input
+                                        type={typeof item === "number" ? "number" : "text"}
+                                        defaultValue={item === null || item === undefined ? "" : String(item)}
+                                        className="flex-1 rounded border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                                        onClick={(e) => e.stopPropagation()}
+                                        onFocus={(e) => {
+                                          e.currentTarget.style.position = 'relative';
+                                          e.currentTarget.style.zIndex = '9999';
+                                        }}
+                                        onBlur={(e) => {
+                                          e.currentTarget.style.position = '';
+                                          e.currentTarget.style.zIndex = '';
+                                        }}
+                                      />
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : typeof val === "object" && val !== null ? (
+                              <div className="space-y-2">
+                                {Object.entries(val).map(([k, v]) => (
+                                  <div key={k} className="flex items-center gap-2 p-2 rounded border bg-background">
+                                    <label className="text-xs font-medium text-muted-foreground min-w-[120px]">{k}:</label>
+                                    {typeof v === "boolean" ? (
+                                      <input 
+                                        type="checkbox" 
+                                        defaultChecked={v} 
+                                        className="h-3.5 w-3.5"
+                                        onClick={(e) => e.stopPropagation()}
+                                      />
+                                    ) : (
+                                      <input
+                                        type={typeof v === "number" ? "number" : "text"}
+                                        defaultValue={v === null || v === undefined ? "" : String(v)}
+                                        className="flex-1 rounded border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                                        onClick={(e) => e.stopPropagation()}
+                                        onFocus={(e) => {
+                                          e.currentTarget.style.position = 'relative';
+                                          e.currentTarget.style.zIndex = '9999';
+                                        }}
+                                        onBlur={(e) => {
+                                          e.currentTarget.style.position = '';
+                                          e.currentTarget.style.zIndex = '';
+                                        }}
+                                      />
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
                             ) : (
                               <TreeNode label="" value={val} path={subPath} depth={depth + 1} />
                             )}
