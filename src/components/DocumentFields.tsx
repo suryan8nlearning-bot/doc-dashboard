@@ -313,28 +313,41 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
                   className="p-3 rounded-lg border border-border hover:border-primary/30 cursor-pointer transition-all hover:shadow-sm bg-card/50 border-l-2"
                   style={{ borderLeftColor: SECTION_COLORS.items }}
                   onMouseEnter={() => {
-                    // Merge ALL boxes for this line item into a single row box (union of edges)
+                    // Merge boxes using leftmost top-left (x1,y1) and farthest right/bottom (x2,y2)
                     const boxes: any[] = Array.isArray(item?.bounding_box) ? item.bounding_box : [];
-                    let minX = Number.POSITIVE_INFINITY;
-                    let minY = Number.POSITIVE_INFINITY;
-                    let maxX = Number.NEGATIVE_INFINITY;
-                    let maxY = Number.NEGATIVE_INFINITY;
+                    let leftmostX = Number.POSITIVE_INFINITY;
+                    let leftmostY = Number.POSITIVE_INFINITY;
+                    let haveLeft = false;
+
+                    let maxRight = Number.NEGATIVE_INFINITY;
+                    let maxBottom = Number.NEGATIVE_INFINITY;
 
                     for (const b of boxes) {
                       const nb = normalizeBoxAny(b);
                       if (!nb) continue;
-                      const r = nb.x + nb.width;
-                      const bt = nb.y + nb.height;
-                      if (Number.isFinite(nb.x) && nb.x < minX) minX = nb.x;
-                      if (Number.isFinite(nb.y) && nb.y < minY) minY = nb.y;
-                      if (Number.isFinite(r) && r > maxX) maxX = r;
-                      if (Number.isFinite(bt) && bt > maxY) maxY = bt;
+                      const x1 = nb.x;
+                      const y1 = nb.y;
+                      const x2 = nb.x + nb.width;
+                      const y2 = nb.y + nb.height;
+
+                      if (Number.isFinite(x1) && x1 < leftmostX) {
+                        leftmostX = x1;
+                        leftmostY = Number.isFinite(y1) ? y1 : leftmostY;
+                        haveLeft = true;
+                      }
+                      if (Number.isFinite(x2) && x2 > maxRight) maxRight = x2;
+                      if (Number.isFinite(y2) && y2 > maxBottom) maxBottom = y2;
                     }
 
-                    if (Number.isFinite(minX) && Number.isFinite(minY) && Number.isFinite(maxX) && Number.isFinite(maxY) && maxX > minX && maxY > minY) {
-                      // Fix: use the actual PDF page number instead of item.page (which doesn't exist)
-                      const merged = { x: minX, y: minY, width: maxX - minX, height: maxY - minY, page: page.page_number };
-                      onFieldHover({ ...merged, page: merged.page, color: SECTION_COLORS.items });
+                    if (haveLeft && Number.isFinite(maxRight) && Number.isFinite(maxBottom) && maxRight > leftmostX && maxBottom > leftmostY) {
+                      const merged = {
+                        x: leftmostX,
+                        y: leftmostY,
+                        width: maxRight - leftmostX,
+                        height: maxBottom - leftmostY,
+                        page: page.page_number,
+                      };
+                      onFieldHover({ ...merged, color: SECTION_COLORS.items });
                     } else {
                       // Fallback to first box if union failed
                       const ibb = normalizeBoxAny(item.bounding_box?.[0]);

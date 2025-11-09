@@ -631,39 +631,45 @@ const toPxBox = (box: WideBox): WideBox => {
     if (Array.isArray(page?.items)) {
       page.items.forEach((item: any, idx: number) => {
         if (Array.isArray(item?.bounding_box) && item.bounding_box.length) {
-          let minX = Number.POSITIVE_INFINITY;
-          let minY = Number.POSITIVE_INFINITY;
-          let maxX = Number.NEGATIVE_INFINITY;
-          let maxY = Number.NEGATIVE_INFINITY;
+          // Compute merged row box using leftmost x1,y1 and farthest right/bottom x2,y2
+          let leftmostX = Number.POSITIVE_INFINITY;
+          let leftmostY = Number.POSITIVE_INFINITY;
+          let haveLeft = false;
+
+          let maxRight = Number.NEGATIVE_INFINITY;
+          let maxBottom = Number.NEGATIVE_INFINITY;
 
           item.bounding_box.forEach((b: any) => {
             const nb = normalizeBoxAny(b);
-            if (nb) {
-              const r = nb.x + nb.width;
-              const bt = nb.y + nb.height;
-              if (Number.isFinite(nb.x) && nb.x < minX) minX = nb.x;
-              if (Number.isFinite(nb.y) && nb.y < minY) minY = nb.y;
-              if (Number.isFinite(r) && r > maxX) maxX = r;
-              if (Number.isFinite(bt) && bt > maxY) maxY = bt;
+            if (!nb) return;
+            const x1 = nb.x;
+            const y1 = nb.y;
+            const x2 = nb.x + nb.width;
+            const y2 = nb.y + nb.height;
+
+            if (Number.isFinite(x1) && x1 < leftmostX) {
+              leftmostX = x1;
+              leftmostY = Number.isFinite(y1) ? y1 : leftmostY;
+              haveLeft = true;
             }
+            if (Number.isFinite(x2) && x2 > maxRight) maxRight = x2;
+            if (Number.isFinite(y2) && y2 > maxBottom) maxBottom = y2;
           });
 
           if (
-            Number.isFinite(minX) &&
-            Number.isFinite(minY) &&
-            Number.isFinite(maxX) &&
-            Number.isFinite(maxY) &&
-            maxX > minX &&
-            maxY > minY
+            haveLeft &&
+            Number.isFinite(maxRight) &&
+            Number.isFinite(maxBottom) &&
+            maxRight > leftmostX &&
+            maxBottom > leftmostY
           ) {
             const desc: string = typeof item?.description === 'string' ? item.description : '';
             const value = desc ? `Item ${idx + 1}: ${desc}` : `Item ${idx + 1}`;
-            // Push the combined row box
             boxes.push({
-              x: minX,
-              y: minY,
-              width: maxX - minX,
-              height: maxY - minY,
+              x: leftmostX,
+              y: leftmostY,
+              width: maxRight - leftmostX,
+              height: maxBottom - leftmostY,
               label: `Item ${idx + 1} (row)`,
               value,
             } as any);
