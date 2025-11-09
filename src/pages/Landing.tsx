@@ -860,6 +860,12 @@ export default function Landing() {
                   <div>All Columns: {debugInfo.allColumns.join(', ')}</div>
                   <div>SAP_JSON_from_APP: {debugInfo.sapJsonFromApp ? (typeof debugInfo.sapJsonFromApp === 'string' ? `"${debugInfo.sapJsonFromApp.substring(0, 50)}..."` : '[Object]') : 'null'}</div>
                   <div>SAP JSON: {debugInfo.sapJson ? (typeof debugInfo.sapJson === 'string' ? `"${debugInfo.sapJson.substring(0, 50)}..."` : '[Object]') : 'null'}</div>
+                  <div className="mt-3 pt-3 border-t border-muted-foreground/20">
+                    <div className="font-semibold mb-2">Full Fetched Data:</div>
+                    <pre className="text-xs bg-background p-2 rounded overflow-x-auto max-h-60">
+                      {JSON.stringify(debugInfo, null, 2)}
+                    </pre>
+                  </div>
                 </div>
               )}
 
@@ -875,22 +881,47 @@ export default function Landing() {
                     />
                   ))}
                 </div>
-              ) : sapData?.output ? (
+              ) : sapData ? (
                 <div className="space-y-4">
-                  {/* Header Fields Table */}
-                  <div className="space-y-2">
-                    <h3 className="text-sm font-semibold">Header Fields</h3>
-                    {renderFieldTable(sapData.output, ['output'])}
-                  </div>
+                  {/* Check if data has output wrapper */}
+                  {sapData.output ? (
+                    <>
+                      {/* Header Fields Table */}
+                      <div className="space-y-2">
+                        <h3 className="text-sm font-semibold">Header Fields</h3>
+                        {renderFieldTable(sapData.output, ['output'])}
+                      </div>
 
-                  {/* Partners Accordion */}
-                  {sapData.output.to_Partner && renderArrayAccordion(sapData.output.to_Partner, 'Partners', ['output', 'to_Partner'])}
+                      {/* Partners Accordion */}
+                      {sapData.output.to_Partner && renderArrayAccordion(sapData.output.to_Partner, 'Partners', ['output', 'to_Partner'])}
 
-                  {/* Pricing Elements Accordion */}
-                  {sapData.output.to_PricingElement && renderArrayAccordion(sapData.output.to_PricingElement, 'Pricing Elements', ['output', 'to_PricingElement'])}
+                      {/* Pricing Elements Accordion */}
+                      {sapData.output.to_PricingElement && renderArrayAccordion(sapData.output.to_PricingElement, 'Pricing Elements', ['output', 'to_PricingElement'])}
 
-                  {/* Items Accordion */}
-                  {sapData.output.to_Item && renderArrayAccordion(sapData.output.to_Item, 'Line Items', ['output', 'to_Item'])}
+                      {/* Items Accordion */}
+                      {sapData.output.to_Item && renderArrayAccordion(sapData.output.to_Item, 'Line Items', ['output', 'to_Item'])}
+                    </>
+                  ) : (
+                    <>
+                      {/* Render top-level fields if no output wrapper */}
+                      <div className="space-y-2">
+                        <h3 className="text-sm font-semibold">Fields</h3>
+                        {renderFieldTable(sapData, [])}
+                      </div>
+
+                      {/* Render any top-level arrays */}
+                      {Object.entries(sapData).map(([key, val]) => {
+                        if (Array.isArray(val) && val.length > 0) {
+                          return (
+                            <div key={key}>
+                              {renderArrayAccordion(val, key, [key])}
+                            </div>
+                          );
+                        }
+                        return null;
+                      })}
+                    </>
+                  )}
 
                   {/* Raw JSON accordion for visibility */}
                   <Accordion type="single" collapsible className="w-full">
