@@ -203,24 +203,23 @@ const [showDebug, setShowDebug] = useState(false);
  * Objects are parsed via normalizeBoxAny and then converted to edges.
  */
 function robustUnitEdges(input: any): { x1: number; y1: number; x2: number; y2: number } {
-  // Always return a non-null object to satisfy TS narrowing at all call sites
   const base = getBaseDims();
-  const ZERO = { x1: 0, y1: 0, x2: 0, y2: 0 };
-  if (!base.width || !base.height) return ZERO;
+  const zero = { x1: 0, y1: 0, x2: 0, y2: 0 };
+  if (!input || !base.width || !base.height) return zero;
 
   const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
   const src = sourceDimsRef.current;
   const srcW = src?.width && src.width > 0 ? src.width : base.width;
   const srcH = src?.height && src.height > 0 ? src.height : base.height;
 
-  // Arrays strictly as [x1,y1,x2,y2]
+  // Arrays: ALWAYS interpret as [x1, y1, x2, y2]
   if (Array.isArray(input) && input.length >= 4) {
     const toNum = (v: any) => (v === null || v === undefined || v === "" ? NaN : Number(v));
     let x1 = toNum(input[0]);
     let y1 = toNum(input[1]);
     let x2 = toNum(input[2]);
     let y2 = toNum(input[3]);
-    if (![x1, y1, x2, y2].every(Number.isFinite)) return ZERO;
+    if (![x1, y1, x2, y2].every(Number.isFinite)) return zero;
 
     if (x2 < x1) [x1, x2] = [x2, x1];
     if (y2 < y1) [y1, y2] = [y2, y1];
@@ -232,17 +231,19 @@ function robustUnitEdges(input: any): { x1: number; y1: number; x2: number; y2: 
     let uy2 = alreadyUnit ? y2 : y2 / srcH;
 
     ux1 = clamp01(ux1); uy1 = clamp01(uy1); ux2 = clamp01(ux2); uy2 = clamp01(uy2);
-    if (ux2 <= ux1 || uy2 <= uy1) return ZERO;
+    if (ux2 <= ux1 || uy2 <= uy1) return zero;
     return { x1: ux1, y1: uy1, x2: ux2, y2: uy2 };
   }
 
-  // Object fast-path with x1,y1,x2,y2
+  // NEW: Object edges fast-path: { x1, y1, x2, y2 }
   if (typeof input === "object" && input !== null) {
     const x1o = (input as any).x1;
     const y1o = (input as any).y1;
     const x2o = (input as any).x2;
     const y2o = (input as any).y2;
-    if ([x1o, y1o, x2o, y2o].every((v) => typeof v === "number" && Number.isFinite(v))) {
+    if (
+      [x1o, y1o, x2o, y2o].every((v) => typeof v === "number" && Number.isFinite(v))
+    ) {
       let x1 = x1o as number;
       let y1 = y1o as number;
       let x2 = x2o as number;
@@ -257,14 +258,14 @@ function robustUnitEdges(input: any): { x1: number; y1: number; x2: number; y2: 
       let uy2 = alreadyUnit ? y2 : y2 / srcH;
 
       ux1 = clamp01(ux1); uy1 = clamp01(uy1); ux2 = clamp01(ux2); uy2 = clamp01(uy2);
-      if (ux2 <= ux1 || uy2 <= uy1) return ZERO;
+      if (ux2 <= ux1 || uy2 <= uy1) return zero;
       return { x1: ux1, y1: uy1, x2: ux2, y2: uy2 };
     }
   }
 
-  // Fallback via normalizeBoxAny -> edges
+  // Objects via normalizeBoxAny -> [x, y, width, height]
   const nb = normalizeBoxAny(input);
-  if (!nb) return ZERO;
+  if (!nb) return zero;
 
   const { x, y, width, height } = nb;
   const isUnit =
@@ -280,7 +281,7 @@ function robustUnitEdges(input: any): { x1: number; y1: number; x2: number; y2: 
   if (y2u < y1u) [y1u, y2u] = [y2u, y1u];
 
   x1u = clamp01(x1u); y1u = clamp01(y1u); x2u = clamp01(x2u); y2u = clamp01(y2u);
-  if (x2u <= x1u || y2u <= y1u) return ZERO;
+  if (x2u <= x1u || y2u <= y1u) return zero;
   return { x1: x1u, y1: y1u, x2: x2u, y2: y2u };
 }
 
@@ -347,17 +348,18 @@ function toUnitEdgesTopLeft(input: any): { x1: number; y1: number; x2: number; y
   };
 }
 
-function edgesToPxRect(edges: { x1: number; y1: number; x2: number; y2: number }) {
-  const base = getBaseDims();
+function edgesToPxRect(edges: { x1: number; y1: number; x2: number; y2: number }, base?: { width: number; height: number }) {
+  const baseW = base?.width || 1;
+  const baseH = base?.height || 1;
   const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
   const x1 = clamp01(edges.x1);
   const y1 = clamp01(edges.y1);
   const x2 = clamp01(edges.x2);
   const y2 = clamp01(edges.y2);
-  const x = x1 * base.width;
-  const y = y1 * base.height;
-  const width = Math.max(0, x2 - x1) * base.width;
-  const height = Math.max(0, y2 - y1) * base.height;
+  const x = x1 * baseW;
+  const y = y1 * baseH;
+  const width = Math.max(0, x2 - x1) * baseW;
+  const height = Math.max(0, y2 - y1) * baseH;
   return { x, y, width, height };
 }
 
@@ -1237,7 +1239,7 @@ const toPxBox = (box: WideBox): WideBox => {
 
     const maybeSwitchPageAndCenter = async () => {
       // Use the same normalized edges pipeline as overlays
-      const hbEdges = robustUnitEdges(highlightBox as any);
+      const hbEdges = robustUnitEdges(highlightBox as any) as { x1: number; y1: number; x2: number; y2: number };
       // Guard invalid or zero-size
       if (
         !Number.isFinite(hbEdges.x1) ||
@@ -1452,7 +1454,7 @@ const toPxBox = (box: WideBox): WideBox => {
                   (box as any)?.value || (box as any)?.label || undefined;
 
                 // Use robust normalized edges helper (handles arrays, width/height, and inverted X)
-                const edges = robustUnitEdges(box);
+                const edges = robustUnitEdges(box) as { x1: number; y1: number; x2: number; y2: number };
                 // Guard zero-size boxes
                 if (!Number.isFinite(edges.x1) || !Number.isFinite(edges.y1) || !Number.isFinite(edges.x2) || !Number.isFinite(edges.y2) || edges.x2 <= edges.x1 || edges.y2 <= edges.y1) {
                   return null;
@@ -1512,7 +1514,7 @@ const toPxBox = (box: WideBox): WideBox => {
 
           {/* Hover highlight overlay (normalized to base pixels) with dynamic color */}
           {highlightBox && baseReady && (() => {
-            const hbEdges = robustUnitEdges(highlightBox as any);
+            const hbEdges = robustUnitEdges(highlightBox as any) as { x1: number; y1: number; x2: number; y2: number };
             if (!Number.isFinite(hbEdges.x1) || !Number.isFinite(hbEdges.y1) || !Number.isFinite(hbEdges.x2) || !Number.isFinite(hbEdges.y2) || hbEdges.x2 <= hbEdges.x1 || hbEdges.y2 <= hbEdges.y1) {
               return null;
             }
