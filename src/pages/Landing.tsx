@@ -1,19 +1,17 @@
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
 import { motion } from 'framer-motion';
-import { ArrowRight, FileText, Loader2, Search, Zap, User, Hash, Link as LinkIcon } from 'lucide-react';
+import { ArrowRight, FileText, Loader2, Search, Zap, User, Hash, Link as LinkIcon, Save, Send } from 'lucide-react';
 import { useNavigate } from 'react-router';
-import { useEffect, useState, useMemo, useDeferredValue } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { useLocation } from 'react-router';
 import { supabase, hasSupabaseEnv } from '@/lib/supabase';
 import { toast } from 'sonner';
-import type { ErrorObject } from "ajv";
 import { salesOrderCreateSchema } from "@/schemas/salesOrderCreate";
 import {
   DropdownMenu,
@@ -23,7 +21,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 
@@ -33,21 +44,13 @@ export default function Landing() {
   const location = useLocation();
   const [docId, setDocId] = useState<string>('');
   const [webhookUrl, setWebhookUrl] = useState<string>('');
-  const [showSap, setShowSap] = useState<boolean>(true);
-  const [rawJson, setRawJson] = useState<string>('');
-  const [sapJson, setSapJson] = useState<string>('');
-  const [editorValue, setEditorValue] = useState<string>('');
+  const [sapData, setSapData] = useState<any>(null);
   const [isRowLoading, setIsRowLoading] = useState<boolean>(false);
-  // Add saving/creating states
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [isCreating, setIsCreating] = useState<boolean>(false);
-  const [validationErrors, setValidationErrors] = useState<ErrorObject[] | null>(null);
-  const [isValid, setIsValid] = useState<boolean | null>(null);
 
-  // Add Convex action hook BEFORE any early return to keep hook order stable
   const sendWebhook = useAction(api.webhooks.sendWebhook);
 
-  // Add online/offline detection for error banner
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
   useEffect(() => {
     const update = () => setIsOnline(navigator.onLine);
@@ -59,7 +62,6 @@ export default function Landing() {
     };
   }, []);
 
-  // Add: read ?id= from URL
   useEffect(() => {
     try {
       const params = new URLSearchParams(location.search);
@@ -72,7 +74,6 @@ export default function Landing() {
   const reorderBySchema = (data: any): any => {
     if (!data || typeof data !== 'object') return data;
 
-    // Define the exact field order from schema
     const fieldOrder = [
       'SalesOrderType',
       'SalesOrganization',
@@ -127,13 +128,11 @@ export default function Landing() {
 
     const reorderObject = (obj: any, order: string[]): any => {
       const result: any = {};
-      // Add fields in schema order
       for (const key of order) {
         if (obj.hasOwnProperty(key)) {
           result[key] = obj[key];
         }
       }
-      // Add any remaining fields not in schema
       for (const key of Object.keys(obj)) {
         if (!result.hasOwnProperty(key)) {
           result[key] = obj[key];
@@ -142,7 +141,6 @@ export default function Landing() {
       return result;
     };
 
-    // Check if data has output wrapper
     let payload = data;
     let hasOutputWrapper = false;
     if (data.output && typeof data.output === 'object') {
@@ -150,22 +148,18 @@ export default function Landing() {
       hasOutputWrapper = true;
     }
 
-    // Reorder top-level fields
     const reordered = reorderObject(payload, fieldOrder);
 
-    // Reorder to_Item array
     if (Array.isArray(reordered.to_Item)) {
       reordered.to_Item = reordered.to_Item.map((item: any) => {
         const reorderedItem = reorderObject(item, itemFieldOrder);
         
-        // Reorder to_ItemPartner
         if (Array.isArray(reorderedItem.to_ItemPartner)) {
           reorderedItem.to_ItemPartner = reorderedItem.to_ItemPartner.map((p: any) => 
             reorderObject(p, partnerFieldOrder)
           );
         }
         
-        // Reorder to_ItemPricingElement
         if (Array.isArray(reorderedItem.to_ItemPricingElement)) {
           reorderedItem.to_ItemPricingElement = reorderedItem.to_ItemPricingElement.map((p: any) => 
             reorderObject(p, pricingFieldOrder)
@@ -176,30 +170,25 @@ export default function Landing() {
       });
     }
 
-    // Reorder to_Partner array
     if (Array.isArray(reordered.to_Partner)) {
       reordered.to_Partner = reordered.to_Partner.map((p: any) => 
         reorderObject(p, partnerFieldOrder)
       );
     }
 
-    // Reorder to_PricingElement array
     if (Array.isArray(reordered.to_PricingElement)) {
       reordered.to_PricingElement = reordered.to_PricingElement.map((p: any) => 
         reorderObject(p, pricingFieldOrder)
       );
     }
 
-    // Wrap in output if it was originally wrapped
     if (hasOutputWrapper) {
       return { output: reordered };
     }
     
-    // Always wrap in output for consistency with schema
     return { output: reordered };
   };
 
-  // Add: fetch row from Supabase when id present
   useEffect(() => {
     const load = async () => {
       if (!docId || !hasSupabaseEnv) return;
@@ -212,18 +201,6 @@ export default function Landing() {
           .single();
         if (error) throw error;
 
-        // Load raw JSON for the "Raw" view
-        let current = '';
-        const candidates = [data?.pdf_ai_output, data?.document_data];
-        for (const c of candidates) {
-          if (!c) continue;
-          try {
-            current = typeof c === 'string' ? c : JSON.stringify(c, null, 2);
-            break;
-          } catch {}
-        }
-
-        // Load SAP data: check SAP_JSON_from_APP first, then SAP JSON
         let sapSource: any = undefined;
         
         if (data?.['SAP_JSON_from_APP']) {
@@ -232,27 +209,18 @@ export default function Landing() {
           sapSource = data['SAP JSON'];
         }
 
-        // Parse and reorder SAP data
-        let sap = '';
         try {
           if (!sapSource) {
-            sap = JSON.stringify({ output: {} }, null, 2);
+            setSapData({ output: {} });
           } else {
-            // Parse if string
             let parsed = typeof sapSource === 'string' ? JSON.parse(sapSource) : sapSource;
-            
-            // Reorder according to schema
             const reordered = reorderBySchema(parsed);
-            sap = JSON.stringify(reordered, null, 2);
+            setSapData(reordered);
           }
         } catch (err) {
           console.error('Failed to parse/reorder SAP data:', err);
-          sap = JSON.stringify({ output: {} }, null, 2);
+          setSapData({ output: {} });
         }
-
-        setRawJson(current);
-        setSapJson(sap);
-        setEditorValue(showSap ? sap : current);
       } catch (e: any) {
         console.error('❌ Failed to load row', e);
         toast.error(`Failed to load row: ${e?.message || e}`);
@@ -261,82 +229,8 @@ export default function Landing() {
       }
     };
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docId, hasSupabaseEnv]);
 
-  // Add: sync editor when toggling view
-  useEffect(() => {
-    setEditorValue(showSap ? sapJson : rawJson);
-  }, [showSap, sapJson, rawJson]);
-
-  // Initialize AJV validator lazily (code-split) to reduce initial bundle size
-  const [ajvInstance, setAjvInstance] = useState<any>(null);
-  const [validateSalesOrder, setValidateSalesOrder] = useState<any>(null);
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      try {
-        const { default: Ajv } = await import("ajv");
-        const a = new Ajv({ allErrors: true, coerceTypes: true, useDefaults: true });
-        // Add custom date format: YYYY-MM-DDT00:00:00
-        a.addFormat("ymdT00", /^\d{4}-\d{2}-\d{2}T00:00:00$/);
-        const validate = a.compile(salesOrderCreateSchema);
-        if (!active) return;
-        setAjvInstance(a);
-        setValidateSalesOrder(() => validate);
-      } catch (e) {
-        console.error("Failed to load validator", e);
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  // Removed reorderSapPayload - no longer enforcing schema structure
-
-  // Removed coerceSapBySchema - no longer enforcing schema types
-
-  // Validate helper
-  const runValidation = (jsonStr: string): boolean => {
-    if (!validateSalesOrder) {
-      // Validator not ready yet; don't block user actions
-      setIsValid(null);
-      setValidationErrors(null);
-      return true;
-    }
-    try {
-      const parsed = JSON.parse(jsonStr || "{}");
-      const ok = validateSalesOrder(parsed) as boolean;
-      setIsValid(ok);
-      setValidationErrors(ok ? null : (validateSalesOrder.errors as ErrorObject[] | null));
-      return ok;
-    } catch {
-      setIsValid(false);
-      setValidationErrors([
-        {
-          instancePath: "",
-          keyword: "parse",
-          message: "Invalid JSON",
-          params: {},
-          schemaPath: "",
-        } as any,
-      ]);
-      return false;
-    }
-  };
-
-  // Re-validate whenever SAP editor changes (debounced + deferred to improve perf)
-  const deferredEditorValue = useDeferredValue(editorValue);
-  useEffect(() => {
-    if (!showSap) return;
-    const t = window.setTimeout(() => {
-      runValidation(deferredEditorValue);
-    }, 300);
-    return () => window.clearTimeout(t);
-  }, [deferredEditorValue, showSap]);
-
-  // Apply theme from user profile on this page + persist to localStorage and fallback to stored theme
   useEffect(() => {
     const root = document.documentElement;
     const applyTheme = (theme: string) => {
@@ -358,108 +252,8 @@ export default function Landing() {
         if (stored) applyTheme(stored);
       } catch {}
     }
-
-    // Remove the specified glass card panel on the homepage (both known variants)
-    const selectors = [
-      // Original card variant we removed earlier
-      'div.text-card-foreground.rounded-xl.border.py-6.backdrop-blur.shadow-lg',
-      // Attached variant provided (needs escaping for / and :)
-      'div.text-card-foreground.flex.flex-col.gap-6.rounded-xl.py-6.bg-card\\/60.supports-\\[backdrop-filter\\]:bg-card\\/60.backdrop-blur.shadow-xl.border.border-white\\/10',
-    ];
-    for (const sel of selectors) {
-      try {
-        document.querySelectorAll(sel).forEach((el) => el.remove());
-      } catch {
-        // ignore selector parse issues
-      }
-    }
-    // Broad fallback (kept narrow to avoid accidental removals)
-    try {
-      document
-        .querySelectorAll('div.text-card-foreground.rounded-xl.py-6.backdrop-blur')
-        .forEach((el) => el.remove());
-    } catch {
-      // ignore
-    }
-
-    // Additional robust removal: handle elements rendered later (e.g., inside scrollable areas)
-    const matchesTarget = (el: Element) => {
-      if (!(el instanceof HTMLElement)) return false;
-      const cls = el.className || '';
-      // Must include these core classes
-      const mustHaveAll: string[] = [
-        'text-card-foreground',
-        'flex',
-        'flex-col',
-        'gap-6',
-        'rounded-xl',
-        'py-6',
-        'backdrop-blur',
-        'shadow-xl',
-        'border',
-      ];
-      for (const c of mustHaveAll) {
-        if (!el.classList.contains(c)) return false;
-      }
-      // Also ensure these Tailwind tokens (with special chars) are present as substrings
-      const mustIncludeSubstr: string[] = ['bg-card/60', 'supports-[backdrop-filter]:bg-card/60', 'border-white/10'];
-      for (const s of mustIncludeSubstr) {
-        if (!cls.includes(s)) return false;
-      }
-      return true;
-    };
-
-    const purge = () => {
-      try {
-        // Check direct divs first
-        const candidates = document.querySelectorAll('div.text-card-foreground');
-        candidates.forEach((el) => {
-          if (matchesTarget(el)) {
-            el.remove();
-          }
-        });
-      } catch {
-        // ignore
-      }
-    };
-
-    // Run once now
-    purge();
-
-    // Observe future DOM changes to remove late-rendered nodes
-    const observer = new MutationObserver((mutations) => {
-      for (const m of mutations) {
-        if (m.type === 'childList' && (m.addedNodes?.length || 0) > 0) {
-          // Check added nodes and their descendants
-          m.addedNodes.forEach((n) => {
-            if (!(n instanceof HTMLElement)) return;
-            if (matchesTarget(n)) {
-              n.remove();
-              return;
-            }
-            n.querySelectorAll?.('div.text-card-foreground')?.forEach((el) => {
-              if (matchesTarget(el)) el.remove();
-            });
-          });
-        }
-      }
-    });
-    try {
-      observer.observe(document.body, { childList: true, subtree: true });
-    } catch {
-      // ignore
-    }
-
-    return () => {
-      try {
-        observer.disconnect();
-      } catch {
-        // ignore
-      }
-    };
   }, [user?.theme]);
 
-  // Prefetch next route chunk to speed navigation
   useEffect(() => {
     if (isLoading) return;
     const timer = setTimeout(() => {
@@ -481,23 +275,188 @@ export default function Landing() {
     return () => clearTimeout(timer);
   }, [isLoading]);
 
-  // Removed schema-specific quick-add helpers - no longer enforcing structure
-
-  const handleValidate = () => {
-    if (!showSap) {
-      toast.message("Switch to SAP Payload to validate");
+  const handleSave = async () => {
+    if (!docId) {
+      toast.error('Enter a document id');
       return;
     }
-    const ok = runValidation(editorValue);
-    if (ok) toast.success("SAP payload is valid");
-    else toast.error("SAP payload is invalid");
+
+    if (!hasSupabaseEnv) {
+      toast.error('Supabase is not configured');
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const fieldCandidates: Array<string> = [
+        'SAP_JSON_FROM_APP',
+        'SAP_JSON_from_APP',
+        'sap_json_from_app',
+        'SAP JSON from app',
+        'sap_json_app',
+        'sap_app_json',
+      ];
+      let saved = false;
+      for (const field of fieldCandidates) {
+        const { error } = await supabase
+          .from('N8N Logs')
+          .update({ [field]: sapData })
+          .eq('id', docId);
+        if (!error) {
+          saved = true;
+          break;
+        } else if (String(error.message || '').toLowerCase().includes('column') && String(error.message || '').toLowerCase().includes('does not exist')) {
+          continue;
+        } else {
+          throw error;
+        }
+      }
+      if (!saved) {
+        const { error: fbError } = await supabase
+          .from('N8N Logs')
+          .update({ SAP_AI_OUTPUT: sapData })
+          .eq('id', docId);
+        if (fbError) throw fbError;
+      }
+      toast.success('Saved successfully');
+    } catch (e: any) {
+      toast.error(`Save failed: ${e?.message || e}`);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  // Show a full-screen animated loader while auth initializes
+  const handleCreate = async () => {
+    if (!docId) {
+      toast.error('Enter a document id');
+      return;
+    }
+
+    const candidateUrl = (webhookUrl || '').trim() || (import.meta.env.VITE_WEBHOOK_URL as string | undefined);
+    if (!candidateUrl) {
+      toast.error('Webhook URL is not configured');
+      return;
+    }
+
+    let parsed: URL;
+    try {
+      parsed = new URL(candidateUrl);
+      if (parsed.protocol !== 'https:' && !parsed.hostname.includes('localhost')) {
+        toast.error('Webhook URL must use HTTPS');
+        return;
+      }
+    } catch {
+      toast.error('Invalid webhook URL');
+      return;
+    }
+
+    const proceed = window.confirm('Send the SAP payload to the configured webhook now?');
+    if (!proceed) return;
+
+    setIsCreating(true);
+    try {
+      const result = await sendWebhook({
+        url: parsed.toString(),
+        body: { docId: docId.trim(), payload: sapData },
+        userEmail: user?.email || "",
+        source: "landing",
+      });
+      if (!result?.ok) {
+        throw new Error(result?.error || `HTTP ${result?.status ?? 0}`);
+      }
+      toast.success('Webhook called successfully');
+    } catch (e: any) {
+      toast.error(`Webhook failed: ${e?.message || e}`);
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const handleFieldChange = (path: string[], value: any) => {
+    setSapData((prev: any) => {
+      const updated = JSON.parse(JSON.stringify(prev || { output: {} }));
+      let current = updated;
+      for (let i = 0; i < path.length - 1; i++) {
+        if (!current[path[i]]) current[path[i]] = {};
+        current = current[path[i]];
+      }
+      current[path[path.length - 1]] = value;
+      return updated;
+    });
+  };
+
+  const renderFieldTable = (obj: any, basePath: string[] = []) => {
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return null;
+
+    const entries = Object.entries(obj).filter(([key, val]) => !Array.isArray(val));
+    if (entries.length === 0) return null;
+
+    return (
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-1/3">Field</TableHead>
+            <TableHead>Value</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {entries.map(([key, val]) => (
+            <TableRow key={key}>
+              <TableCell className="font-medium">{key}</TableCell>
+              <TableCell>
+                <Input
+                  value={val as string || ''}
+                  onChange={(e) => handleFieldChange([...basePath, key], e.target.value)}
+                  className="max-w-md"
+                />
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    );
+  };
+
+  const renderArrayAccordion = (arr: any[], title: string, basePath: string[]) => {
+    if (!Array.isArray(arr) || arr.length === 0) return null;
+
+    return (
+      <Accordion type="single" collapsible className="w-full">
+        <AccordionItem value={title}>
+          <AccordionTrigger className="text-sm font-semibold">
+            {title} ({arr.length} items)
+          </AccordionTrigger>
+          <AccordionContent>
+            <div className="space-y-4">
+              {arr.map((item, idx) => (
+                <Card key={idx} className="bg-muted/30">
+                  <CardHeader>
+                    <CardTitle className="text-sm">Item {idx + 1}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {renderFieldTable(item, [...basePath, idx.toString()])}
+                    {Object.entries(item).map(([key, val]) => {
+                      if (Array.isArray(val)) {
+                        return (
+                          <div key={key}>
+                            {renderArrayAccordion(val, key, [...basePath, idx.toString(), key])}
+                          </div>
+                        );
+                      }
+                      return null;
+                    })}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
+    );
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col bg-background">
-        {/* Header skeleton */}
         <header className="border-b">
           <div className="max-w-7xl mx-auto px-8 py-6 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -508,7 +467,6 @@ export default function Landing() {
           </div>
         </header>
 
-        {/* Hero skeleton */}
         <main className="flex-1 flex flex-col items-center justify-center px-8 py-24">
           <div className="max-w-4xl mx-auto w-full text-center space-y-8">
             <div className="flex justify-center">
@@ -531,7 +489,6 @@ export default function Landing() {
             </div>
           </div>
 
-          {/* Features skeleton */}
           <div className="max-w-5xl mx-auto mt-24 grid md:grid-cols-3 gap-8 w-full">
             <div className="p-8 rounded-lg border bg-card/50">
               <Skeleton className="h-12 w-12 rounded-lg mb-4" />
@@ -554,7 +511,6 @@ export default function Landing() {
           </div>
         </main>
 
-        {/* Footer skeleton */}
         <footer className="border-t py-8 bg-background/60 supports-[backdrop-filter]:bg-background/60 backdrop-blur">
           <div className="max-w-7xl mx-auto px-8 text-center">
             <Skeleton className="h-4 w-40 mx-auto" />
@@ -572,159 +528,6 @@ export default function Landing() {
     }
   };
 
-  // Add: handlers for SAP panel
-  const handleFormat = () => {
-    try {
-      const parsed = JSON.parse(editorValue || '{}');
-      const pretty = JSON.stringify(parsed, null, 2);
-      setEditorValue(pretty);
-      if (showSap) {
-        setSapJson(pretty);
-      } else {
-        setRawJson(pretty);
-      }
-      toast.success('JSON formatted');
-    } catch {
-      toast.error('Invalid JSON; cannot format');
-    }
-  };
-
-  // Update Save to handle dynamic SAP data without schema enforcement
-  const handleSave = async () => {
-    if (!docId) {
-      toast.error('Enter a document id');
-      return;
-    }
-    let payload: any = null;
-    try {
-      payload = JSON.parse(editorValue || '{}');
-    } catch {
-      toast.error('JSON is not valid');
-      return;
-    }
-
-    // No validation or schema enforcement - save as-is
-
-    if (!hasSupabaseEnv) {
-      toast.error('Supabase is not configured');
-      return;
-    }
-    setIsSaving(true);
-    try {
-      // Try updating a list of likely app fields; fall back to SAP_AI_OUTPUT
-      const fieldCandidates: Array<string> = [
-        'SAP_JSON_FROM_APP',
-        'SAP_JSON_from_APP', // Added mixed-case column name to support your schema
-        'sap_json_from_app',
-        'SAP JSON from app',
-        'sap_json_app',
-        'sap_app_json',
-      ];
-      let saved = false;
-      for (const field of fieldCandidates) {
-        const { error } = await supabase
-          .from('N8N Logs')
-          .update({ [field]: payload })
-          .eq('id', docId);
-        if (!error) {
-          saved = true;
-          break;
-        } else if (String(error.message || '').toLowerCase().includes('column') && String(error.message || '').toLowerCase().includes('does not exist')) {
-          // Try next candidate if column missing
-          continue;
-        } else {
-          // Other errors should be surfaced
-          throw error;
-        }
-      }
-      if (!saved) {
-        // Fallback to SAP_AI_OUTPUT if none of the app fields worked
-        const { error: fbError } = await supabase
-          .from('N8N Logs')
-          .update({ SAP_AI_OUTPUT: payload })
-          .eq('id', docId);
-        if (fbError) throw fbError;
-      }
-      toast.success('Saved successfully');
-    } catch (e: any) {
-      toast.error(`Save failed: ${e?.message || e}`);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  // Replace: handleCreate to send dynamic SAP data without schema enforcement
-  const handleCreate = async () => {
-    if (!docId) {
-      toast.error('Enter a document id');
-      return;
-    }
-
-    // Always send SAP payload (edited)
-    let payload: any = null;
-    try {
-      payload = JSON.parse(sapJson || '{}');
-    } catch {
-      toast.error('SAP payload is not valid JSON');
-      return;
-    }
-
-    // No validation or schema enforcement - send as-is
-
-    // Prefer user-entered URL if present, else fallback to env
-    const candidateUrl = (webhookUrl || '').trim() || (import.meta.env.VITE_WEBHOOK_URL as string | undefined);
-    if (!candidateUrl) {
-      toast.error('Webhook URL is not configured');
-      return;
-    }
-
-    // Validate URL and enforce HTTPS
-    let parsed: URL;
-    try {
-      parsed = new URL(candidateUrl);
-      if (parsed.protocol !== 'https:') {
-        toast.error('Webhook URL must use HTTPS');
-        return;
-      }
-    } catch {
-      toast.error('Invalid webhook URL');
-      return;
-    }
-
-    // Confirm before sending externally
-    const proceed = window.confirm('Send the SAP payload to the configured webhook now?');
-    if (!proceed) return;
-
-    setIsCreating(true);
-    try {
-      const result = await sendWebhook({
-        url: parsed.toString(),
-        body: { docId: docId.trim(), payload },
-        userEmail: user?.email || "",
-        source: "landing",
-      });
-      if (!result?.ok) {
-        throw new Error(result?.error || `HTTP ${result?.status ?? 0}`);
-      }
-      toast.success('Webhook called successfully');
-    } catch (e: any) {
-      toast.error(`Webhook failed: ${e?.message || e}`);
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
-  if (typeof window !== "undefined") {
-    try {
-      const p = window.location.pathname;
-      if (p === "/" || p.toLowerCase() === "/home" || p.toLowerCase() === "/landing") {
-        window.location.replace("/");
-      }
-    } catch {
-      // ignore
-    }
-  }
-
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -732,14 +535,11 @@ export default function Landing() {
       transition={{ duration: 0.5 }}
       className="min-h-screen flex flex-col bg-gradient-to-b from-background to-background/60 relative overflow-hidden"
     >
-      {/* Soft radial overlay for depth */}
       <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-transparent to-transparent" />
 
-      {/* Decorative background blobs for visual interest */}
       <div aria-hidden className="pointer-events-none absolute -top-24 -right-24 h-80 w-80 rounded-full bg-primary/20 blur-3xl dark:bg-primary/30" />
       <div aria-hidden className="pointer-events-none absolute -bottom-24 -left-24 h-80 w-80 rounded-full bg-purple-500/20 blur-3xl dark:bg-purple-500/20" />
 
-      {/* Header */}
       <header className="sticky top-0 z-50 border-b bg-background/60 supports-[backdrop-filter]:bg-background/60 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-8 py-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -791,15 +591,6 @@ export default function Landing() {
               onClick={handleGetStarted}
               disabled={isLoading}
               className="bg-white/5 hover:bg-white/10 border-white/20 supports-[backdrop-filter]:bg-white/5 backdrop-blur"
-              onMouseEnter={() => {
-                if (!isLoading) {
-                  if (isAuthenticated) {
-                    import('@/pages/Documents');
-                  } else {
-                    import('@/pages/Auth');
-                  }
-                }
-              }}
             >
               {isLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -813,9 +604,7 @@ export default function Landing() {
         </div>
       </header>
 
-      {/* Hero Section */}
       <main className="flex-1 flex flex-col items-center justify-center px-8 py-24">
-        {/* Offline error banner */}
         {!isOnline && (
           <div className="max-w-2xl w-full mx-auto mb-6">
             <Alert variant="destructive">
@@ -833,7 +622,6 @@ export default function Landing() {
           transition={{ delay: 0.2, duration: 0.6 }}
           className="max-w-4xl mx-auto text-center space-y-8 relative"
         >
-          {/* Subtle background graphic behind hero */}
           <img
             src="/logo_bg.svg"
             alt=""
@@ -866,15 +654,6 @@ export default function Landing() {
               onClick={handleGetStarted}
               disabled={isLoading}
               className="text-base px-8 rounded-full ring-1 ring-white/10 bg-gradient-to-r from-primary to-purple-600 text-white hover:from-primary/90 hover:to-purple-600/90 shadow-lg shadow-primary/20"
-              onMouseEnter={() => {
-                if (!isLoading) {
-                  if (isAuthenticated) {
-                    import('@/pages/Documents');
-                  } else {
-                    import('@/pages/Auth');
-                  }
-                }
-              }}
             >
               {isLoading ? (
                 <Loader2 className="h-5 w-5 animate-spin mr-2" />
@@ -888,7 +667,6 @@ export default function Landing() {
           </div>
         </motion.div>
 
-        {/* Features */}
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
@@ -949,49 +727,25 @@ export default function Landing() {
           </motion.div>
         </motion.div>
 
-        {/* SAP Webhook Panel */}
+        {/* SAP Webhook Panel with Accordion & Table */}
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5, duration: 0.6 }}
-          className="max-w-5xl mx-auto mt-12 w-full"
+          className="max-w-6xl mx-auto mt-12 w-full"
         >
           <Card className="bg-card/60 supports-[backdrop-filter]:bg-card/60 backdrop-blur shadow-xl border border-white/10">
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                <span>SAP Webhook</span>
+                <span>SAP Sales Order Data</span>
                 <div className="flex items-center gap-2">
-                  <ToggleGroup
-                    type="single"
-                    value={showSap ? 'sap' : 'raw'}
-                    onValueChange={(v) => {
-                      if (v) setShowSap(v === 'sap');
-                    }}
-                    className="flex mr-1"
-                  >
-                    <ToggleGroupItem value="sap" aria-label="SAP view" className="h-8 text-xs">
-                      SAP
-                    </ToggleGroupItem>
-                    <ToggleGroupItem value="raw" aria-label="Raw view" className="h-8 text-xs">
-                      Raw
-                    </ToggleGroupItem>
-                  </ToggleGroup>
-                  {/* Validation status */}
-                  <span className={`text-xs px-2 py-0.5 rounded ring-1 ring-white/10 font-medium ${
-                    isValid === null ? 'bg-muted text-muted-foreground' : isValid ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
-                  }`}>
-                    {isValid === null ? '—' : isValid ? 'Valid' : `${validationErrors?.length || 0} errors`}
-                  </span>
-                  <Button variant="outline" size="sm" onClick={handleValidate}>
-                    Validate
-                  </Button>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={handleSave}
                     disabled={!docId || isSaving}
                   >
-                    {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                    {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Save className="h-3.5 w-3.5 mr-1" />}
                     Save
                   </Button>
                   <Button
@@ -999,8 +753,8 @@ export default function Landing() {
                     onClick={handleCreate}
                     disabled={isCreating}
                   >
-                    {isCreating ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
-                    Create
+                    {isCreating ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Send className="h-3.5 w-3.5 mr-1" />}
+                    Send
                   </Button>
                 </div>
               </CardTitle>
@@ -1008,17 +762,17 @@ export default function Landing() {
                 {hasSupabaseEnv ? (
                   isRowLoading ? (
                     <span className="inline-flex items-center gap-1">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading row…
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading data…
                     </span>
                   ) : (
-                    <span>Supabase connected</span>
+                    <span>Connected to Supabase</span>
                   )
                 ) : (
                   <span>Supabase not configured</span>
                 )}
               </div>
             </CardHeader>
-            <CardContent className="space-y-5 max-h-[70vh] overflow-auto">
+            <CardContent className="space-y-5">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-2">
                   <Label htmlFor="docId">Document ID</Label>
@@ -1042,29 +796,21 @@ export default function Landing() {
                   {isRowLoading ? (
                     <Skeleton className="h-9 w-full rounded-md" />
                   ) : (
-                    <>
-                      <div className="relative">
-                        <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          id="webhookUrl"
-                          placeholder="https://example.com/webhook"
-                          value={webhookUrl}
-                          onChange={(e) => setWebhookUrl(e.target.value)}
-                          className="pl-9"
-                        />
-                      </div>
-                      <p className="text-xs text-muted-foreground">HTTPS required. Leave empty to use VITE_WEBHOOK_URL.</p>
-                    </>
+                    <div className="relative">
+                      <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="webhookUrl"
+                        placeholder="https://example.com/webhook"
+                        value={webhookUrl}
+                        onChange={(e) => setWebhookUrl(e.target.value)}
+                        className="pl-9"
+                      />
+                    </div>
                   )}
                 </div>
               </div>
 
-              <div className="flex items-center justify-between gap-4 pt-2">
-                <div className="text-sm font-medium">{showSap ? 'Editing SAP Payload' : 'Viewing Raw JSON'}</div>
-                <div className="text-xs text-muted-foreground">Schema-validated</div>
-              </div>
-
-              {isRowLoading && (
+              {isRowLoading ? (
                 <div className="space-y-2 pt-1">
                   {[...Array(6)].map((_, i) => (
                     <motion.div
@@ -1076,51 +822,33 @@ export default function Landing() {
                     />
                   ))}
                 </div>
-              )}
+              ) : sapData?.output ? (
+                <div className="space-y-4">
+                  {/* Header Fields Table */}
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-semibold">Header Fields</h3>
+                    {renderFieldTable(sapData.output, ['output'])}
+                  </div>
 
-              {/* Removed schema-specific add buttons for dynamic rendering */}
+                  {/* Partners Accordion */}
+                  {sapData.output.to_Partner && renderArrayAccordion(sapData.output.to_Partner, 'Partners', ['output', 'to_Partner'])}
 
-              <div className="space-y-2">
-                <Label htmlFor="editor">{showSap ? 'SAP Payload (editable)' : 'Current JSON (read-only if from DB)'}</Label>
-                <Textarea
-                  id="editor"
-                  className="h-[55vh] min-h-[220px] font-mono text-sm resize-y overflow-auto rounded-lg ring-1 ring-white/10 bg-background/60"
-                  value={editorValue}
-                  onChange={(e) => {
-                    setEditorValue(e.target.value);
-                    if (showSap) setSapJson(e.target.value);
-                    else setRawJson(e.target.value);
-                  }}
-                  onBlur={() => {
-                    // No auto-formatting on blur for dynamic rendering
-                  }}
-                  placeholder={showSap ? '{ "output": { ... } }' : '{ ... }'}
-                />
-              </div>
+                  {/* Pricing Elements Accordion */}
+                  {sapData.output.to_PricingElement && renderArrayAccordion(sapData.output.to_PricingElement, 'Pricing Elements', ['output', 'to_PricingElement'])}
 
-              {showSap && isValid === false && validationErrors && (
-                <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800 space-y-1">
-                  {validationErrors.slice(0, 8).map((e, idx) => (
-                    <div key={idx}>
-                      {(e.instancePath || '') || '/'}: {e.message}
-                    </div>
-                  ))}
-                  {validationErrors.length > 8 && (
-                    <div>+{validationErrors.length - 8} more…</div>
-                  )}
+                  {/* Items Accordion */}
+                  {sapData.output.to_Item && renderArrayAccordion(sapData.output.to_Item, 'Line Items', ['output', 'to_Item'])}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  No SAP data loaded. Enter a document ID to load data.
                 </div>
               )}
             </CardContent>
-            <CardFooter className="flex items-center justify-end">
-              <Button variant="outline" onClick={handleFormat}>
-                Format JSON
-              </Button>
-            </CardFooter>
           </Card>
         </motion.div>
       </main>
 
-      {/* Footer */}
       <footer className="border-t py-8">
         <div className="max-w-7xl mx-auto px-8 text-center text-sm text-muted-foreground">
           Powered by{' '}
