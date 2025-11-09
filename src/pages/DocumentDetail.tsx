@@ -2051,7 +2051,9 @@ export default function DocumentDetail() {
               </div>
               {showSAP ? (
                 <ScrollArea className="h-full pr-1 overflow-y-auto no-scrollbar">
-                  {renderSapEditable()}
+                  <SAPJsonCard
+  data={(doc as any)?.sap_json ?? (doc as any)?.sap ?? (doc as any)?.sap_data ?? (doc as any)?.sap_output ?? {}}
+/>
                 </ScrollArea>
               ) : (
                 <div className="text-sm text-muted-foreground">
