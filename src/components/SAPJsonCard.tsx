@@ -75,9 +75,11 @@ export function SAPJsonCard({
   }, [data, sourceDocumentData]);
 
   // Add: unified, RAF-throttled hover emitters with a short debounce on clear to prevent flicker
-  const DEFAULT_HOVER_COLOR = "#4f46e5"; // indigo-like to match app theme
+  const DEFAULT_HOVER_COLOR = "#3b82f6"; // unified with PDF/document highlight
   const hoverRafRef = useRef<number | null>(null);
   const clearHoverTimeoutRef = useRef<number | null>(null);
+  // Add: RAF for hoveredPath updates to avoid rapid re-renders in dense tables
+  const hoveredSetRafRef = useRef<number | null>(null);
 
   const emitHover = (payload: any | null) => {
     if (hoverRafRef.current) cancelAnimationFrame(hoverRafRef.current);
@@ -86,13 +88,16 @@ export function SAPJsonCard({
     });
   };
 
-  // Replace: include path and set a local hovered path for stable UI highlight
+  // Replace: include path and set a local hovered path with RAF to stabilize in dense tables
   const handleRowEnter = (pathId: string, box: any /* BoundingBox & { page?: number } */) => {
     if (clearHoverTimeoutRef.current) {
       clearTimeout(clearHoverTimeoutRef.current);
       clearHoverTimeoutRef.current = null;
     }
-    setHoveredPath(pathId);
+    if (hoveredSetRafRef.current) cancelAnimationFrame(hoveredSetRafRef.current);
+    hoveredSetRafRef.current = requestAnimationFrame(() => {
+      setHoveredPath((prev) => (prev === pathId ? prev : pathId));
+    });
     // Ensure a color is always present so PDF highlight uses consistent styling
     const colored =
       box && typeof box === "object" && !box.color ? { ...box, color: DEFAULT_HOVER_COLOR } : box;
@@ -105,7 +110,7 @@ export function SAPJsonCard({
     clearHoverTimeoutRef.current = window.setTimeout(() => {
       setHoveredPath(null);
       emitHover(null);
-    }, 140);
+    }, 220); // extended to further reduce flicker across dense cells
   };
 
   // Insert: derive order tree from backend schema and reordering helpers
@@ -356,8 +361,8 @@ export function SAPJsonCard({
             ...indentStyle,
             ...(hoveredPath === path
               ? {
-                  backgroundColor: "rgba(79,70,229,0.08)",
-                  boxShadow: "inset 0 0 0 1px rgba(79,70,229,0.45)",
+                  backgroundColor: "rgba(59,130,246,0.08)", // unified blue bg
+                  boxShadow: "inset 0 0 0 1px rgba(59,130,246,0.45)", // unified blue ring
                 }
               : {}),
           }}
@@ -368,7 +373,8 @@ export function SAPJsonCard({
               onHideMailHint?.();
               handleRowEnter(path, box as any);
             } else {
-              setHoveredPath(path);
+              if (hoveredSetRafRef.current) cancelAnimationFrame(hoveredSetRafRef.current);
+              hoveredSetRafRef.current = requestAnimationFrame(() => setHoveredPath(path));
               onShowMailHint?.();
             }
           }}
@@ -378,7 +384,16 @@ export function SAPJsonCard({
           }}
         >
           <div className="grid grid-cols-[180px_minmax(0,1fr)] gap-3 items-center">
-            <label className="text-xs font-medium text-muted-foreground">{label}</label>
+            {/* Visual clue: dot shows if this field has a source mapping */}
+            <div className="flex items-center gap-2">
+              <span
+                className={`h-2.5 w-2.5 rounded-full inline-block ${
+                  hoverMapping && hoverMapping[path] ? "bg-emerald-500" : "bg-rose-500"
+                }`}
+                title={hoverMapping && hoverMapping[path] ? "Source found" : "No source mapping"}
+              />
+              <label className="text-xs font-medium text-muted-foreground">{label}</label>
+            </div>
             {typeof value === "boolean" ? (
               <input type="checkbox" defaultChecked={value} className="h-4 w-4" />
             ) : (
@@ -479,9 +494,8 @@ export function SAPJsonCard({
                                   style={
                                     hoveredPath === cellPath
                                       ? {
-                                          backgroundColor: "rgba(79,70,229,0.08)",
-                                          boxShadow:
-                                            "inset 0 0 0 1px rgba(79,70,229,0.45)",
+                                          backgroundColor: "rgba(59,130,246,0.08)",
+                                          boxShadow: "inset 0 0 0 1px rgba(59,130,246,0.45)",
                                         }
                                       : undefined
                                   }
@@ -492,7 +506,8 @@ export function SAPJsonCard({
                                       onHideMailHint?.();
                                       handleRowEnter(cellPath, box as any);
                                     } else {
-                                      setHoveredPath(cellPath);
+                                      if (hoveredSetRafRef.current) cancelAnimationFrame(hoveredSetRafRef.current);
+                                      hoveredSetRafRef.current = requestAnimationFrame(() => setHoveredPath(cellPath));
                                       onShowMailHint?.();
                                     }
                                   }}
@@ -501,38 +516,52 @@ export function SAPJsonCard({
                                     onHideMailHint?.();
                                   }}
                                 >
-                                  {t === "boolean" ? (
-                                    <input type="checkbox" defaultChecked={Boolean(cell)} className="h-4 w-4" />
-                                  ) : isObjCell ? (
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        setExpanded((prev) => {
-                                          const next = new Set(prev);
-                                          if (next.has(cellKey)) next.delete(cellKey);
-                                          else next.add(cellKey);
-                                          return next;
-                                        })
+                                  <div className="flex items-start gap-1">
+                                    <span
+                                      className={`mt-1 h-2 w-2 rounded-full inline-block ${
+                                        hoverMapping && hoverMapping[cellPath]
+                                          ? "bg-emerald-500"
+                                          : "bg-rose-500"
+                                      }`}
+                                      title={
+                                        hoverMapping && hoverMapping[cellPath]
+                                          ? "Source found"
+                                          : "No source mapping"
                                       }
-                                      className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-                                      aria-expanded={expanded.has(cellKey)}
-                                      aria-controls={`${cellKey}-expanded`}
-                                      title={`View ${col} details`}
-                                    >
-                                      {expanded.has(cellKey) ? (
-                                        <ChevronDown className="h-4 w-4" />
-                                      ) : (
-                                        <ChevronRight className="h-4 w-4" />
-                                      )}
-                                      <span className="truncate">{col}</span>
-                                    </button>
-                                  ) : (
-                                    <input
-                                      type={t === "number" ? "number" : "text"}
-                                      defaultValue={cell == null ? "" : String(cell)}
-                                      className="w-full rounded-md border bg-background px-2 py-1 text-sm"
                                     />
-                                  )}
+                                    {t === "boolean" ? (
+                                      <input type="checkbox" defaultChecked={Boolean(cell)} className="h-4 w-4" />
+                                    ) : isObjCell ? (
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setExpanded((prev) => {
+                                            const next = new Set(prev);
+                                            if (next.has(cellKey)) next.delete(cellKey);
+                                            else next.add(cellKey);
+                                            return next;
+                                          })
+                                        }
+                                        className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                                        aria-expanded={expanded.has(cellKey)}
+                                        aria-controls={`${cellKey}-expanded`}
+                                        title={`View ${col} details`}
+                                      >
+                                        {expanded.has(cellKey) ? (
+                                          <ChevronDown className="h-4 w-4" />
+                                        ) : (
+                                          <ChevronRight className="h-4 w-4" />
+                                        )}
+                                        <span className="truncate">{col}</span>
+                                      </button>
+                                    ) : (
+                                      <input
+                                        type={t === "number" ? "number" : "text"}
+                                        defaultValue={cell == null ? "" : String(cell)}
+                                        className="w-full rounded-md border bg-background px-2 py-1 text-sm"
+                                      />
+                                    )}
+                                  </div>
                                 </TableCell>
                               );
                             })}
