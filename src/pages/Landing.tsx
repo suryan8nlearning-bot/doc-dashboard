@@ -95,70 +95,81 @@ export default function Landing() {
           } catch {}
         }
 
-        // Unified SAP data loading: prioritize SAP_JSON_from_APP, then fall back to SAP JSON
-        // Both fields have the same structure and should be rendered identically
+        // Simplified SAP data loading: check only SAP_JSON_from_APP and SAP JSON
         let sapSource: any = undefined;
         let sourceFieldName = '';
         
-        // Check all possible field name variations
-        const sapFieldVariants = [
-          'SAP_JSON_from_APP',
-          'SAP_JSON_FROM_APP', 
-          'sap_json_from_app',
-          'SAP JSON from APP',
-          'SAP JSON',
-          'SAP_JSON',
-          'sap_json',
-          'SAP_AI_OUTPUT',
-          'sap_ai_output',
-        ];
+        console.log('🔍 DEBUG: Full row data loaded:', data);
+        console.log('🔍 DEBUG: Available field names:', Object.keys(data || {}));
+        
+        // Check SAP_JSON_from_APP first
+        if (data?.['SAP_JSON_from_APP']) {
+          sapSource = data['SAP_JSON_from_APP'];
+          sourceFieldName = 'SAP_JSON_from_APP';
+          console.log('✅ Using SAP_JSON_from_APP');
+        } 
+        // Fall back to SAP JSON
+        else if (data?.['SAP JSON']) {
+          sapSource = data['SAP JSON'];
+          sourceFieldName = 'SAP JSON';
+          console.log('✅ Using SAP JSON');
+        }
 
-        console.log('🔍 DEBUG: Checking SAP field variants...');
-        for (const fieldName of sapFieldVariants) {
-          const value = data?.[fieldName];
-          console.log(`  - ${fieldName}:`, value !== undefined ? (typeof value === 'string' ? `"${value.substring(0, 50)}..."` : 'object') : 'undefined');
-          
-          if (value !== undefined && value !== null && String(value).trim() !== '' && String(value).trim() !== '{}') {
-            sapSource = value;
-            sourceFieldName = fieldName;
-            console.log(`✅ DEBUG: Using SAP data from field: ${fieldName}`);
-            break;
+        console.log('🔍 DEBUG: SAP source field:', sourceFieldName);
+        console.log('🔍 DEBUG: SAP source type:', typeof sapSource);
+        console.log('🔍 DEBUG: SAP source value (first 300 chars):', 
+          sapSource ? (typeof sapSource === 'string' ? sapSource.substring(0, 300) : JSON.stringify(sapSource).substring(0, 300)) : 'null/undefined'
+        );
+
+        // Convert to string, handling both string and object types
+        let sap = '';
+        try {
+          if (!sapSource) {
+            console.warn('⚠️ No SAP data found, using default structure');
+            sap = '{\n  "output": {\n    "to_Item": []\n  }\n}';
+          } else if (typeof sapSource === 'string') {
+            sap = sapSource;
+          } else if (typeof sapSource === 'object') {
+            sap = JSON.stringify(sapSource, null, 2);
+          } else {
+            console.error('❌ Unexpected SAP source type:', typeof sapSource);
+            sap = '{\n  "output": {\n    "to_Item": []\n  }\n}';
           }
+        } catch (err) {
+          console.error('❌ Error converting SAP source:', err);
+          sap = '{\n  "output": {\n    "to_Item": []\n  }\n}';
         }
 
-        if (!sapSource) {
-          console.warn('⚠️ DEBUG: No SAP data found in any field, using default empty structure');
-        }
-
-        // Convert to string and apply default if empty
-        const sap =
-          sapSource
-            ? (typeof sapSource === 'string'
-                ? sapSource
-                : JSON.stringify(sapSource, null, 2))
-            : '{\n  "output": {\n    "to_Item": []\n  }\n}';
-
-        console.log('🔍 DEBUG: SAP JSON string (first 200 chars):', sap.substring(0, 200));
+        console.log('🔍 DEBUG: SAP string length:', sap.length);
 
         setRawJson(current);
-        const orderedSap = (() => {
-          try {
-            const p = JSON.parse(sap);
-            console.log('🔍 DEBUG: Parsed SAP object:', p);
-            const reordered = reorderSapPayload(p);
-            console.log('🔍 DEBUG: Reordered SAP object:', reordered);
-            return JSON.stringify(reordered, null, 2);
-          } catch (err) {
-            console.error('❌ DEBUG: Failed to parse/reorder SAP JSON:', err);
-            return sap;
-          }
-        })();
         
-        console.log('🔍 DEBUG: Final ordered SAP (first 200 chars):', orderedSap.substring(0, 200));
+        // Parse and reorder SAP JSON
+        let orderedSap = sap;
+        try {
+          console.log('🔍 Attempting to parse SAP JSON...');
+          const parsed = JSON.parse(sap);
+          console.log('✅ Parsed SAP object keys:', Object.keys(parsed));
+          
+          console.log('🔍 Attempting to reorder SAP payload...');
+          const reordered = reorderSapPayload(parsed);
+          console.log('✅ Reordered SAP object keys:', Object.keys(reordered));
+          
+          orderedSap = JSON.stringify(reordered, null, 2);
+          console.log('✅ Final SAP JSON length:', orderedSap.length);
+        } catch (err) {
+          console.error('❌ Failed to parse/reorder SAP JSON:', err);
+          console.error('❌ Original SAP string:', sap.substring(0, 500));
+        }
+        
+        console.log('🔍 Setting SAP JSON in state...');
         setSapJson(orderedSap);
         setEditorValue(showSap ? orderedSap : current);
         
-        console.log('✅ DEBUG: Data loading complete. showSap:', showSap, 'editorValue length:', (showSap ? orderedSap : current).length);
+        console.log('✅ Data loading complete');
+        console.log('  - showSap:', showSap);
+        console.log('  - sapJson length:', orderedSap.length);
+        console.log('  - editorValue length:', (showSap ? orderedSap : current).length);
       } catch (e: any) {
         console.error('❌ Failed to load row', e);
         toast.error(`Failed to load row: ${e?.message || e}`);
