@@ -1365,16 +1365,8 @@ const toPxBox = (box: WideBox): WideBox => {
                                 (() => {
                                   const fmt = (n: number) => n.toFixed(4);
                                   const pageStr = (box as any)?.page ? `, p:${(box as any).page}` : "";
-                                  const base = getBaseDims();
-                                  if (!base.width || !base.height) {
-                                    // Fallback to previously-computed unit edges if base not ready
-                                    return `x1:${fmt(edges.x1)}, y1:${fmt(edges.y1)}, x2:${fmt(edges.x2)}, y2:${fmt(edges.y2)}${pageStr}`;
-                                  }
-                                  const x1n = rect.x / base.width;
-                                  const y1n = rect.y / base.height;
-                                  const x2n = (rect.x + rect.width) / base.width;
-                                  const y2n = (rect.y + rect.height) / base.height;
-                                  return `x1:${fmt(x1n)}, y1:${fmt(y1n)}, x2:${fmt(x2n)}, y2:${fmt(y2n)}${pageStr}`;
+                                  // Always display the JSON-normalized unit edges
+                                  return `x1:${fmt(edges.x1)}, y1:${fmt(edges.y1)}, x2:${fmt(edges.x2)}, y2:${fmt(edges.y2)}${pageStr}`;
                                 })()
                               }
                             </div>
@@ -1412,16 +1404,14 @@ const toPxBox = (box: WideBox): WideBox => {
               (highlightBox as any)?.label ||
               (highlightBox as any)?.text;
 
-            // Build label from on-canvas normalized rect (matches what you see on screen)
-            const base = getBaseDims();
-            const x1n = base.width ? hbRect.x / base.width : hbEdges.x1;
-            const y1n = base.height ? hbRect.y / base.height : hbEdges.y1;
-            const x2n = base.width ? (hbRect.x + hbRect.width) / base.width : hbEdges.x2;
-            const y2n = base.height ? (hbRect.y + hbRect.height) / base.height : hbEdges.y2;
-
+            // Build label from robustUnitEdges (JSON-normalized), not from canvas/base
             const label = fieldText
               ? String(fieldText)
-              : `x1:${Math.round(x1n * 1000) / 1000}, y1:${Math.round(y1n * 1000) / 1000}, x2:${Math.round(x2n * 1000) / 1000}, y2:${Math.round(y2n * 1000) / 1000}${(highlightBox as any)?.page ? `, p:${(highlightBox as any).page}` : ""}`;
+              : (() => {
+                  const fmt = (n: number) => Math.round(n * 1000) / 1000;
+                  const pageStr = (highlightBox as any)?.page ? `, p:${(highlightBox as any).page}` : "";
+                  return `x1:${fmt(hbEdges.x1)}, y1:${fmt(hbEdges.y1)}, x2:${fmt(hbEdges.x2)}, y2:${fmt(hbEdges.y2)}${pageStr}`;
+                })();
 
             return (
               <>
@@ -1463,17 +1453,9 @@ const toPxBox = (box: WideBox): WideBox => {
                         {
                           (() => {
                             const fmt = (n: number) => n.toFixed(4);
-                            const base = getBaseDims();
                             const pageStr = (highlightBox as any)?.page ? `, p:${(highlightBox as any).page}` : "";
-                            if (!base.width || !base.height) {
-                              // Fallback if base not ready
-                              return `x1:${fmt(hbEdges.x1)}, y1:${fmt(hbEdges.y1)}, x2:${fmt(hbEdges.x2)}, y2:${fmt(hbEdges.y2)}${pageStr}`;
-                            }
-                            const x1n2 = hbRect.x / base.width;
-                            const y1n2 = hbRect.y / base.height;
-                            const x2n2 = (hbRect.x + hbRect.width) / base.width;
-                            const y2n2 = (hbRect.y + hbRect.height) / base.height;
-                            return `x1:${fmt(x1n2)}, y1:${fmt(y1n2)}, x2:${fmt(x2n2)}, y2:${fmt(y2n2)}${pageStr}`;
+                            // Always display the JSON-normalized unit edges
+                            return `x1:${fmt(hbEdges.x1)}, y1:${fmt(hbEdges.y1)}, x2:${fmt(hbEdges.x2)}, y2:${fmt(hbEdges.y2)}${pageStr}`;
                           })()
                         }
                       </div>
