@@ -169,6 +169,38 @@
   display: none;
 }
 
+/* Ensure SAP pane content is interactive and wraps correctly without horizontal scroll */
+[data-sap-interactive] {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+[data-sap-interactive] * {
+  min-width: 0;
+}
+
+[data-sap-interactive] :is(button, summary, [role="button"], [data-radix-accordion-trigger]) {
+  pointer-events: auto !important;
+}
+
+[data-sap-interactive] table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+[data-sap-interactive] td,
+[data-sap-interactive] th {
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+
+[data-sap-interactive] .truncate {
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: normal !important;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

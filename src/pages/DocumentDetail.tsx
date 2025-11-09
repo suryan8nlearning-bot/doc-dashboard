@@ -1940,10 +1940,20 @@ export default function DocumentDetail() {
               </div>
               {showSAP ? (
                 <ScrollArea className="h-full pr-1 overflow-y-auto no-scrollbar">
-                  <SAPJsonCard
-                    data={sapOut ?? {}}
-                    onHoverHighlight={onSapHover}
-                  />
+                  <div
+                    data-sap-interactive
+                    className="w-full min-w-0 pr-1 break-words whitespace-pre-wrap overflow-x-hidden [word-break:anywhere] [overflow-wrap:anywhere] pointer-events-auto"
+                    onClick={(e) => e.stopPropagation()}
+                    onPointerDownCapture={(e) => e.stopPropagation()}
+                    onPointerUpCapture={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()}
+                  >
+                    <SAPJsonCard
+                      data={sapOut ?? {}}
+                      onHoverHighlight={onSapHover}
+                      className="break-words whitespace-pre-wrap"
+                    />
+                  </div>
                 </ScrollArea>
               ) : (
                 <div className="text-sm text-muted-foreground">
@@ -2075,20 +2085,20 @@ export default function DocumentDetail() {
                           <AccordionContent className="overflow-visible">
                             {showSAP ? (
                               <div
-                                className="pr-1 break-words whitespace-pre-wrap"
-                                // Ensure dropdowns/selects inside the SAP card are clickable and not swallowed by parent handlers
+                                data-sap-interactive
+                                className="w-full min-w-0 pr-1 break-words whitespace-pre-wrap overflow-x-hidden [word-break:anywhere] [overflow-wrap:anywhere] pointer-events-auto"
                                 onClick={(e) => e.stopPropagation()}
                                 onPointerDownCapture={(e) => e.stopPropagation()}
+                                onPointerUpCapture={(e) => e.stopPropagation()}
+                                onMouseDown={(e) => e.stopPropagation()}
                               >
                                 <SAPJsonCard
                                   data={sapOut ?? {}}
                                   className="break-words whitespace-pre-wrap"
-                                  // Ensure the embedded card content is expanded and header hidden to avoid duplicate titles
                                   defaultCollapsed={false}
                                   hideHeader
                                   sourceDocumentData={doc.document_data}
                                   onHoverHighlight={onSapHover}
-                                  // New: show/hide the mail hint popup above the PDF when no mapping exists
                                   onShowMailHint={() => setMailHint(true)}
                                   onHideMailHint={() => setMailHint(false)}
                                 />
