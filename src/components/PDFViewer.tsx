@@ -194,22 +194,77 @@ const [detecting, setDetecting] = useState(false);
 const [ocrWords, setOcrWords] = useState<Array<{ x: number; y: number; w: number; h: number; text: string; conf: number }>>([]);
 
 // Add: robust normalized edges helper that unifies arrays/objects and fixes inverted X
+/**
+ * Normalize any input into unit-space edges [x1,y1,x2,y2] with a top-left origin.
+ * Arrays are treated STRICTLY as edges: [x1, y1, x2, y2, (page?)].
+ * Objects are parsed via normalizeBoxAny and then converted to edges.
+ */
 function robustUnitEdges(input: any): { x1: number; y1: number; x2: number; y2: number } {
   const base = getBaseDims();
   const zero = { x1: 0, y1: 0, x2: 0, y2: 0 };
   if (!input || !base.width || !base.height) return zero;
 
-  const nb = normalizeBoxAny(input);
-  if (!nb) return zero;
-
-  let { x, y, width, height } = nb;
-
-  // Determine source dimensions preference (document-derived > base viewport)
+  const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
   const src = sourceDimsRef.current;
   const srcW = src?.width && src.width > 0 ? src.width : base.width;
   const srcH = src?.height && src.height > 0 ? src.height : base.height;
 
-  // If values are not in unit space, normalize by src dims
+  // Arrays: ALWAYS interpret as [x1, y1, x2, y2]
+  if (Array.isArray(input) && input.length >= 4) {
+    const toNum = (v: any) => (v === null || v === undefined || v === "" ? NaN : Number(v));
+    let x1 = toNum(input[0]);
+    let y1 = toNum(input[1]);
+    let x2 = toNum(input[2]);
+    let y2 = toNum(input[3]);
+    if (![x1, y1, x2, y2].every(Number.isFinite)) return zero;
+
+    if (x2 < x1) [x1, x2] = [x2, x1];
+    if (y2 < y1) [y1, y2] = [y2, y1];
+
+    const alreadyUnit = [x1, y1, x2, y2].every((n) => n >= 0 && n <= 1);
+    let ux1 = alreadyUnit ? x1 : x1 / srcW;
+    let uy1 = alreadyUnit ? y1 : y1 / srcH;
+    let ux2 = alreadyUnit ? x2 : x2 / srcW;
+    let uy2 = alreadyUnit ? y2 : y2 / srcH;
+
+    ux1 = clamp01(ux1); uy1 = clamp01(uy1); ux2 = clamp01(ux2); uy2 = clamp01(uy2);
+    if (ux2 <= ux1 || uy2 <= uy1) return zero;
+    return { x1: ux1, y1: uy1, x2: ux2, y2: uy2 };
+  }
+
+  // NEW: Object edges fast-path: { x1, y1, x2, y2 }
+  if (typeof input === "object" && input !== null) {
+    const x1o = (input as any).x1;
+    const y1o = (input as any).y1;
+    const x2o = (input as any).x2;
+    const y2o = (input as any).y2;
+    if (
+      [x1o, y1o, x2o, y2o].every((v) => typeof v === "number" && Number.isFinite(v))
+    ) {
+      let x1 = x1o as number;
+      let y1 = y1o as number;
+      let x2 = x2o as number;
+      let y2 = y2o as number;
+      if (x2 < x1) [x1, x2] = [x2, x1];
+      if (y2 < y1) [y1, y2] = [y2, y1];
+
+      const alreadyUnit = [x1, y1, x2, y2].every((n) => n >= 0 && n <= 1);
+      let ux1 = alreadyUnit ? x1 : x1 / srcW;
+      let uy1 = alreadyUnit ? y1 : y1 / srcH;
+      let ux2 = alreadyUnit ? x2 : x2 / srcW;
+      let uy2 = alreadyUnit ? y2 : y2 / srcH;
+
+      ux1 = clamp01(ux1); uy1 = clamp01(uy1); ux2 = clamp01(ux2); uy2 = clamp01(uy2);
+      if (ux2 <= ux1 || uy2 <= uy1) return zero;
+      return { x1: ux1, y1: uy1, x2: ux2, y2: uy2 };
+    }
+  }
+
+  // Objects via normalizeBoxAny -> [x, y, width, height]
+  const nb = normalizeBoxAny(input);
+  if (!nb) return zero;
+
+  const { x, y, width, height } = nb;
   const isUnit =
     x >= 0 && y >= 0 && width > 0 && height > 0 &&
     x <= 1 && y <= 1 && width <= 1 && height <= 1;
@@ -219,17 +274,10 @@ function robustUnitEdges(input: any): { x1: number; y1: number; x2: number; y2: 
   let x2u = isUnit ? x + width : (x + width) / srcW;
   let y2u = isUnit ? y + height : (y + height) / srcH;
 
-  // Enforce ordering
   if (x2u < x1u) [x1u, x2u] = [x2u, x1u];
   if (y2u < y1u) [y1u, y2u] = [y2u, y1u];
 
-  // Clamp
-  const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
-  x1u = clamp01(x1u);
-  y1u = clamp01(y1u);
-  x2u = clamp01(x2u);
-  y2u = clamp01(y2u);
-
+  x1u = clamp01(x1u); y1u = clamp01(y1u); x2u = clamp01(x2u); y2u = clamp01(y2u);
   if (x2u <= x1u || y2u <= y1u) return zero;
   return { x1: x1u, y1: y1u, x2: x2u, y2: y2u };
 }

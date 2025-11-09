@@ -13,19 +13,16 @@ const SECTION_COLORS: Record<string, string> = {
   other: '#f43f5e',    // rose
 };
 
-/**
- * Normalize bounding boxes.
- * IMPORTANT: Arrays are strictly interpreted as [x1, y1, x2, y2, (page?)].
- * Objects prefer explicit edges x1/y1/x2/y2; fall back to x/y/width/height.
- */
+// Replace normalizeBoxAny to STRICTLY interpret arrays as [x1,y1,x2,y2] and enforce edge ordering
 function normalizeBoxAny(input: any): (BoundingBox & { page?: number }) | null {
   if (!input) return null;
 
   const toNum = (v: any) => (v === null || v === undefined || v === '' ? NaN : Number(v));
 
-  // Strict: arrays are edges [x1, y1, x2, y2, (page?)]
+  // Arrays: strictly [x1, y1, x2, y2, (page?)]
   if (Array.isArray(input)) {
     if (input.length < 4) return null;
+
     let x1 = toNum(input[0]);
     let y1 = toNum(input[1]);
     let x2 = toNum(input[2]);
@@ -34,6 +31,7 @@ function normalizeBoxAny(input: any): (BoundingBox & { page?: number }) | null {
 
     if (![x1, y1, x2, y2].every(Number.isFinite)) return null;
 
+    // Enforce correct ordering
     if (x2 < x1) [x1, x2] = [x2, x1];
     if (y2 < y1) [y1, y2] = [y2, y1];
 
@@ -44,16 +42,22 @@ function normalizeBoxAny(input: any): (BoundingBox & { page?: number }) | null {
     return { x: x1, y: y1, width, height, page: Number.isFinite(page) ? page : undefined };
   }
 
-  // Objects: prefer explicit edges first
-  let x1 = toNum(input.x1 ?? input.left ?? input.minX);
-  let y1 = toNum(input.y1 ?? input.top ?? input.minY);
-  let x2 = toNum(input.x2 ?? input.right ?? input.maxX);
-  let y2 = toNum(input.y2 ?? input.bottom ?? input.maxY);
+  // Objects: prefer explicit edges x1,y1,x2,y2; fall back to x,y,width,height
+  const rawX1 = toNum(input.x1 ?? input.left ?? input.minX);
+  const rawY1 = toNum(input.y1 ?? input.top ?? input.minY);
+  let rawX2 = toNum(input.x2 ?? input.right ?? input.maxX);
+  let rawY2 = toNum(input.y2 ?? input.bottom ?? input.maxY);
+
+  const rawX = toNum(input.x ?? input.left ?? input.x0 ?? input.startX);
+  const rawY = toNum(input.y ?? input.top ?? input.y0 ?? input.startY);
+  const rawW = toNum(input.width ?? input.w);
+  const rawH = toNum(input.height ?? input.h);
 
   const rawPage = input.page ?? input.page_number ?? input.pageIndex ?? input.p;
   const page = toNum(rawPage);
 
-  if ([x1, y1, x2, y2].every(Number.isFinite)) {
+  if ([rawX1, rawY1, rawX2, rawY2].every(Number.isFinite)) {
+    let x1 = rawX1, y1 = rawY1, x2 = rawX2, y2 = rawY2;
     if (x2 < x1) [x1, x2] = [x2, x1];
     if (y2 < y1) [y1, y2] = [y2, y1];
     const width = x2 - x1;
@@ -63,64 +67,17 @@ function normalizeBoxAny(input: any): (BoundingBox & { page?: number }) | null {
     }
   }
 
-  // Fallback: x/y/width/height or derive from right/bottom
-  const x = toNum(input.x ?? input.x0 ?? input.startX ?? input.left);
-  const y = toNum(input.y ?? input.y0 ?? input.startY ?? input.top);
-  let width = toNum(input.width ?? input.w);
-  let height = toNum(input.height ?? input.h);
-
-  if (!Number.isFinite(width) && Number.isFinite(x) && Number.isFinite(x2)) width = x2 - x;
-  if (!Number.isFinite(height) && Number.isFinite(y) && Number.isFinite(y2)) height = y2 - y;
-
-  if ([x, y, width, height].every(Number.isFinite) && width > 0 && height > 0) {
-    return { x, y, width, height, page: Number.isFinite(page) ? page : undefined };
-  }
-  return null;
-}
-
-/** Convert incoming bbox to explicit edge form. Prefer x1,y1,x2,y2; fallback from x,y,w,h. */
-function toEdgeObject(input: any): { x1: number; y1: number; x2: number; y2: number; page?: number } | null {
-  if (!input) return null;
-  const toNum = (v: any) => (v === null || v === undefined || v === '' ? NaN : Number(v));
-
-  // Arrays: strictly [x1,y1,x2,y2,(page?)]
-  if (Array.isArray(input)) {
-    if (input.length < 4) return null;
-    let x1 = toNum(input[0]);
-    let y1 = toNum(input[1]);
-    let x2 = toNum(input[2]);
-    let y2 = toNum(input[3]);
-    const p = toNum(input[4]);
-    if (![x1, y1, x2, y2].every(Number.isFinite)) return null;
-    if (x2 < x1) [x1, x2] = [x2, x1];
-    if (y2 < y1) [y1, y2] = [y2, y1];
-    if (x2 <= x1 || y2 <= y1) return null;
-    return { x1, y1, x2, y2, page: Number.isFinite(p) ? p : undefined };
+  let x = rawX, y = rawY, width = rawW, height = rawH;
+  if (!Number.isFinite(width) || !Number.isFinite(height)) {
+    if (Number.isFinite(rawX) && Number.isFinite(rawY) && Number.isFinite(rawX2) && Number.isFinite(rawY2)) {
+      width = rawX2 - rawX;
+      height = rawY2 - rawY;
+    }
   }
 
-  // Objects: prefer explicit edges
-  let x1 = toNum(input.x1 ?? input.left ?? input.minX);
-  let y1 = toNum(input.y1 ?? input.top ?? input.minY);
-  let x2 = toNum(input.x2 ?? input.right ?? input.maxX);
-  let y2 = toNum(input.y2 ?? input.bottom ?? input.maxY);
-  const rawPage = input.page ?? input.page_number ?? input.pageIndex ?? input.p;
-  const page = toNum(rawPage);
-
-  if ([x1, y1, x2, y2].every(Number.isFinite)) {
-    if (x2 < x1) [x1, x2] = [x2, x1];
-    if (y2 < y1) [y1, y2] = [y2, y1];
-    if (x2 > x1 && y2 > y1) return { x1, y1, x2, y2, page: Number.isFinite(page) ? page : undefined };
+  if ([x, y, width, height].every(Number.isFinite) && (width as number) > 0 && (height as number) > 0) {
+    return { x: x as number, y: y as number, width: width as number, height: height as number, page: Number.isFinite(page) ? page : undefined };
   }
-
-  // Fallback from x,y,w,h
-  const x = toNum(input.x ?? input.x0 ?? input.startX ?? input.left);
-  const y = toNum(input.y ?? input.y0 ?? input.startY ?? input.top);
-  const w = toNum(input.width ?? input.w);
-  const h = toNum(input.height ?? input.h);
-  if ([x, y, w, h].every(Number.isFinite) && w > 0 && h > 0) {
-    return { x1: x, y1: y, x2: x + w, y2: y + h, page: Number.isFinite(page) ? page : undefined };
-  }
-
   return null;
 }
 
@@ -179,25 +136,9 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
         className="py-2.5 px-3 cursor-pointer rounded-lg transition-all border bg-card/50 hover:bg-primary/5 hover:border-primary/30 hover:shadow-sm border-l-2"
         // Add: colorize left border and pass color to PDF hover
         style={{ borderLeftColor: color || 'transparent' }}
-        onMouseEnter={() => {
-          const edges = toEdgeObject(boundingBox?.[0]);
-          if (edges) {
-            const hover: any = {
-              // keep width/height for types but also pass explicit edges so viewer prefers them
-              x: edges.x1,
-              y: edges.y1,
-              width: edges.x2 - edges.x1,
-              height: edges.y2 - edges.y1,
-              x1: edges.x1,
-              y1: edges.y1,
-              x2: edges.x2,
-              y2: edges.y2,
-              page: edges.page ?? page.page_number,
-              ...(color ? { color } : {}),
-            };
-            onFieldHover(hover);
-          }
-        }}
+        onMouseEnter={() =>
+          bb && onFieldHover({ ...bb, page: bb.page ?? page.page_number, ...(color ? { color } : {}) })
+        }
         onMouseLeave={() => onFieldHover(null)}
       >
         <div className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-2">
@@ -240,7 +181,7 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
   };
 
   return (
-    <ScrollArea className="h-full">
+    <ScrollArea className="h-full min-h-0">
       <div className="p-4 space-y-2">
         {/* Metadata Section */}
         <div className="space-y-1.5 bg-card rounded-lg border p-2">
@@ -372,21 +313,32 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
                   className="p-3 rounded-lg border border-border hover:border-primary/30 cursor-pointer transition-all hover:shadow-sm bg-card/50 border-l-2"
                   style={{ borderLeftColor: SECTION_COLORS.items }}
                   onMouseEnter={() => {
-                    const edges = toEdgeObject(item.bounding_box?.[0]);
-                    if (edges) {
-                      const hover: any = {
-                        x: edges.x1,
-                        y: edges.y1,
-                        width: edges.x2 - edges.x1,
-                        height: edges.y2 - edges.y1,
-                        x1: edges.x1,
-                        y1: edges.y1,
-                        x2: edges.x2,
-                        y2: edges.y2,
-                        page: edges.page ?? page.page_number,
-                        color: SECTION_COLORS.items,
-                      };
-                      onFieldHover(hover);
+                    // Merge ALL boxes for this line item into a single row box (union of edges)
+                    const boxes: any[] = Array.isArray(item?.bounding_box) ? item.bounding_box : [];
+                    let minX = Number.POSITIVE_INFINITY;
+                    let minY = Number.POSITIVE_INFINITY;
+                    let maxX = Number.NEGATIVE_INFINITY;
+                    let maxY = Number.NEGATIVE_INFINITY;
+
+                    for (const b of boxes) {
+                      const nb = normalizeBoxAny(b);
+                      if (!nb) continue;
+                      const r = nb.x + nb.width;
+                      const bt = nb.y + nb.height;
+                      if (Number.isFinite(nb.x) && nb.x < minX) minX = nb.x;
+                      if (Number.isFinite(nb.y) && nb.y < minY) minY = nb.y;
+                      if (Number.isFinite(r) && r > maxX) maxX = r;
+                      if (Number.isFinite(bt) && bt > maxY) maxY = bt;
+                    }
+
+                    if (Number.isFinite(minX) && Number.isFinite(minY) && Number.isFinite(maxX) && Number.isFinite(maxY) && maxX > minX && maxY > minY) {
+                      // Fix: use the actual PDF page number instead of item.page (which doesn't exist)
+                      const merged = { x: minX, y: minY, width: maxX - minX, height: maxY - minY, page: page.page_number };
+                      onFieldHover({ ...merged, page: merged.page, color: SECTION_COLORS.items });
+                    } else {
+                      // Fallback to first box if union failed
+                      const ibb = normalizeBoxAny(item.bounding_box?.[0]);
+                      if (ibb) onFieldHover({ ...ibb, page: ibb.page ?? page.page_number, color: SECTION_COLORS.items });
                     }
                   }}
                   onMouseLeave={() => onFieldHover(null)}
@@ -448,17 +400,11 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
         </div>
 
         {/* Other Information */}
-        {page.other_information.length > 0 && (
-          <div className="space-y-1.5 bg-card rounded-lg border p-2">
+{page.other_information.length > 0 && (
+  <div className="space-y-1.5 bg-card rounded-lg border p-2 overflow-visible">
             <SectionHeader title="Other Information" id="other" color={SECTION_COLORS.other} />
             {expandedSections.has('other') && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 auto-rows-max items-start content-start gap-2 pt-1"
-                style={{ overflow: 'visible' }}
-              >
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 pt-1 pb-3 min-h-0 overflow-visible">
                 {page.other_information.map((info, index) => (
                   <div key={index} className="space-y-1.5">
                     {info.additional_notes && (
@@ -479,7 +425,7 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
                     )}
                   </div>
                 ))}
-              </motion.div>
+              </div>
             )}
           </div>
         )}
