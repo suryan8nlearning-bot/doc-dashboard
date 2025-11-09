@@ -8,11 +8,16 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { WifiOff, Loader2 } from "lucide-react";
 import { useNavigate } from 'react-router';
 import { useEffect } from 'react';
+import { SAPJsonCard } from "@/components/SAPJsonCard";
+import { supabase, hasSupabaseEnv } from "@/lib/supabase";
 
 export default function Landing() {
   const { isLoading, isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [sapData, setSapData] = useState<any | null>(null);
+  const [sapLoading, setSapLoading] = useState<boolean>(false);
+  const [sapError, setSapError] = useState<string | null>(null);
 
   useEffect(() => {
     const update = () => setIsOnline(navigator.onLine);
@@ -23,6 +28,42 @@ export default function Landing() {
       window.removeEventListener('offline', update);
     };
   }, []);
+
+  const loadLatestSap = async () => {
+    try {
+      setSapError(null);
+      setSapLoading(true);
+      setSapData(null);
+
+      if (!hasSupabaseEnv) {
+        setSapError("Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in the API keys tab.");
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("documents")
+        .select("document_data")
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (error) {
+        setSapError(error.message || "Failed to load SAP data.");
+        return;
+      }
+
+      const doc = (data && data[0]) || null;
+      if (!doc || !doc.document_data) {
+        setSapError("No SAP data found in the latest document.");
+        return;
+      }
+
+      setSapData(doc.document_data);
+    } catch (e: any) {
+      setSapError(e?.message || "Failed to load SAP data.");
+    } finally {
+      setSapLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
@@ -93,6 +134,57 @@ export default function Landing() {
             <Button asChild size="lg">
               <Link to="/auth">Get Started</Link>
             </Button>
+          )}
+        </div>
+      </motion.section>
+
+      <motion.section
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.1 }}
+        className="container mx-auto px-4 pb-16"
+      >
+        <div className="max-w-5xl mx-auto space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-semibold">SAP Output</h2>
+            <Button
+              size="sm"
+              onClick={loadLatestSap}
+              disabled={sapLoading}
+              className="gap-2"
+              title="Load latest document's SAP data"
+            >
+              {sapLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {sapLoading ? "Loading..." : "Load Latest"}
+            </Button>
+          </div>
+
+          {!hasSupabaseEnv && (
+            <Alert variant="destructive">
+              <AlertTitle>Supabase not configured</AlertTitle>
+              <AlertDescription>
+                Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in the API keys tab to fetch SAP data.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {sapError && (
+            <Alert variant="destructive">
+              <AlertTitle>Unable to load</AlertTitle>
+              <AlertDescription>{sapError}</AlertDescription>
+            </Alert>
+          )}
+
+          {sapData ? (
+            <SAPJsonCard
+              data={sapData}
+              title="SAP Output"
+              defaultCollapsed={false}
+            />
+          ) : (
+            <div className="text-sm text-muted-foreground">
+              Click "Load Latest" to view the latest document's SAP output.
+            </div>
           )}
         </div>
       </motion.section>
