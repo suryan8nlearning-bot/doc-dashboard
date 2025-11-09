@@ -81,6 +81,61 @@ function normalizeBoxAny(input: any): (BoundingBox & { page?: number }) | null {
   return null;
 }
 
+// Add: helper to extract raw edges (x1,y1,x2,y2) without width/height math
+function edgesFromAnyRaw(input: any): { x1: number; y1: number; x2: number; y2: number; page?: number } | null {
+  if (!input) return null;
+  const toNum = (v: any) => (v === null || v === undefined || v === '' ? NaN : Number(v));
+
+  // Arrays: [x1, y1, x2, y2, (page?)]
+  if (Array.isArray(input)) {
+    if (input.length < 4) return null;
+    let x1 = toNum(input[0]);
+    let y1 = toNum(input[1]);
+    let x2 = toNum(input[2]);
+    let y2 = toNum(input[3]);
+    const page = toNum(input[4]);
+
+    if (![x1, y1, x2, y2].every(Number.isFinite)) return null;
+    if (x2 < x1) [x1, x2] = [x2, x1];
+    if (y2 < y1) [y1, y2] = [y2, y1];
+
+    return { x1, y1, x2, y2, page: Number.isFinite(page) ? page : undefined };
+  }
+
+  // Objects with explicit edges preferred
+  let x1 = toNum(input.x1 ?? input.left ?? input.minX);
+  let y1 = toNum(input.y1 ?? input.top ?? input.minY);
+  let x2 = toNum(input.x2 ?? input.right ?? input.maxX);
+  let y2 = toNum(input.y2 ?? input.bottom ?? input.maxY);
+  const page = toNum(input.page ?? input.page_number ?? input.pageIndex ?? input.p);
+
+  if ([x1, y1, x2, y2].every(Number.isFinite)) {
+    if (x2 < x1) [x1, x2] = [x2, x1];
+    if (y2 < y1) [y1, y2] = [y2, y1];
+    return { x1, y1, x2, y2, page: Number.isFinite(page) ? page : undefined };
+  }
+
+  // Fallback from x,y,width,height if edges not provided (last resort)
+  const x = toNum(input.x ?? input.left ?? input.x0 ?? input.startX);
+  const y = toNum(input.y ?? input.top ?? input.y0 ?? input.startY);
+  const w = toNum(input.width ?? input.w);
+  const h = toNum(input.height ?? input.h);
+  if ([x, y, w, h].every(Number.isFinite)) {
+    const ex1 = x;
+    const ey1 = y;
+    const ex2 = x + w;
+    const ey2 = y + h;
+    return {
+      x1: Math.min(ex1, ex2),
+      y1: Math.min(ey1, ey2),
+      x2: Math.max(ex1, ex2),
+      y2: Math.max(ey1, ey2),
+      page: Number.isFinite(page) ? page : undefined,
+    };
+  }
+  return null;
+}
+
 interface DocumentFieldsProps {
   documentData: DocumentData;
   onFieldHover: (box: (BoundingBox & { page?: number; color?: string }) | null) => void;
@@ -313,45 +368,54 @@ export function DocumentFields({ documentData, onFieldHover }: DocumentFieldsPro
                   className="p-3 rounded-lg border border-border hover:border-primary/30 cursor-pointer transition-all hover:shadow-sm bg-card/50 border-l-2"
                   style={{ borderLeftColor: SECTION_COLORS.items }}
                   onMouseEnter={() => {
-                    // Merge boxes using leftmost top-left (x1,y1) and farthest right/bottom (x2,y2)
+                    // New: merge using only raw edges -> min(x1,y1) and max(x2,y2); no width/height math
                     const boxes: any[] = Array.isArray(item?.bounding_box) ? item.bounding_box : [];
-                    let leftmostX = Number.POSITIVE_INFINITY;
-                    let leftmostY = Number.POSITIVE_INFINITY;
-                    let haveLeft = false;
-
-                    let maxRight = Number.NEGATIVE_INFINITY;
-                    let maxBottom = Number.NEGATIVE_INFINITY;
+                    let minX1 = Number.POSITIVE_INFINITY;
+                    let minY1 = Number.POSITIVE_INFINITY;
+                    let maxX2 = Number.NEGATIVE_INFINITY;
+                    let maxY2 = Number.NEGATIVE_INFINITY;
+                    let found = false;
+                    let pageNum: number | undefined = undefined;
 
                     for (const b of boxes) {
-                      const nb = normalizeBoxAny(b);
-                      if (!nb) continue;
-                      const x1 = nb.x;
-                      const y1 = nb.y;
-                      const x2 = nb.x + nb.width;
-                      const y2 = nb.y + nb.height;
-
-                      if (Number.isFinite(x1) && x1 < leftmostX) {
-                        leftmostX = x1;
-                        leftmostY = Number.isFinite(y1) ? y1 : leftmostY;
-                        haveLeft = true;
-                      }
-                      if (Number.isFinite(x2) && x2 > maxRight) maxRight = x2;
-                      if (Number.isFinite(y2) && y2 > maxBottom) maxBottom = y2;
+                      const ed = edgesFromAnyRaw(b);
+                      if (!ed) continue;
+                      if (ed.x1 < minX1) minX1 = ed.x1;
+                      if (ed.y1 < minY1) minY1 = ed.y1;
+                      if (ed.x2 > maxX2) maxX2 = ed.x2;
+                      if (ed.y2 > maxY2) maxY2 = ed.y2;
+                      if (pageNum === undefined && ed.page !== undefined) pageNum = ed.page;
+                      found = true;
                     }
 
-                    if (haveLeft && Number.isFinite(maxRight) && Number.isFinite(maxBottom) && maxRight > leftmostX && maxBottom > leftmostY) {
-                      const merged = {
-                        x: leftmostX,
-                        y: leftmostY,
-                        width: maxRight - leftmostX,
-                        height: maxBottom - leftmostY,
-                        page: page.page_number,
-                      };
-                      onFieldHover({ ...merged, color: SECTION_COLORS.items });
+                    if (found && Number.isFinite(minX1) && Number.isFinite(minY1) && Number.isFinite(maxX2) && Number.isFinite(maxY2) && maxX2 > minX1 && maxY2 > minY1) {
+                      // Pass edges directly; viewer will normalize once consistently.
+                      onFieldHover(
+                        {
+                          x1: minX1,
+                          y1: minY1,
+                          x2: maxX2,
+                          y2: maxY2,
+                          page: pageNum ?? page.page_number,
+                          color: SECTION_COLORS.items,
+                        } as any
+                      );
                     } else {
-                      // Fallback to first box if union failed
-                      const ibb = normalizeBoxAny(item.bounding_box?.[0]);
-                      if (ibb) onFieldHover({ ...ibb, page: ibb.page ?? page.page_number, color: SECTION_COLORS.items });
+                      // Fallback to the first available box, using its edges directly
+                      const first = boxes.find((b) => !!edgesFromAnyRaw(b));
+                      const ed = edgesFromAnyRaw(first);
+                      if (ed) {
+                        onFieldHover(
+                          {
+                            x1: ed.x1,
+                            y1: ed.y1,
+                            x2: ed.x2,
+                            y2: ed.y2,
+                            page: ed.page ?? page.page_number,
+                            color: SECTION_COLORS.items,
+                          } as any
+                        );
+                      }
                     }
                   }}
                   onMouseLeave={() => onFieldHover(null)}
