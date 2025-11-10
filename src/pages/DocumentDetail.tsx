@@ -2103,6 +2103,42 @@ export default function DocumentDetail() {
                             )}
                           </AccordionContent>
                         </AccordionItem>
+
+                        <AccordionItem value="sap">
+                          <AccordionTrigger className="text-base font-semibold">
+                            SAP Output
+                          </AccordionTrigger>
+                          <AccordionContent className="overflow-visible">
+                            {detailsLoading ? (
+                              <RightPanelSkeleton />
+                            ) : showSAP ? (
+                              sapOut ? (
+                                <div
+                                  data-sap-interactive
+                                  className="w-full min-w-0 break-words whitespace-pre-wrap overflow-x-hidden [word-break:anywhere] [overflow-wrap:anywhere]"
+                                  onClick={(e) => e.stopPropagation()}
+                                  onPointerDownCapture={(e) => e.stopPropagation()}
+                                  onPointerUpCapture={(e) => e.stopPropagation()}
+                                  onMouseDown={(e) => e.stopPropagation()}
+                                >
+                                  <SAPJsonCard
+                                    data={sapOut}
+                                    onHoverHighlight={onSapHover}
+                                    className="break-words whitespace-pre-wrap"
+                                  />
+                                </div>
+                              ) : (
+                                <div className="text-sm text-muted-foreground">
+                                  No SAP data loaded for this document.
+                                </div>
+                              )
+                            ) : (
+                              <div className="text-sm text-muted-foreground">
+                                SAP data is hidden. Toggle it from the header menu.
+                              </div>
+                            )}
+                          </AccordionContent>
+                        </AccordionItem>
                       </Accordion>
                     </CardContent>
                   </Card>
