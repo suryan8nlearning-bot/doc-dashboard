@@ -173,8 +173,8 @@
 [data-sap-interactive] {
   /* Prevent auto scroll jumps when expanding/collapsing sub-objects */
   overflow-anchor: none;
-  /* Avoid horizontal scroll and layout jumps */
-  overflow-x: hidden;
+  /* Allow horizontal scroll when needed to avoid clipping columns */
+  overflow-x: auto;
 }
 
 [data-sap-interactive] :is(div, span, p, code, pre) {
@@ -222,7 +222,8 @@
 /* SAP interactive pane: make values fully visible and keep cursor stable */
 [data-sap-interactive] table {
   table-layout: auto;
-  width: max-content;
+  width: 100%;           /* Fill container width */
+  max-width: 100%;       /* Do not overflow container */
   min-width: 100%;
   border-collapse: separate;
   border-spacing: 0.25rem;
@@ -242,11 +243,12 @@
   padding-right: 1%;
 }
 
+/* Let table cells wrap so more columns fit without clipping */
 [data-sap-interactive] td {
-  /* Keep values readable; allow table to auto-size columns based on content */
-  white-space: nowrap;
+  white-space: normal;        /* wrap values */
+  word-break: break-word;     /* break long words */
   overflow: visible !important;
-  min-width: fit-content;
+  min-width: 0;               /* allow shrink */
   max-width: none;
   vertical-align: top;
   position: relative;

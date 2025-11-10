@@ -343,6 +343,11 @@ export function SAPJsonCard({
   }) => {
     if (!items || items.length === 0) return null;
 
+    // Identify "items" section where a single row-level indicator is desired
+    const isItemsSection =
+      basePath.toLowerCase().includes("to_item") ||
+      basePath.toLowerCase().includes("items");
+
     // Collect all unique primitive field keys across all items
     const allPrimitiveKeys = new Set<string>();
     items.forEach((item) => {
@@ -364,12 +369,12 @@ export function SAPJsonCard({
               {primitiveColumns.map((col) => (
                 <th
                   key={col}
-                  className="px-3 py-2 text-left text-xs font-semibold whitespace-normal break-words max-w-[12rem] align-top"
+                  className="px-3 py-2 text-left text-xs font-semibold whitespace-normal break-words align-top"
                 >
                   {col}
                 </th>
               ))}
-              <th className="px-3 py-2 text-left text-xs font-semibold whitespace-normal break-words max-w-[16rem] align-top">
+              <th className="px-3 py-2 text-left text-xs font-semibold whitespace-normal break-words align-top">
                 Sub-Objects
               </th>
             </tr>
@@ -397,6 +402,15 @@ export function SAPJsonCard({
                   <tr
                     key={itemPath}
                     className="border-b hover:bg-muted/20 transition-colors align-top"
+                    onMouseEnter={() => {
+                      // For item rows, highlight the entire row union box
+                      if (isItemsSection && itemBox) {
+                        handleRowEnter(itemPath, itemBox);
+                      }
+                    }}
+                    onMouseLeave={() => {
+                      if (isItemsSection) handleRowLeave();
+                    }}
                   >
                     <td className="px-3 py-2 align-top">
                       <div className="flex items-center gap-2">
@@ -404,7 +418,7 @@ export function SAPJsonCard({
                           className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${
                             itemHasMapping ? "bg-emerald-500" : "bg-rose-500"
                           }`}
-                          title={itemHasMapping ? "Source found" : "No source mapping"}
+                          title={itemHasMapping ? "Linked to source (hover row to highlight)" : "No source mapping"}
                         />
                         <span className="text-sm font-semibold">{idx + 1}</span>
                       </div>
@@ -413,13 +427,40 @@ export function SAPJsonCard({
                     {primitiveColumns.map((col) => {
                       const fieldPath = `${itemPath}.${col}`;
                       const storedVal = editedValues[fieldPath];
-                      const val = storedVal !== undefined ? storedVal : item[col];
-                      const fieldBox = hoverMapping ? hoverMapping[fieldPath] || null : null;
+                      const val = storedVal !== undefined ? storedVal : (item as any)[col];
+                      const fieldBox = hoverMapping ? (hoverMapping[fieldPath] || null) : null;
                       const fieldHasMapping = Boolean(fieldBox);
 
                       return (
                         <td key={col} className="px-3 py-2 align-top">
-                          <div className="flex items-center gap-2 min-w-0">
+                          <div
+                            className="flex items-center gap-2 min-w-0"
+                            title={
+                              !isItemsSection
+                                ? (fieldHasMapping ? "Linked to source (hover to highlight)" : "No source mapping")
+                                : undefined
+                            }
+                            onMouseEnter={() => {
+                              if (!isItemsSection && fieldHasMapping && fieldBox) {
+                                handleRowEnter(fieldPath, fieldBox as any);
+                              }
+                            }}
+                            onMouseLeave={() => {
+                              if (!isItemsSection) handleRowLeave();
+                            }}
+                          >
+                            {!isItemsSection && (
+                              <span
+                                className="h-2.5 w-2.5 rounded-full flex-shrink-0 border"
+                                style={{
+                                  backgroundColor: fieldHasMapping ? colorForKey(col) : "transparent",
+                                  borderColor: fieldHasMapping
+                                    ? colorForKey(col)
+                                    : "rgba(244,63,94,0.6)", // red-500/60
+                                }}
+                              />
+                            )}
+
                             {typeof val === "boolean" ? (
                               <input 
                                 type="checkbox" 
@@ -447,7 +488,7 @@ export function SAPJsonCard({
                                   }
                                   e.stopPropagation();
                                 }}
-                                className="w-full min-w-0 max-w-[16rem] truncate rounded border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                                className="w-full min-w-0 rounded border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
                                 onClick={(e) => e.stopPropagation()}
                               />
                             )}
