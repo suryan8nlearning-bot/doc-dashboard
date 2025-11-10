@@ -228,9 +228,22 @@
   border-spacing: 0.25rem;
 }
 
-[data-sap-interactive] th,
+[data-sap-interactive] th {
+  /* Headings should wrap and break long words to avoid clipping */
+  white-space: normal !important;
+  overflow: visible !important;
+  word-break: break-word !important;
+  min-width: fit-content;
+  max-width: none;
+  vertical-align: top;
+  position: relative;
+  z-index: 0;
+  padding-left: 1%;
+  padding-right: 1%;
+}
+
 [data-sap-interactive] td {
-  /* Auto-adjust width based on content with 2% extra space */
+  /* Keep values readable; allow table to auto-size columns based on content */
   white-space: nowrap;
   overflow: visible !important;
   min-width: fit-content;

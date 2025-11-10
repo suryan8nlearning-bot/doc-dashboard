@@ -362,7 +362,10 @@ export function SAPJsonCard({
             <tr className="border-b bg-muted/30">
               <th className="px-3 py-2 text-left text-xs font-semibold">#</th>
               {primitiveColumns.map((col) => (
-                <th key={col} className="px-3 py-2 text-left text-xs font-semibold whitespace-nowrap">
+                <th
+                  key={col}
+                  className="px-3 py-2 text-left text-xs font-semibold whitespace-pre-wrap break-words"
+                >
                   {col}
                 </th>
               ))}
