@@ -203,6 +203,7 @@ export default function Landing() {
                   title="SAP Output"
                   defaultCollapsed={false}
                   className="border-0 shadow-none"
+                  hideHeader
                 />
               </div>
             ) : (
