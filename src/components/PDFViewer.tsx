@@ -2340,3 +2340,260 @@ function hideHoverPreview() {
 
 // Add a named export for compatibility with namespace imports like `PDFViewer.PDFViewer`
 export { PDFViewer };
+
+// Global rectangular magnifier lens setup driven by "doc-hover-bbox"/"doc-hover-clear"
+declare global {
+  interface Window {
+    __pdfMagnifierSetup?: boolean;
+  }
+}
+
+if (typeof window !== "undefined" && !window.__pdfMagnifierSetup) {
+  window.__pdfMagnifierSetup = true;
+
+  // Create lens elements
+  const lens = document.createElement("div");
+  lens.className =
+    "pdf-magnifier-lens hidden fixed pointer-events-none z-[9999]";
+  const lensCanvas = document.createElement("canvas");
+  lens.appendChild(lensCanvas);
+  document.body.appendChild(lens);
+
+  let rafId: number | null = null;
+
+  type BBox = {
+    page?: number;
+    left?: number;
+    top?: number;
+    width?: number;
+    height?: number;
+  };
+
+  const clamp = (v: number, min: number, max: number) =>
+    Math.max(min, Math.min(max, v));
+
+  const findCanvasForPage = (page?: number): HTMLCanvasElement | null => {
+    if (!document) return null;
+    const candidates: string[] = [
+      `[data-page-number="${page}"] canvas`,
+      `[data-pdf-page="${page}"] canvas`,
+      `.page[data-page-number="${page}"] canvas`,
+    ];
+    if (page !== undefined) {
+      for (const sel of candidates) {
+        const el = document.querySelector(sel) as HTMLCanvasElement | null;
+        if (el) return el;
+      }
+    }
+    // Fallbacks
+    const near = document.querySelector(
+      ".pdfViewer .page canvas, .canvasWrapper canvas, canvas"
+    ) as HTMLCanvasElement | null;
+    return near;
+  };
+
+  const isNormalized = (r: Required<BBox>) => {
+    // Heuristic: treat as normalized if dimensions <= 1.5
+    return (
+      r.left <= 1.5 &&
+      r.top <= 1.5 &&
+      r.width <= 1.5 &&
+      r.height <= 1.5
+    );
+  };
+
+  const expandRect = (
+    r: Required<BBox>,
+    factor: number,
+    canvas: HTMLCanvasElement
+  ) => {
+    // Expand rect by factor (e.g., 0.5 => +50% each dimension)
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+    const newW = r.width * (1 + factor);
+    const newH = r.height * (1 + factor);
+
+    let left = cx - newW / 2;
+    let top = cy - newH / 2;
+    let width = newW;
+    let height = newH;
+
+    if (isNormalized(r)) {
+      // Clamp in normalized space
+      left = clamp(left, 0, 1);
+      top = clamp(top, 0, 1);
+      width = clamp(width, 0, 1 - left);
+      height = clamp(height, 0, 1 - top);
+      return {
+        left: left * canvas.width,
+        top: top * canvas.height,
+        width: width * canvas.width,
+        height: height * canvas.height,
+      };
+    } else {
+      // Absolute pixels
+      left = clamp(left, 0, canvas.width);
+      top = clamp(top, 0, canvas.height);
+      width = clamp(width, 0, canvas.width - left);
+      height = clamp(height, 0, canvas.height - top);
+      return { left, top, width, height };
+    }
+  };
+
+  const hideLens = () => {
+    lens.classList.add("hidden");
+  };
+
+  const showLensAt = (
+    canvas: HTMLCanvasElement,
+    sx: number,
+    sy: number,
+    sw: number,
+    sh: number
+  ) => {
+    try {
+      const zoom = 1.75; // visual zoom factor inside lens
+      const maxSize = 420; // cap to avoid excessive lens size
+      const targetW = Math.min(sw * zoom, maxSize);
+      const scale = targetW / sw;
+      const targetH = sh * scale;
+
+      // Size lens canvas
+      lensCanvas.width = Math.max(1, Math.floor(sw * zoom));
+      lensCanvas.height = Math.max(1, Math.floor(sh * zoom));
+
+      const ctx = lensCanvas.getContext("2d");
+      if (!ctx) return;
+
+      // Draw zoomed crop
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.clearRect(0, 0, lensCanvas.width, lensCanvas.height);
+      ctx.drawImage(
+        canvas,
+        Math.max(0, Math.floor(sx)),
+        Math.max(0, Math.floor(sy)),
+        Math.max(1, Math.floor(sw)),
+        Math.max(1, Math.floor(sh)),
+        0,
+        0,
+        lensCanvas.width,
+        lensCanvas.height
+      );
+
+      // Position lens near source area in viewport space
+      const canvasRect = canvas.getBoundingClientRect();
+      const viewLeft = canvasRect.left + sx - 8; // slight inset
+      const viewTop = canvasRect.top + sy - 8;
+
+      // Default place the lens adjacent to the crop, with clamping to viewport
+      const lensW = lensCanvas.width;
+      const lensH = lensCanvas.height;
+
+      const vpW = window.innerWidth;
+      const vpH = window.innerHeight;
+
+      let lx = viewLeft + sw + 16; // to the right of the area
+      let ly = viewTop;
+
+      if (lx + lensW + 16 > vpW) {
+        // place on left side if no room on right
+        lx = viewLeft - lensW - 16;
+      }
+      if (lx < 8) lx = 8;
+
+      if (ly + lensH + 16 > vpH) {
+        ly = vpH - lensH - 16;
+      }
+      if (ly < 8) ly = 8;
+
+      lens.style.left = `${Math.floor(lx)}px`;
+      lens.style.top = `${Math.floor(ly)}px`;
+      lens.style.width = `${lensW}px`;
+      lens.style.height = `${lensH}px`;
+
+      lens.classList.remove("hidden");
+    } catch {
+      // Fail safe: hide lens on any drawing error
+      hideLens();
+    }
+  };
+
+  const onHover = (e: Event) => {
+    const detail = (e as CustomEvent).detail as {
+      bbox?: BBox;
+      sourceEl?: Element | null;
+    };
+    if (!detail?.bbox) return;
+
+    const canvas = findCanvasForPage(detail.bbox.page);
+    if (!canvas) {
+      hideLens();
+      return;
+    }
+
+    // Normalize bbox fields
+    const left = Number(detail.bbox.left ?? 0);
+    const top = Number(detail.bbox.top ?? 0);
+    const width = Number(detail.bbox.width ?? 0);
+    const height = Number(detail.bbox.height ?? 0);
+
+    if (width <= 0 || height <= 0) {
+      hideLens();
+      return;
+    }
+
+    const base = { left, top, width, height, page: detail.bbox.page } as Required<BBox>;
+
+    // Expand capture by 50% and clamp to canvas bounds
+    const expanded = expandRect(base, 0.5, canvas);
+
+    // Draw on next animation frame to avoid flooding
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(() => {
+      showLensAt(canvas, expanded.left, expanded.top, expanded.width, expanded.height);
+    });
+  };
+
+  const onClear = () => {
+    if (rafId) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+    hideLens();
+  };
+
+  // Bind events
+  const hideEvents: Array<[string, EventListener]> = [
+    ["doc-hover-clear", onClear],
+    ["pdf:highlightClear", onClear],
+    ["scroll", onClear],
+    ["resize", onClear],
+  ];
+
+  window.addEventListener("doc-hover-bbox", onHover as EventListener, true);
+  for (const [name, fn] of hideEvents) {
+    window.addEventListener(name, fn, true);
+  }
+
+  // Clean up on hot reloads
+  window.addEventListener(
+    "beforeunload",
+    () => {
+      window.removeEventListener(
+        "doc-hover-bbox",
+        onHover as EventListener,
+        true
+      );
+      for (const [name, fn] of hideEvents) {
+        window.removeEventListener(name, fn, true);
+      }
+      try {
+        lens.remove();
+      } catch {
+        // no-op
+      }
+    },
+    { once: true }
+  );
+}
