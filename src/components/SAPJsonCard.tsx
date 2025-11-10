@@ -373,7 +373,7 @@ export function SAPJsonCard({
             {items.map((item, idx) => {
               const itemPath = `${basePath}.[${idx}]`;
               const itemKeys = Object.keys(item);
-              
+
               // Separate sub-objects
               const subObjects: Array<[string, any]> = [];
               itemKeys.forEach((key) => {
@@ -404,7 +404,7 @@ export function SAPJsonCard({
                         <span className="text-sm font-semibold">{idx + 1}</span>
                       </div>
                     </td>
-                    
+
                     {primitiveColumns.map((col) => {
                       const fieldPath = `${itemPath}.${col}`;
                       const storedVal = editedValues[fieldPath];
@@ -451,28 +451,10 @@ export function SAPJsonCard({
                       );
                     })}
 
+                    {/* Sub-objects cell with inline expandable sections per sub-object */}
                     <td className="px-3 py-2 align-top">
                       {subObjects.length > 0 && (
-                        <button
-                          onClick={() => togglePath(itemPath)}
-                          className="text-xs text-primary hover:underline flex items-center gap-1"
-                        >
-                          <ChevronRight
-                            className={`h-3 w-3 transition-transform ${
-                              expanded.has(itemPath) ? "rotate-90" : ""
-                            }`}
-                          />
-                          {subObjects.length} sub-object{subObjects.length > 1 ? "s" : ""}
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-
-                  {/* Sub-objects row (expanded) - displayed as grid of dropdowns */}
-                  {expanded.has(itemPath) && subObjects.length > 0 && (
-                    <tr key={`${itemPath}-sub`}>
-                      <td colSpan={primitiveColumns.length + 2} className="px-6 py-3 bg-muted/10">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        <div className="space-y-2">
                           {subObjects.map(([key, val]) => {
                             const subPath = `${itemPath}.${key}`;
                             const subObjPath = `${subPath}-details`;
@@ -503,7 +485,7 @@ export function SAPJsonCard({
                                     {Array.isArray(val) ? `${val.length} items` : "object"}
                                   </span>
                                 </button>
-                                
+
                                 {isSubExpanded && (
                                   <div className="p-3">
                                     {isArrayOfObjects ? (
@@ -514,21 +496,21 @@ export function SAPJsonCard({
                                       />
                                     ) : Array.isArray(val) ? (
                                       <div className="space-y-2">
-                                        {(val as any[]).map((item, idx) => {
-                                          const itemValPath = `${subPath}.[${idx}]`;
+                                        {(val as any[]).map((item, sidx) => {
+                                          const itemValPath = `${subPath}.[${sidx}]`;
                                           const storedItem = editedValues[itemValPath];
                                           const displayItem = storedItem !== undefined ? storedItem : item;
-                                          
+
                                           return (
-                                            <div key={idx} className="flex items-center gap-2 p-2 rounded border bg-background">
-                                              <span className="text-xs font-medium text-muted-foreground min-w-[40px]">#{idx + 1}</span>
+                                            <div key={sidx} className="flex items-center gap-2 p-2 rounded border bg-background">
+                                              <span className="text-xs font-medium text-muted-foreground min-w-[40px]">#{sidx + 1}</span>
                                               {typeof displayItem === "object" && displayItem !== null ? (
                                                 <div className="flex-1 grid grid-cols-1 gap-2">
                                                   {Object.entries(displayItem).map(([k, v]) => {
                                                     const fieldValPath = `${itemValPath}.${k}`;
                                                     const storedFieldVal = editedValues[fieldValPath];
                                                     const displayVal = storedFieldVal !== undefined ? storedFieldVal : v;
-                                                    
+
                                                     return (
                                                       <div key={k} className="flex items-center gap-1">
                                                         <label className="text-xs text-muted-foreground whitespace-nowrap min-w-[80px]">{k}:</label>
@@ -596,7 +578,7 @@ export function SAPJsonCard({
                                           const fieldValPath = `${subPath}.${k}`;
                                           const storedVal = editedValues[fieldValPath];
                                           const displayVal = storedVal !== undefined ? storedVal : v;
-                                          
+
                                           return (
                                             <div key={k} className="flex items-center gap-2 p-2 rounded border bg-background">
                                               <label className="text-xs font-medium text-muted-foreground min-w-[100px]">{k}:</label>
@@ -643,9 +625,9 @@ export function SAPJsonCard({
                             );
                           })}
                         </div>
-                      </td>
-                    </tr>
-                  )}
+                      )}
+                    </td>
+                  </tr>
                 </>
               );
             })}
