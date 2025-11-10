@@ -29,6 +29,13 @@ export default function Landing() {
     };
   }, []);
 
+  // Auto-load latest SAP data on mount if Supabase is configured
+  useEffect(() => {
+    if (hasSupabaseEnv) {
+      void loadLatestSap();
+    }
+  }, []);
+
   const loadLatestSap = async () => {
     try {
       setSapError(null);

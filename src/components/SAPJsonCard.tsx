@@ -49,7 +49,7 @@ export function SAPJsonCard({
   onShowMailHint,
   onHideMailHint,
 }: SAPJsonCardProps) {
-  const [collapsed, setCollapsed] = useState<boolean>(true);
+  const [collapsed, setCollapsed] = useState<boolean>(defaultCollapsed);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set<string>());
   const [hoveredPath, setHoveredPath] = useState<string | null>(null);
   const [editedValues, setEditedValues] = useState<Record<string, any>>({});
