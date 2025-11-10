@@ -1306,17 +1306,25 @@ function hideHoverPreview() {
   }, [pdfArrayBuffer]);
 
   // Add: Automatically fit PDF to the container width when the panel is resized (debounced + tolerant)
+  const roSquelchUntilRef = useRef(0);
   useEffect(() => {
     if (!fitToWidthOnResize) return;
     const container = containerRef.current;
     if (!container) return;
 
     let lastWidth = 0;
+    const WIDTH_DELTA_THRESHOLD = 12; // increased threshold to avoid oscillation on scrollbar appearance
+
     const ro = new ResizeObserver((entries) => {
       const entry = entries[0];
       const width = entry?.contentRect?.width || 0;
+
+      // Squelch if we just auto-fitted recently
+      const now = performance.now();
+      if (now < roSquelchUntilRef.current) return;
+
       // Ignore negligible width changes to avoid oscillation around scrollbars
-      if (!width || Math.abs(width - lastWidth) < 2) return;
+      if (!width || Math.abs(width - lastWidth) < WIDTH_DELTA_THRESHOLD) return;
       lastWidth = width;
 
       // If the user manually changed zoom, respect it and don't auto-fit
@@ -1324,13 +1332,20 @@ function hideHoverPreview() {
         return;
       }
 
+      // Skip when scrollbars are present; this often toggles width slightly and causes feedback
+      const hasVScroll = container.scrollHeight - container.clientHeight > 1;
+      const hasHScroll = container.scrollWidth - container.clientWidth > 1;
+      if (hasVScroll || hasHScroll) return;
+
       const base = getBaseDims();
       if (!base.width) return;
       const rounded = roundScale2(width / base.width);
       const currentRounded = roundScale2(zoom);
       if (Math.abs(rounded - currentRounded) <= EPSILON) return;
 
-      updateZoom(rounded, true); // silent zoom HUD on resize
+      // Silent auto-fit and squelch subsequent observer events briefly
+      updateZoom(rounded, true);
+      roSquelchUntilRef.current = now + 600; // 0.6s squelch window
     });
 
     ro.observe(container);
