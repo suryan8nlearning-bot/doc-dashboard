@@ -40,6 +40,12 @@ export default function PDFViewer({ pdfUrl, highlightBox, onLoad, documentData, 
   const didFitToWidthRef = useRef(false); // ensure we only fit once
 const didAutoFocusRef = useRef(false); // ensure we only auto-focus once
 const [showZoomHud, setShowZoomHud] = useState(false);
+// Add: separate canvas render scale and animation refs for smooth zoom
+const [canvasScale, setCanvasScale] = useState(1);
+const animFrameRef = useRef<number | null>(null);
+const animStartRef = useRef<number>(0);
+const animFromRef = useRef<number>(1);
+const animToRef = useRef<number>(1);
 const pdfDocRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null);
 const pageRef = useRef<pdfjsLib.PDFPageProxy | null>(null);
 const renderTaskRef = useRef<any>(null);
@@ -679,6 +685,7 @@ function hideHoverPreview() {
 
     if (!container) {
       setZoom(targetZoom);
+      setCanvasScale(targetZoom);
       return;
     }
     const prevZoom = zoom;
@@ -692,20 +699,46 @@ function hideHoverPreview() {
     const centerX = (container.scrollLeft + container.clientWidth / 2) / (prevZoom || 1);
     const centerY = (container.scrollTop + container.clientHeight / 2) / (prevZoom || 1);
 
-    setZoom(targetZoom);
-
-    // After React state updates and render, adjust scroll so the same center stays in view
-    setTimeout(() => {
-      const newLeft = centerX * targetZoom - container.clientWidth / 2;
-      const newTop = centerY * targetZoom - container.clientHeight / 2;
-      container.scrollTo({ left: newLeft, top: newTop });
-    }, 0);
-
-    // Trigger a brief HUD to show zoom level (skip when resizing container)
-    if (!silent) {
-      setShowZoomHud(true);
-      setTimeout(() => setShowZoomHud(false), 450);
+    // Cancel any existing animation
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
     }
+
+    // Animate view (overlays) smoothly; re-render canvas at the end
+    const duration = 220; // ms
+    animFromRef.current = prevZoom;
+    animToRef.current = targetZoom;
+    animStartRef.current = performance.now();
+
+    const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+
+    const step = (now: number) => {
+      const t = Math.min(1, (now - animStartRef.current) / duration);
+      const eased = easeOutCubic(t);
+      const scale = animFromRef.current + (animToRef.current - animFromRef.current) * eased;
+      setZoom(scale);
+      if (t < 1) {
+        animFrameRef.current = requestAnimationFrame(step);
+      } else {
+        animFrameRef.current = null;
+        setZoom(targetZoom);
+        setCanvasScale(targetZoom);
+
+        // After animation completes, adjust scroll so the same center stays in view
+        const newLeft = centerX * targetZoom - container.clientWidth / 2;
+        const newTop = centerY * targetZoom - container.clientHeight / 2;
+        container.scrollTo({ left: newLeft, top: newTop });
+
+        // Trigger a brief HUD to show zoom level (skip when resizing container)
+        if (!silent) {
+          setShowZoomHud(true);
+          setTimeout(() => setShowZoomHud(false), 450);
+        }
+      }
+    };
+
+    animFrameRef.current = requestAnimationFrame(step);
   };
 
   // Fast render helper: reuse parsed PDF & page and cancel in-flight renders
@@ -1106,6 +1139,7 @@ function hideHoverPreview() {
         // Suppress the zoom effect during the first render to avoid double render flicker
         suppressZoomEffectRef.current = true;
         setZoom(initialScale);
+        setCanvasScale(initialScale);
         await renderPage(initialScale);
         suppressZoomEffectRef.current = false;
 
@@ -1190,6 +1224,7 @@ function hideHoverPreview() {
         // Suppress the zoom effect during the first render to avoid double render flicker
         suppressZoomEffectRef.current = true;
         setZoom(initialScale);
+        setCanvasScale(initialScale);
         await renderPage(initialScale);
         suppressZoomEffectRef.current = false;
 
@@ -1224,7 +1259,7 @@ function hideHoverPreview() {
       baseViewportRef.current = { width: base.width, height: base.height };
       // Do NOT override sourceDimsRef here; keep using data-derived dims when present.
       setCurrentPage(clamped);
-      await renderPage(zoom);
+      await renderPage(canvasScale);
     } catch (e) {
       console.warn('PDFViewer: failed to navigate to page', clamped, e);
     }
@@ -1237,13 +1272,13 @@ function hideHoverPreview() {
     if (!pageRef.current || !canvasRef.current) return;
     // Skip during the first render to avoid competing renders and loader flicker
     if (suppressZoomEffectRef.current) return;
-    renderPage(zoom);
+    renderPage(canvasScale);
     return () => {
       try {
         renderTaskRef.current?.cancel();
       } catch {}
     };
-  }, [zoom]);
+  }, [canvasScale]);
 
   // Fit-to-width only if explicitly requested
   useEffect(() => {
@@ -1253,7 +1288,7 @@ function hideHoverPreview() {
     if (!base) return;
     const containerWidth = containerRef.current.clientWidth;
     const targetScale = containerWidth && base.width ? containerWidth / base.width : 1;
-    setZoom(clampZoom(targetScale));
+    updateZoom(clampZoom(targetScale), true);
     didFitToWidthRef.current = true;
   }, [pdfArrayBuffer, fitToWidthInitially]);
 
@@ -1266,7 +1301,7 @@ function hideHoverPreview() {
     if (!base) return;
     const containerWidth = containerRef.current.clientWidth;
     const targetScale = containerWidth && base.width ? containerWidth / base.width : 1;
-    setZoom(clampZoom(targetScale));
+    updateZoom(clampZoom(targetScale), true);
     didFitToWidthRef.current = true;
   }, [pdfArrayBuffer]);
 
@@ -1350,6 +1385,7 @@ function hideHoverPreview() {
 
     const desiredZoom = clampZoom(1);
     setZoom(desiredZoom);
+    setCanvasScale(desiredZoom);
     setTimeout(() => {
       const cx = fRect.x + fRect.width / 2;
       const cy = fRect.y + fRect.height / 2;
@@ -1391,7 +1427,7 @@ function hideHoverPreview() {
   const handleResetZoom = () => {
     // Re-enable auto-fit behavior on future resizes after reset
     manualZoomRef.current = false;
-    setZoom(clampZoom(1));
+    updateZoom(clampZoom(1));
     if (containerRef.current) {
       containerRef.current.scrollTo({ left: 0, top: 0, behavior: 'smooth' });
     }
@@ -1498,6 +1534,16 @@ function hideHoverPreview() {
 
     void maybeSwitchPageAndCenter();
   }, [highlightBox, zoom, currentPage, canvasSize.width, canvasSize.height]);
+
+  // Cleanup animation frame on unmount
+  useEffect(() => {
+    return () => {
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current);
+        animFrameRef.current = null;
+      }
+    };
+  }, []);
 
   if (error) {
     return (
