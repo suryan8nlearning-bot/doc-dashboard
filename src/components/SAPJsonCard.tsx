@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import * as SalesSchema from "@/schemas/salesOrderCreate";
 import { motion } from "framer-motion";
 import type { DocumentData, BoundingBox } from "@/lib/supabase";
-import { createSapToSourceMapping, type SapToSourceMapping } from "@/lib/mapping";
+import { createSapToSourceMapping, type SapToSourceMapping } from "@/lib/mappingLedger";
 
 type SAPJsonCardProps = {
   data: unknown;
