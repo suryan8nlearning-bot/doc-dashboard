@@ -356,20 +356,22 @@ export function SAPJsonCard({
     const primitiveColumns = Array.from(allPrimitiveKeys);
 
     return (
-      <div className="w-full overflow-x-auto overflow-y-visible">
-        <table className="border-collapse" style={{ width: 'max-content', minWidth: '100%' }}>
+      <div className="w-full overflow-x-auto overflow-y-visible overscroll-x-contain pr-2">
+        <table className="table-auto w-full border-collapse">
           <thead>
             <tr className="border-b bg-muted/30">
-              <th className="px-3 py-2 text-left text-xs font-semibold">#</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold w-10 whitespace-nowrap">#</th>
               {primitiveColumns.map((col) => (
                 <th
                   key={col}
-                  className="px-3 py-2 text-left text-xs font-semibold whitespace-pre-wrap break-words"
+                  className="px-3 py-2 text-left text-xs font-semibold whitespace-normal break-words max-w-[12rem] align-top"
                 >
                   {col}
                 </th>
               ))}
-              <th className="px-3 py-2 text-left text-xs font-semibold">Sub-Objects</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold whitespace-normal break-words max-w-[16rem] align-top">
+                Sub-Objects
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -394,7 +396,7 @@ export function SAPJsonCard({
                   {/* Main row with primitive fields */}
                   <tr
                     key={itemPath}
-                    className="border-b hover:bg-muted/20 transition-colors"
+                    className="border-b hover:bg-muted/20 transition-colors align-top"
                   >
                     <td className="px-3 py-2 align-top">
                       <div className="flex items-center gap-2">
@@ -417,7 +419,7 @@ export function SAPJsonCard({
 
                       return (
                         <td key={col} className="px-3 py-2 align-top">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
                             {typeof val === "boolean" ? (
                               <input 
                                 type="checkbox" 
@@ -425,7 +427,7 @@ export function SAPJsonCard({
                                 onChange={(e) => {
                                   setEditedValues(prev => ({...prev, [fieldPath]: e.target.checked}));
                                 }}
-                                className="h-3.5 w-3.5"
+                                className="h-3.5 w-3.5 flex-shrink-0"
                                 onClick={(e) => e.stopPropagation()}
                               />
                             ) : (
@@ -445,7 +447,7 @@ export function SAPJsonCard({
                                   }
                                   e.stopPropagation();
                                 }}
-                                className="w-full min-w-[80px] rounded border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                                className="w-full min-w-0 max-w-[16rem] truncate rounded border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
                                 onClick={(e) => e.stopPropagation()}
                               />
                             )}
