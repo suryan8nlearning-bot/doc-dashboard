@@ -1605,29 +1605,62 @@ function hideHoverPreview() {
 
     const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
 
+    // Add a small helper near the magnifier logic
+    function expandRect(
+      box: { x: number; y: number; width: number; height: number },
+      factor: number,
+      maxW: number,
+      maxH: number
+    ) {
+      const cx = box.x + box.width / 2;
+      const cy = box.y + box.height / 2;
+      const newW = Math.max(1, box.width * factor);
+      const newH = Math.max(1, box.height * factor);
+      let x = cx - newW / 2;
+      let y = cy - newH / 2;
+      if (x < 0) x = 0;
+      if (y < 0) y = 0;
+      const width = Math.min(newW, maxW - x);
+      const height = Math.min(newH, maxH - y);
+      return { x, y, width, height };
+    }
+
     const showMagnifier = (detail: HoverDetail) => {
       const pageNum = (detail.pageNumber ?? detail.page) ?? null;
-      const raw = detail.bbox ?? detail.box;
-      if (!raw) return;
+      const bbox = detail.bbox as { x: number; y: number; width: number; height: number } | undefined;
+      if (!pageNum || !bbox) return;
 
-      const pageCanvas = getPageCanvas(pageNum);
-      if (!pageCanvas) return;
+      // Find the target page canvas to clamp the expansion
+      const pageEl = document.querySelector(`[data-page-number="${pageNum}"]`) as HTMLElement | null;
+      if (!pageEl) return;
+      const canvas = pageEl.querySelector("canvas") as HTMLCanvasElement | null;
+      if (!canvas) return;
+
+      // Expand by 50% (factor = 1.5) and clamp to canvas bounds
+      const expanded = expandRect(bbox, 1.5, canvas.width, canvas.height);
+
+      // Use 'expanded' rect for the magnifier capture instead of the raw bbox
+      // Replace any direct use of `bbox` below with `expanded`
+      // Example:
+      // const { x, y, width, height } = bbox;  // OLD
+      // becomes:
+      const { x, y, width, height } = expanded; // NEW
 
       // Convert from CSS pixels (client) to canvas pixels
-      const scaleX = pageCanvas.width / pageCanvas.clientWidth;
-      const scaleY = pageCanvas.height / pageCanvas.clientHeight;
+      const scaleX = canvas.width / canvas.clientWidth;
+      const scaleY = canvas.height / canvas.clientHeight;
 
       // Guard for zero sizing
       if (!isFinite(scaleX) || !isFinite(scaleY) || scaleX <= 0 || scaleY <= 0) return;
 
-      const sx = Math.max(0, raw.x * scaleX);
-      const sy = Math.max(0, raw.y * scaleY);
-      const sw = Math.max(1, raw.width * scaleX);
-      const sh = Math.max(1, raw.height * scaleY);
+      const sx = Math.max(0, x * scaleX);
+      const sy = Math.max(0, y * scaleY);
+      const sw = Math.max(1, width * scaleX);
+      const sh = Math.max(1, height * scaleY);
 
       // Lens size based on bbox, clamped
-      const targetW = clamp(raw.width * 2, 140, 360);
-      const targetH = clamp(raw.height * 2, 100, 260);
+      const targetW = clamp(width * 2, 140, 360);
+      const targetH = clamp(height * 2, 100, 260);
 
       // Fit bbox into lens preserving aspect ratio
       const scale = Math.min(targetW / sw, targetH / sh);
@@ -1644,7 +1677,7 @@ function hideHoverPreview() {
       // Clear and draw snapshot
       ctx.clearRect(0, 0, dw, dh);
       try {
-        ctx.drawImage(pageCanvas, sx, sy, sw, sh, 0, 0, dw, dh);
+        ctx.drawImage(canvas, sx, sy, sw, sh, 0, 0, dw, dh);
       } catch {
         // Cross-origin or rendering errors — fail silently
         return;
@@ -1688,8 +1721,74 @@ function hideHoverPreview() {
 
     const showHandlers: Array<(e: Event) => void> = showEventNames.map(() => (e: Event) => {
       const ce = e as CustomEvent<any>;
-      if (!ce?.detail) return;
-      showMagnifier(ce.detail as HoverDetail);
+      const detail = ce.detail || {};
+      const pageNumber: number | undefined = detail.pageNumber ?? detail.page;
+      const bbox = detail.bbox as { x: number; y: number; width: number; height: number } | undefined;
+      if (!pageNumber || !bbox) return;
+
+      // Find the target page canvas to clamp the expansion
+      const pageEl = document.querySelector(`[data-page-number="${pageNumber}"]`) as HTMLElement | null;
+      if (!pageEl) return;
+      const canvas = pageEl.querySelector("canvas") as HTMLCanvasElement | null;
+      if (!canvas) return;
+
+      // Expand by 50% (factor = 1.5) and clamp to canvas bounds
+      const expanded = expandRect(bbox, 1.5, canvas.width, canvas.height);
+
+      // Use 'expanded' rect for the magnifier capture instead of the raw bbox
+      // Replace any direct use of `bbox` below with `expanded`
+      // Example:
+      // const { x, y, width, height } = bbox;  // OLD
+      // becomes:
+      const { x, y, width, height } = expanded; // NEW
+
+      // Convert from CSS pixels (client) to canvas pixels
+      const scaleX = canvas.width / canvas.clientWidth;
+      const scaleY = canvas.height / canvas.clientHeight;
+
+      // Guard for zero sizing
+      if (!isFinite(scaleX) || !isFinite(scaleY) || scaleX <= 0 || scaleY <= 0) return;
+
+      const sx = Math.max(0, x * scaleX);
+      const sy = Math.max(0, y * scaleY);
+      const sw = Math.max(1, width * scaleX);
+      const sh = Math.max(1, height * scaleY);
+
+      // Lens size based on bbox, clamped
+      const targetW = clamp(width * 2, 140, 360);
+      const targetH = clamp(height * 2, 100, 260);
+
+      // Fit bbox into lens preserving aspect ratio
+      const scale = Math.min(targetW / sw, targetH / sh);
+      const dw = Math.max(1, Math.floor(sw * scale));
+      const dh = Math.max(1, Math.floor(sh * scale));
+
+      canvas.width = dw;
+      canvas.height = dh;
+
+      // High quality scaling
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+
+      // Clear and draw snapshot
+      ctx.clearRect(0, 0, dw, dh);
+      try {
+        ctx.drawImage(canvas, sx, sy, sw, sh, 0, 0, dw, dh);
+      } catch {
+        // Cross-origin or rendering errors — fail silently
+        return;
+      }
+
+      // Style & show
+      overlay.style.width = `${dw}px`;
+      overlay.style.height = `${dh}px`;
+      overlay.style.display = "block";
+
+      // Keep visible while hovering
+      if (hideTimer) {
+        window.clearTimeout(hideTimer);
+        hideTimer = null;
+      }
     });
 
     const hideHandlers: Array<(e: Event) => void> = hideEventNames.map(() => (e: Event) => {
