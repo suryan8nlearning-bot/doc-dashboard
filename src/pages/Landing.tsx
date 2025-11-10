@@ -197,11 +197,14 @@ export default function Landing() {
             )}
 
             {sapData ? (
-              <SAPJsonCard
-                data={sapData}
-                title="SAP Output"
-                defaultCollapsed={false}
-              />
+              <div className="rounded-lg border bg-card shadow-sm">
+                <SAPJsonCard
+                  data={sapData}
+                  title="SAP Output"
+                  defaultCollapsed={false}
+                  className="border-0 shadow-none"
+                />
+              </div>
             ) : (
               <div className="text-sm text-muted-foreground">
                 Click "Load Latest" to view the latest document's SAP output.

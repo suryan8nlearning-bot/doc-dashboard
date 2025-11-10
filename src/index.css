@@ -169,12 +169,39 @@
   display: none;
 }
 
-/* Ensure SAP pane content is interactive and wraps correctly without horizontal scroll */
+/* Ensure SAP pane content is interactive and wraps correctly with horizontal scroll */
 [data-sap-interactive] {
   /* Prevent auto scroll jumps when expanding/collapsing sub-objects */
   overflow-anchor: none;
   /* Allow horizontal scroll when many columns are present */
+  overflow-x: visible;
+}
+
+/* Make table containers horizontally scrollable with smooth scrolling */
+[data-sap-interactive] .overflow-x-auto {
   overflow-x: auto;
+  overflow-y: visible;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Style scrollbar for table containers */
+[data-sap-interactive] .overflow-x-auto::-webkit-scrollbar {
+  height: 8px;
+}
+
+[data-sap-interactive] .overflow-x-auto::-webkit-scrollbar-track {
+  background: var(--muted);
+  border-radius: var(--radius);
+}
+
+[data-sap-interactive] .overflow-x-auto::-webkit-scrollbar-thumb {
+  background: var(--muted-foreground);
+  border-radius: var(--radius);
+}
+
+[data-sap-interactive] .overflow-x-auto::-webkit-scrollbar-thumb:hover {
+  background: var(--foreground);
 }
 
 [data-sap-interactive] :is(div, span, p, code, pre) {

@@ -10,7 +10,7 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
     >
       <table
         data-slot="table"
-        className={cn("w-full caption-bottom text-sm", className)}
+        className={cn("w-full min-w-max caption-bottom text-sm", className)}
         {...props}
       />
     </div>
@@ -101,6 +101,19 @@ function TableCaption({
     />
   )
 }
+
+export const TableContainer = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    data-slot="table-container"
+    className={cn("w-full overflow-x-auto", className)}
+    {...props}
+  />
+));
+TableContainer.displayName = "TableContainer";
 
 export {
   Table,
