@@ -1560,6 +1560,158 @@ function hideHoverPreview() {
     };
   }, []);
 
+  // New effect: Global magnifier zoom overlay tied to bbox hover events
+  useEffect(() => {
+    // Helper: create a single overlay appended to body
+    const overlay = document.createElement("div");
+    overlay.style.position = "fixed";
+    overlay.style.left = "16px";
+    overlay.style.bottom = "16px";
+    overlay.style.zIndex = "9999";
+    overlay.style.pointerEvents = "none";
+    overlay.style.borderRadius = "12px";
+    overlay.style.boxShadow = "0 10px 30px rgba(0,0,0,0.25)";
+    overlay.style.border = "1px solid rgba(0,0,0,0.15)";
+    overlay.style.background = "color-mix(in oklab, Canvas 85%, transparent)";
+    overlay.style.backdropFilter = "blur(4px)";
+    overlay.style.display = "none";
+
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    overlay.appendChild(canvas);
+    document.body.appendChild(overlay);
+
+    let hideTimer: number | null = null;
+
+    type Box = { x: number; y: number; width: number; height: number };
+    type HoverDetail = { pageNumber?: number; page?: number; bbox?: Box; box?: Box };
+
+    // Resolve page canvas based on page number
+    const getPageCanvas = (pageNum?: number | null): HTMLCanvasElement | null => {
+      if (!pageNum && pageNum !== 0) {
+        // try current visible canvas as a fallback
+        const visible = document.querySelector<HTMLCanvasElement>(".page canvas, [data-page-number] canvas");
+        return visible ?? null;
+      }
+      // Try both selectors to be resilient
+      return (
+        document.querySelector<HTMLCanvasElement>(`.page[data-page-number="${pageNum}"] canvas`) ||
+        document.querySelector<HTMLCanvasElement>(`[data-page-number="${pageNum}"] canvas`) ||
+        document.querySelector<HTMLCanvasElement>(`.page canvas`)
+      );
+    };
+
+    const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
+
+    const showMagnifier = (detail: HoverDetail) => {
+      const pageNum = (detail.pageNumber ?? detail.page) ?? null;
+      const raw = detail.bbox ?? detail.box;
+      if (!raw) return;
+
+      const pageCanvas = getPageCanvas(pageNum);
+      if (!pageCanvas) return;
+
+      // Convert from CSS pixels (client) to canvas pixels
+      const scaleX = pageCanvas.width / pageCanvas.clientWidth;
+      const scaleY = pageCanvas.height / pageCanvas.clientHeight;
+
+      // Guard for zero sizing
+      if (!isFinite(scaleX) || !isFinite(scaleY) || scaleX <= 0 || scaleY <= 0) return;
+
+      const sx = Math.max(0, raw.x * scaleX);
+      const sy = Math.max(0, raw.y * scaleY);
+      const sw = Math.max(1, raw.width * scaleX);
+      const sh = Math.max(1, raw.height * scaleY);
+
+      // Lens size based on bbox, clamped
+      const targetW = clamp(raw.width * 2, 140, 360);
+      const targetH = clamp(raw.height * 2, 100, 260);
+
+      // Fit bbox into lens preserving aspect ratio
+      const scale = Math.min(targetW / sw, targetH / sh);
+      const dw = Math.max(1, Math.floor(sw * scale));
+      const dh = Math.max(1, Math.floor(sh * scale));
+
+      canvas.width = dw;
+      canvas.height = dh;
+
+      // High quality scaling
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+
+      // Clear and draw snapshot
+      ctx.clearRect(0, 0, dw, dh);
+      try {
+        ctx.drawImage(pageCanvas, sx, sy, sw, sh, 0, 0, dw, dh);
+      } catch {
+        // Cross-origin or rendering errors — fail silently
+        return;
+      }
+
+      // Style & show
+      overlay.style.width = `${dw}px`;
+      overlay.style.height = `${dh}px`;
+      overlay.style.display = "block";
+
+      // Keep visible while hovering
+      if (hideTimer) {
+        window.clearTimeout(hideTimer);
+        hideTimer = null;
+      }
+    };
+
+    const hideMagnifier = () => {
+      if (hideTimer) window.clearTimeout(hideTimer);
+      hideTimer = window.setTimeout(() => {
+        overlay.style.display = "none";
+      }, 120) as unknown as number;
+    };
+
+    // Support multiple possible event names used elsewhere in the app
+    const showEventNames = [
+      "doc-hover-bbox",
+      "pdf:highlightHover",
+      "sap:hoverField",
+      "field:hover",
+      "box:hover",
+    ];
+    const hideEventNames = [
+      "doc-hover-clear",
+      "pdf:highlightClear",
+      "sap:hoverClear",
+      "field:hover:clear",
+      "box:hover:clear",
+      "mouseleave", // generic
+    ];
+
+    const showHandlers: Array<(e: Event) => void> = showEventNames.map(() => (e: Event) => {
+      const ce = e as CustomEvent<any>;
+      if (!ce?.detail) return;
+      showMagnifier(ce.detail as HoverDetail);
+    });
+
+    const hideHandlers: Array<(e: Event) => void> = hideEventNames.map(() => (e: Event) => {
+  hideMagnifier();
+});
+
+    // Register
+    showEventNames.forEach((name, i) => window.addEventListener(name, showHandlers[i] as EventListener, { passive: true }));
+    hideEventNames.forEach((name, i) => window.addEventListener(name, hideHandlers[i] as EventListener, { passive: true }));
+
+    // Also hide when user scrolls the document to avoid stale lens
+    const onScroll = () => hideMagnifier();
+    window.addEventListener("scroll", onScroll, { passive: true });
+
+    return () => {
+      showEventNames.forEach((name, i) => window.removeEventListener(name, showHandlers[i] as EventListener));
+      hideEventNames.forEach((name, i) => window.removeEventListener(name, hideHandlers[i] as EventListener));
+      window.removeEventListener("scroll", onScroll);
+      overlay.remove();
+    };
+  }, []);
+
   if (error) {
     return (
       <div className="h-full flex items-center justify-center bg-muted/30">

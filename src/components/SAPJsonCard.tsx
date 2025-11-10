@@ -949,3 +949,59 @@ export function SAPJsonCard({
     </div>
   );
 }
+
+// Global once-per-load delegation to emit zoom events from elements that already have bbox data.
+// This ensures the magnifier works with "all hoverings" without invasive changes.
+declare global {
+  interface Window { __sapZoomDelegationSetup?: boolean }
+}
+if (typeof window !== "undefined" && !window.__sapZoomDelegationSetup) {
+  window.__sapZoomDelegationSetup = true;
+
+  const findBBoxFromEl = (el: HTMLElement | null) => {
+    let cur: HTMLElement | null = el;
+    while (cur) {
+      const ds = cur.dataset as any;
+      // Look for common data attributes where bbox may be stored as JSON or numbers
+      const json = ds.pdfBbox || ds.bbox || ds.box;
+      if (json) {
+        try {
+          const parsed = typeof json === "string" ? JSON.parse(json) : json;
+          // expect shape: { x, y, width, height, page|pageNumber }
+          if (parsed && typeof parsed === "object") {
+            const { x, y, width, height } = parsed;
+            const pageNumber = parsed.pageNumber ?? parsed.page;
+            if ([x, y, width, height].every((n: any) => typeof n === "number")) {
+              return { pageNumber, bbox: { x, y, width, height } };
+            }
+          }
+        } catch {
+          // ignore malformed
+        }
+      }
+      cur = cur.parentElement;
+    }
+    return null;
+  };
+
+  const onOver = (e: Event) => {
+    const t = e.target as HTMLElement | null;
+    if (!t) return;
+    // limit to SAP viewer area if present
+    const container = t.closest("[data-sap-interactive]");
+    if (!container) return;
+    const hit = findBBoxFromEl(t);
+    if (!hit) return;
+    window.dispatchEvent(new CustomEvent("doc-hover-bbox", { detail: hit }));
+  };
+
+  const onOut = (e: Event) => {
+    const t = e.target as HTMLElement | null;
+    if (!t) return;
+    if (!t.closest("[data-sap-interactive]")) return;
+    window.dispatchEvent(new CustomEvent("doc-hover-clear", { detail: {} }));
+  };
+
+  document.addEventListener("mouseover", onOver, true);
+  document.addEventListener("mouseout", onOut, true);
+}
