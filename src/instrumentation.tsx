@@ -54,6 +54,90 @@ async function reportErrorToVly(errorData: {
   }
 }
 
+/**
+ * Global hover linking between SAP pane, Document fields, and PDF viewer.
+ * Any element containing a bbox-like data attribute will emit shared events:
+ *  - "doc-hover-bbox" on hover/focus
+ *  - "doc-hover-clear" on leave/blur
+ * Also mirrors to legacy "pdf:highlightHover"/"pdf:highlightClear".
+ */
+declare global {
+  interface Window {
+    __hoverLinkSetup?: boolean;
+  }
+}
+
+if (typeof window !== "undefined" && !window.__hoverLinkSetup) {
+  window.__hoverLinkSetup = true;
+
+  const attrSelectors =
+    '[data-bbox],[data-sap-bbox],[data-doc-bbox],[data-pdf-bbox],[data-bounds],[data-rect],[data-bbox-left]';
+
+  const parseBBox = (el: Element | null): any | null => {
+    if (!el) return null;
+
+    // Try JSON-shaped attributes first
+    const jsonAttrs: Array<string> = [
+      "data-bbox",
+      "data-sap-bbox",
+      "data-doc-bbox",
+      "data-pdf-bbox",
+      "data-bounds",
+      "data-rect",
+    ];
+    for (const name of jsonAttrs) {
+      const raw = el.getAttribute(name);
+      if (raw) {
+        try {
+          return JSON.parse(raw);
+        } catch {
+          // ignore and keep trying
+        }
+      }
+    }
+
+    // Fallback: discrete numeric attributes
+    const left = el.getAttribute("data-bbox-left");
+    const top = el.getAttribute("data-bbox-top");
+    const width = el.getAttribute("data-bbox-width");
+    const height = el.getAttribute("data-bbox-height");
+    const page = el.getAttribute("data-bbox-page");
+    if (left && top && width && height) {
+      return {
+        page: page ? Number(page) : undefined,
+        left: Number(left),
+        top: Number(top),
+        width: Number(width),
+        height: Number(height),
+      };
+    }
+    return null;
+  };
+
+  const onOver = (evt: Event) => {
+    const target = evt.target as Element | null;
+    if (!target) return;
+    const source = target.closest(attrSelectors) as Element | null;
+    const bbox = parseBBox(source);
+    if (!bbox) return;
+
+    const detail = { bbox, sourceEl: source } as any;
+    window.dispatchEvent(new CustomEvent("doc-hover-bbox", { detail }));
+    window.dispatchEvent(new CustomEvent("pdf:highlightHover", { detail }));
+  };
+
+  const onOut = () => {
+    window.dispatchEvent(new CustomEvent("doc-hover-clear"));
+    window.dispatchEvent(new CustomEvent("pdf:highlightClear"));
+  };
+
+  // Use capture phase so deeply nested table/cell content is handled without per-cell handlers
+  document.addEventListener("mouseover", onOver, true);
+  document.addEventListener("focusin", onOver, true);
+  document.addEventListener("mouseout", onOut, true);
+  document.addEventListener("focusout", onOut, true);
+}
+
 function ErrorDialog({
   error,
   setError,
