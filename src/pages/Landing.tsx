@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router';
 import { useEffect } from 'react';
 import { SAPJsonCard } from "@/components/SAPJsonCard";
 import { supabase, hasSupabaseEnv } from "@/lib/supabase";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function Landing() {
   const { isLoading, isAuthenticated, user } = useAuth();
@@ -18,6 +19,7 @@ export default function Landing() {
   const [sapData, setSapData] = useState<any | null>(null);
   const [sapLoading, setSapLoading] = useState<boolean>(false);
   const [sapError, setSapError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"preview" | "data">("preview");
 
   useEffect(() => {
     const update = () => setIsOnline(navigator.onLine);
@@ -92,6 +94,15 @@ export default function Landing() {
             <span className="text-xl font-bold tracking-tight">DocuVision</span>
           </div>
           <div className="flex items-center gap-3">
+            <Select value={viewMode} onValueChange={(v) => setViewMode(v as "preview" | "data")}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Select view" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="preview">Only Preview</SelectItem>
+                <SelectItem value="data">Only Data</SelectItem>
+              </SelectContent>
+            </Select>
             {isAuthenticated && user && (
               <LogoDropdown />
             )}
@@ -120,81 +131,85 @@ export default function Landing() {
         </div>
       </header>
 
-      <motion.section
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="container mx-auto px-4 py-20 text-center"
-      >
-        <h1 className="text-5xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-          Doc Dashboard
-        </h1>
-        <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-          Manage your SAP documents with ease. View, edit, and organize your document data in one place.
-        </p>
-        <div className="flex gap-4 justify-center">
-          {isAuthenticated ? (
-            <Button asChild size="lg">
-              <Link to="/dashboard">Go to Dashboard</Link>
-            </Button>
-          ) : (
-            <Button asChild size="lg">
-              <Link to="/auth">Get Started</Link>
-            </Button>
-          )}
-        </div>
-      </motion.section>
-
-      <motion.section
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.1 }}
-        className="container mx-auto px-4 pb-16"
-      >
-        <div className="max-w-5xl mx-auto space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-semibold">SAP Output</h2>
-            <Button
-              size="sm"
-              onClick={loadLatestSap}
-              disabled={sapLoading}
-              className="gap-2"
-              title="Load latest document's SAP data"
-            >
-              {sapLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {sapLoading ? "Loading..." : "Load Latest"}
-            </Button>
+      {viewMode === "preview" && (
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="container mx-auto px-4 py-20 text-center"
+        >
+          <h1 className="text-5xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+            Doc Dashboard
+          </h1>
+          <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
+            Manage your SAP documents with ease. View, edit, and organize your document data in one place.
+          </p>
+          <div className="flex gap-4 justify-center">
+            {isAuthenticated ? (
+              <Button asChild size="lg">
+                <Link to="/dashboard">Go to Dashboard</Link>
+              </Button>
+            ) : (
+              <Button asChild size="lg">
+                <Link to="/auth">Get Started</Link>
+              </Button>
+            )}
           </div>
+        </motion.section>
+      )}
 
-          {!hasSupabaseEnv && (
-            <Alert variant="destructive">
-              <AlertTitle>Supabase not configured</AlertTitle>
-              <AlertDescription>
-                Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in the API keys tab to fetch SAP data.
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {sapError && (
-            <Alert variant="destructive">
-              <AlertTitle>Unable to load</AlertTitle>
-              <AlertDescription>{sapError}</AlertDescription>
-            </Alert>
-          )}
-
-          {sapData ? (
-            <SAPJsonCard
-              data={sapData}
-              title="SAP Output"
-              defaultCollapsed={false}
-            />
-          ) : (
-            <div className="text-sm text-muted-foreground">
-              Click "Load Latest" to view the latest document's SAP output.
+      {viewMode === "data" && (
+        <motion.section
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.1 }}
+          className="container mx-auto px-4 pb-16"
+        >
+          <div className="max-w-5xl mx-auto space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-semibold">SAP Output</h2>
+              <Button
+                size="sm"
+                onClick={loadLatestSap}
+                disabled={sapLoading}
+                className="gap-2"
+                title="Load latest document's SAP data"
+              >
+                {sapLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {sapLoading ? "Loading..." : "Load Latest"}
+              </Button>
             </div>
-          )}
-        </div>
-      </motion.section>
+
+            {!hasSupabaseEnv && (
+              <Alert variant="destructive">
+                <AlertTitle>Supabase not configured</AlertTitle>
+                <AlertDescription>
+                  Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in the API keys tab to fetch SAP data.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {sapError && (
+              <Alert variant="destructive">
+                <AlertTitle>Unable to load</AlertTitle>
+                <AlertDescription>{sapError}</AlertDescription>
+              </Alert>
+            )}
+
+            {sapData ? (
+              <SAPJsonCard
+                data={sapData}
+                title="SAP Output"
+                defaultCollapsed={false}
+              />
+            ) : (
+              <div className="text-sm text-muted-foreground">
+                Click "Load Latest" to view the latest document's SAP output.
+              </div>
+            )}
+          </div>
+        </motion.section>
+      )}
     </div>
   );
 }
